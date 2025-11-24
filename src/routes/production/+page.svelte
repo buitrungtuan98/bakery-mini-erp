@@ -52,6 +52,7 @@
     let customScaleValue = 1;
     
     // UI State
+    let activeTab: 'create' | 'history' = 'create';
     let isProductModalOpen = false;
 
     let historyLimit = 10;
@@ -277,148 +278,158 @@
 <div class="max-w-4xl mx-auto pb-24">
     <h1 class="text-2xl font-bold text-primary mb-4 px-2">Sản xuất (Production)</h1>
 
-    {#if errorMsg}
-        <div role="alert" class="alert alert-error mb-4 mx-2">
-            <span>{errorMsg}</span>
-        </div>
-    {/if}
-
-    <!-- 1. Select Product & Date -->
-    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4 mx-2">
-        <div class="form-control mb-4" on:click={() => isProductModalOpen = true}>
-            <label class="label"><span class="label-text">Sản phẩm (Công thức)</span></label>
-            <div class="flex items-center justify-between border rounded-lg p-3 bg-slate-50">
-                {#if selectedProduct}
-                    <span class="font-bold">{selectedProduct.name}</span>
-                {:else}
-                    <span class="text-slate-400">Chọn công thức...</span>
-                {/if}
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
-            </div>
-        </div>
-
-        <div class="form-control">
-            <label class="label"><span class="label-text">Ngày SX</span></label>
-            <input type="date" bind:value={productionDate} class="input input-bordered w-full" />
-        </div>
+    <!-- TABS -->
+    <div role="tablist" class="tabs tabs-boxed mx-2 mb-4 bg-base-200">
+        <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Lệnh Sản xuất</a>
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
-    {#if selectedProductId}
-        <!-- 2. Scale & Yield -->
+    {#if activeTab === 'create'}
+        {#if errorMsg}
+            <div role="alert" class="alert alert-error mb-4 mx-2">
+                <span>{errorMsg}</span>
+            </div>
+        {/if}
+
+        <!-- 1. Select Product & Date -->
         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4 mx-2">
-            <div class="grid grid-cols-2 gap-4">
-                 <div class="form-control col-span-2 sm:col-span-1">
-                    <label class="label"><span class="label-text text-xs">Tỉ lệ (Scale)</span></label>
-                    <div class="flex gap-2">
-                        <select bind:value={batchScale} on:change={handleScaleChange} class="select select-bordered select-sm w-full font-bold text-primary">
-                            <option value={0.25}>0.25x (1/4 mẻ)</option>
-                            <option value={0.33333333}>0.33x (1/3 mẻ)</option>
-                            <option value={0.5}>0.5x (1/2 mẻ)</option>
-                            <option value={1}>1x (Chuẩn)</option>
-                            <option value={1.5}>1.5x</option>
-                            <option value={2}>2x (Nhân đôi)</option>
-                            <option value={3}>3x</option>
-                            <option value={4}>4x</option>
-                            <option value={5}>5x</option>
-                            <option value={-1}>Tùy chỉnh...</option>
-                        </select>
-                        {#if batchScale === -1}
-                            <input
-                                type="number"
-                                step="0.1"
-                                min="0.1"
-                                bind:value={customScaleValue}
-                                on:input={handleScaleChange}
-                                class="input input-bordered input-sm w-24 font-bold text-primary"
-                            />
-                        {/if}
-                    </div>
+            <div class="form-control mb-4" on:click={() => isProductModalOpen = true}>
+                <label class="label"><span class="label-text">Sản phẩm (Công thức)</span></label>
+                <div class="flex items-center justify-between border rounded-lg p-3 bg-slate-50">
+                    {#if selectedProduct}
+                        <span class="font-bold">{selectedProduct.name}</span>
+                    {:else}
+                        <span class="text-slate-400">Chọn công thức...</span>
+                    {/if}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                 </div>
-                <div class="form-control col-span-2 sm:col-span-1">
-                    <label class="label"><span class="label-text text-xs">Thành phẩm (Yield)</span></label>
-                    <input type="number" bind:value={actualYield} class="input input-bordered input-sm w-full font-bold text-center" />
-                </div>
+            </div>
+
+            <div class="form-control">
+                <label class="label"><span class="label-text">Ngày SX</span></label>
+                <input type="date" bind:value={productionDate} class="input input-bordered w-full" />
             </div>
         </div>
 
-        <!-- 3. Inputs List (Clean) -->
-        <div class="mx-2 mb-4 bg-white rounded-lg border border-slate-100 overflow-hidden">
-             <div class="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 uppercase flex justify-between">
-                <span>Nguyên liệu</span>
-                <span>Thực dùng</span>
-             </div>
-            <div class="divide-y divide-slate-50">
-                {#each productionInputs as input}
-                    {@const ing = ingredients.find(i => i.id === input.ingredientId)}
-                    <div class="p-3 flex justify-between items-center">
-                        <div>
-                            <div class="font-medium text-slate-800 text-sm">{ing?.name}</div>
-                            <div class="text-[10px] text-slate-400">Kho: {ing?.currentStock} {ing?.baseUnit}</div>
-                        </div>
-                        <div class="flex items-center gap-1">
-                            <input
-                                type="number"
-                                bind:value={input.actualQuantityUsed}
-                                class="input input-bordered input-xs w-20 text-right font-bold"
-                            />
-                            <span class="text-xs text-slate-400 w-6 text-center">{ing?.baseUnit}</span>
+        {#if selectedProductId}
+            <!-- 2. Scale & Yield -->
+            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4 mx-2">
+                <div class="grid grid-cols-2 gap-4">
+                     <div class="form-control col-span-2 sm:col-span-1">
+                        <label class="label"><span class="label-text text-xs">Tỉ lệ (Scale)</span></label>
+                        <div class="flex gap-2">
+                            <select bind:value={batchScale} on:change={handleScaleChange} class="select select-bordered select-sm w-full font-bold text-primary">
+                                <option value={0.25}>0.25x (1/4 mẻ)</option>
+                                <option value={0.33333333}>0.33x (1/3 mẻ)</option>
+                                <option value={0.5}>0.5x (1/2 mẻ)</option>
+                                <option value={1}>1x (Chuẩn)</option>
+                                <option value={1.5}>1.5x</option>
+                                <option value={2}>2x (Nhân đôi)</option>
+                                <option value={3}>3x</option>
+                                <option value={4}>4x</option>
+                                <option value={5}>5x</option>
+                                <option value={-1}>Tùy chỉnh...</option>
+                            </select>
+                            {#if batchScale === -1}
+                                <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0.1"
+                                    bind:value={customScaleValue}
+                                    on:input={handleScaleChange}
+                                    class="input input-bordered input-sm w-24 font-bold text-primary"
+                                />
+                            {/if}
                         </div>
                     </div>
+                    <div class="form-control col-span-2 sm:col-span-1">
+                        <label class="label"><span class="label-text text-xs">Thành phẩm (Yield)</span></label>
+                        <input type="number" bind:value={actualYield} class="input input-bordered input-sm w-full font-bold text-center" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Inputs List (Clean) -->
+            <div class="mx-2 mb-4 bg-white rounded-lg border border-slate-100 overflow-hidden">
+                 <div class="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 uppercase flex justify-between">
+                    <span>Nguyên liệu</span>
+                    <span>Thực dùng</span>
+                 </div>
+                <div class="divide-y divide-slate-50">
+                    {#each productionInputs as input}
+                        {@const ing = ingredients.find(i => i.id === input.ingredientId)}
+                        <div class="p-3 flex justify-between items-center">
+                            <div>
+                                <div class="font-medium text-slate-800 text-sm">{ing?.name}</div>
+                                <div class="text-[10px] text-slate-400">Kho: {ing?.currentStock} {ing?.baseUnit}</div>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <input
+                                    type="number"
+                                    bind:value={input.actualQuantityUsed}
+                                    class="input input-bordered input-xs w-20 text-right font-bold"
+                                />
+                                <span class="text-xs text-slate-400 w-6 text-center">{ing?.baseUnit}</span>
+                            </div>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+
+            <!-- 4. Summary & Action -->
+            <div class="bg-white p-4 mx-2 rounded-lg border border-slate-200 shadow-sm mb-6">
+                 <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm text-slate-500">Tổng chi phí NVL:</span>
+                    <span class="font-bold text-error">{totalActualCost.toLocaleString()} đ</span>
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-sm text-slate-500">Giá vốn / SP:</span>
+                    <span class="font-bold text-accent">{Math.round(actualCostPerUnit).toLocaleString()} đ</span>
+                </div>
+
+                <button
+                    class="btn btn-primary w-full shadow-lg"
+                    on:click={handleProduction}
+                    disabled={processing || actualYield <= 0}
+                >
+                    {processing ? 'Đang xử lý...' : 'HOÀN TẤT & TRỪ KHO'}
+                </button>
+            </div>
+        {/if}
+    {/if} <!-- End Create Tab -->
+
+    {#if activeTab === 'history'}
+        <!-- History (Simplified with Pagination) -->
+        <div class="mx-2 mt-4 pb-10">
+            <div class="flex justify-between items-center mb-2">
+                 <h3 class="font-bold text-slate-700">Lịch sử sản xuất</h3>
+                 <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost">
+                     <option value={10}>10 dòng</option>
+                     <option value={20}>20 dòng</option>
+                     <option value={30}>30 dòng</option>
+                 </select>
+            </div>
+
+            <div class="space-y-2">
+                {#each productionHistory as run}
+                     <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                         <div>
+                             <div class="font-bold text-sm text-slate-800">{run.productName}</div>
+                             <div class="text-xs text-slate-400 mt-1">
+                                 {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
+                                 <span class="mx-1">•</span>
+                                 <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
+                             </div>
+                         </div>
+                         <button
+                            class="btn btn-xs btn-ghost text-red-400"
+                            on:click={() => handleDeleteRun(run)}
+                        >Xóa</button>
+                     </div>
                 {/each}
             </div>
         </div>
-
-        <!-- 4. Summary & Action -->
-        <div class="bg-white p-4 mx-2 rounded-lg border border-slate-200 shadow-sm mb-6">
-             <div class="flex justify-between items-center mb-2">
-                <span class="text-sm text-slate-500">Tổng chi phí NVL:</span>
-                <span class="font-bold text-error">{totalActualCost.toLocaleString()} đ</span>
-            </div>
-            <div class="flex justify-between items-center mb-4">
-                <span class="text-sm text-slate-500">Giá vốn / SP:</span>
-                <span class="font-bold text-accent">{Math.round(actualCostPerUnit).toLocaleString()} đ</span>
-            </div>
-
-            <button
-                class="btn btn-primary w-full shadow-lg"
-                on:click={handleProduction}
-                disabled={processing || actualYield <= 0}
-            >
-                {processing ? 'Đang xử lý...' : 'HOÀN TẤT & TRỪ KHO'}
-            </button>
-        </div>
-    {/if}
-
-    <!-- History (Simplified with Pagination) -->
-    <div class="mx-2 mt-8 pb-10">
-        <div class="flex justify-between items-center mb-2">
-             <h3 class="font-bold text-slate-700">Lịch sử sản xuất</h3>
-             <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost">
-                 <option value={10}>10 dòng</option>
-                 <option value={20}>20 dòng</option>
-                 <option value={30}>30 dòng</option>
-             </select>
-        </div>
-
-        <div class="space-y-2">
-            {#each productionHistory as run}
-                 <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
-                     <div>
-                         <div class="font-bold text-sm text-slate-800">{run.productName}</div>
-                         <div class="text-xs text-slate-400 mt-1">
-                             {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
-                             <span class="mx-1">•</span>
-                             <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
-                         </div>
-                     </div>
-                     <button
-                        class="btn btn-xs btn-ghost text-red-400"
-                        on:click={() => handleDeleteRun(run)}
-                    >Xóa</button>
-                 </div>
-            {/each}
-        </div>
-    </div>
+    {/if} <!-- End History Tab -->
 
 </div>
 

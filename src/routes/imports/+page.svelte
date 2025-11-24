@@ -36,6 +36,7 @@
 	let importItems: ImportItem[] = [];
 
     // UI State
+    let activeTab: 'create' | 'history' = 'history'; // Default to history potentially, logic below handles switch
     let isItemModalOpen = false;
     let editingIndex = -1;
     let editingItem: ImportItem = { ingredientId: '', quantity: 0, price: 0 };
@@ -67,6 +68,17 @@
     
     $: if ($authStore.user && !isDataFetched) {
         fetchImportData();
+    }
+
+    // Set default tab based on permission
+    $: if ($userPermissions) {
+         if ($userPermissions.has('manage_imports')) {
+             if (activeTab === 'history' && !isDataFetched) { // Initial load
+                 activeTab = 'create';
+             }
+         } else {
+             activeTab = 'history';
+         }
     }
 
     onDestroy(() => { if (unsubscribe) unsubscribe(); });
@@ -187,136 +199,145 @@
 <div class="max-w-7xl mx-auto pb-24">
     <h1 class="text-2xl font-bold text-primary mb-6">Nhập Kho (Imports)</h1>
     
-    {#if $userPermissions.has('manage_imports')}
-    <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8 p-4">
-        <h2 class="card-title text-lg border-b pb-2 mb-4">Tạo Phiếu Nhập</h2>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div class="form-control w-full">
-                <label class="label"><span class="label-text">Ngày Nhập</span></label>
-                <input type="date" bind:value={importDate} class="input input-bordered w-full" />
-            </div>
-
-            <div class="form-control w-full">
-                <label class="label"><span class="label-text">Nhà cung cấp</span></label>
-                <select 
-                    bind:value={selectedSupplierId} 
-                    class="select select-bordered w-full"
-                    disabled={loading}
-                >
-                    <option value="" disabled selected>-- Chọn Nhà cung cấp --</option>
-                    {#each suppliers as partner}
-                        <option value={partner.id}>{partner.name}</option>
-                    {/each}
-                </select>
-            </div>
-        </div>
-
-        <!-- Items List (Card Style) -->
-        <div class="space-y-3 mb-4">
-            {#each importItems as item, i}
-                <div class="bg-base-50 p-3 rounded-lg border border-slate-200 relative" on:click={() => openEditItem(i)}>
-                    <div class="font-bold text-slate-700">{item.tempIngredient?.name || 'Chọn NVL...'}</div>
-                    <div class="flex justify-between items-end mt-1">
-                        <div class="text-sm">
-                            {item.quantity} <span class="text-gray-500">{item.tempIngredient?.baseUnit}</span>
-                        </div>
-                        <div class="text-primary font-bold">
-                            {item.price.toLocaleString()} đ
-                        </div>
-                    </div>
-                    <div class="text-xs text-gray-400 mt-1 text-right">Chạm để sửa</div>
-                </div>
-            {/each}
-
-            {#if importItems.length === 0}
-                <div class="text-center py-6 border-2 border-dashed border-base-300 rounded-lg text-gray-400">
-                    Chưa có dòng hàng nào.
-                </div>
-            {/if}
-        </div>
-
-        <div class="flex justify-between items-center mt-4 border-t pt-4">
-            <button class="btn btn-sm btn-outline" on:click={openAddItem}>+ Thêm Dòng</button>
-            <div class="text-lg font-bold text-success">
-                {totalAmount.toLocaleString()} đ
-            </div>
-        </div>
-
-        <button class="btn btn-primary w-full mt-6" on:click={handleImport} disabled={processing}>
-            {#if processing}<span class="loading loading-spinner"></span>{/if}
-            Lưu Phiếu & Nhập Kho
-        </button>
+    <!-- TABS -->
+    <div role="tablist" class="tabs tabs-boxed mb-6 bg-base-200">
+        {#if $userPermissions.has('manage_imports')}
+            <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Tạo Phiếu Nhập</a>
+        {/if}
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
-    {/if}
 
-    <h2 class="text-xl font-bold mb-4">Lịch sử Phiếu nhập</h2>
-    {#if loading}
-        <div class="text-center py-10">Đang tải...</div>
-    {:else}
-        <ResponsiveTable>
-            <svelte:fragment slot="mobile">
-                {#each importHistory as receipt}
-                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 mb-3">
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <div class="font-bold">{receipt.supplierName}</div>
-                                <div class="text-xs text-gray-400">{receipt.importDate?.toDate().toLocaleDateString('vi-VN')}</div>
+    {#if activeTab === 'create' && $userPermissions.has('manage_imports')}
+        <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8 p-4">
+            <!-- <h2 class="card-title text-lg border-b pb-2 mb-4">Tạo Phiếu Nhập</h2> -->
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="form-control w-full">
+                    <label class="label"><span class="label-text">Ngày Nhập</span></label>
+                    <input type="date" bind:value={importDate} class="input input-bordered w-full" />
+                </div>
+
+                <div class="form-control w-full">
+                    <label class="label"><span class="label-text">Nhà cung cấp</span></label>
+                    <select
+                        bind:value={selectedSupplierId}
+                        class="select select-bordered w-full"
+                        disabled={loading}
+                    >
+                        <option value="" disabled selected>-- Chọn Nhà cung cấp --</option>
+                        {#each suppliers as partner}
+                            <option value={partner.id}>{partner.name}</option>
+                        {/each}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Items List (Card Style) -->
+            <div class="space-y-3 mb-4">
+                {#each importItems as item, i}
+                    <div class="bg-base-50 p-3 rounded-lg border border-slate-200 relative" on:click={() => openEditItem(i)}>
+                        <div class="font-bold text-slate-700">{item.tempIngredient?.name || 'Chọn NVL...'}</div>
+                        <div class="flex justify-between items-end mt-1">
+                            <div class="text-sm">
+                                {item.quantity} <span class="text-gray-500">{item.tempIngredient?.baseUnit}</span>
                             </div>
-                            <div class="font-bold text-success">{receipt.totalAmount.toLocaleString()} đ</div>
-                        </div>
-                        <div class="text-xs text-slate-500 bg-slate-50 p-2 rounded mb-2">
-                            {#each receipt.items as item, idx}
-                                <span>{idx > 0 ? ', ' : ''}{item.quantity} {item.ingredientName}</span>
-                            {/each}
-                        </div>
-                        {#if $userPermissions.has('manage_imports')}
-                            <div class="text-right">
-                                <button class="btn btn-xs btn-outline btn-error" on:click={() => deleteReceipt(receipt.id)}>Xóa</button>
+                            <div class="text-primary font-bold">
+                                {item.price.toLocaleString()} đ
                             </div>
-                        {/if}
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1 text-right">Chạm để sửa</div>
                     </div>
                 {/each}
-            </svelte:fragment>
 
-            <svelte:fragment slot="desktop">
-                <thead>
-                    <tr>
-                        <th>Ngày nhập</th>
-                        <th>Nhà cung cấp</th>
-                        <th>Chi tiết</th>
-                        <th class="text-right">Tổng tiền</th>
-                        <th>Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
+                {#if importItems.length === 0}
+                    <div class="text-center py-6 border-2 border-dashed border-base-300 rounded-lg text-gray-400">
+                        Chưa có dòng hàng nào.
+                    </div>
+                {/if}
+            </div>
+
+            <div class="flex justify-between items-center mt-4 border-t pt-4">
+                <button class="btn btn-sm btn-outline" on:click={openAddItem}>+ Thêm Dòng</button>
+                <div class="text-lg font-bold text-success">
+                    {totalAmount.toLocaleString()} đ
+                </div>
+            </div>
+
+            <button class="btn btn-primary w-full mt-6" on:click={handleImport} disabled={processing}>
+                {#if processing}<span class="loading loading-spinner"></span>{/if}
+                Lưu Phiếu & Nhập Kho
+            </button>
+        </div>
+    {/if}
+
+    {#if activeTab === 'history'}
+        {#if loading}
+            <div class="text-center py-10">Đang tải...</div>
+        {:else}
+            <ResponsiveTable>
+                <svelte:fragment slot="mobile">
                     {#each importHistory as receipt}
-                        <tr>
-                            <td>{receipt.importDate?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
-                            <td>{receipt.supplierName}</td>
-                            <td>
-                                <div class="text-xs truncate max-w-xs">
-                                    {#each receipt.items as item}
-                                        <span class="badge badge-ghost badge-xs mr-1">{item.quantity} {item.ingredientCode}</span>
-                                    {/each}
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 mb-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <div class="font-bold">{receipt.supplierName}</div>
+                                    <div class="text-xs text-gray-400">{receipt.importDate?.toDate().toLocaleDateString('vi-VN')}</div>
                                 </div>
-                            </td>
-                            <td class="text-right font-mono text-success">{receipt.totalAmount.toLocaleString()} đ</td>
-                            <td>
-                                {#if $userPermissions.has('manage_imports')}
-                                    <button 
-                                        class="btn btn-xs btn-error text-white" 
-                                        on:click={() => deleteReceipt(receipt.id)}
-                                    >
-                                        Xóa
-                                    </button>
-                                {/if}
-                            </td>
-                        </tr>
+                                <div class="font-bold text-success">{receipt.totalAmount.toLocaleString()} đ</div>
+                            </div>
+                            <div class="text-xs text-slate-500 bg-slate-50 p-2 rounded mb-2">
+                                {#each receipt.items as item, idx}
+                                    <span>{idx > 0 ? ', ' : ''}{item.quantity} {item.ingredientName}</span>
+                                {/each}
+                            </div>
+                            {#if $userPermissions.has('manage_imports')}
+                                <div class="text-right">
+                                    <button class="btn btn-xs btn-outline btn-error" on:click={() => deleteReceipt(receipt.id)}>Xóa</button>
+                                </div>
+                            {/if}
+                        </div>
                     {/each}
-                </tbody>
-            </svelte:fragment>
-        </ResponsiveTable>
+                </svelte:fragment>
+
+                <svelte:fragment slot="desktop">
+                    <thead>
+                        <tr>
+                            <th>Ngày nhập</th>
+                            <th>Nhà cung cấp</th>
+                            <th>Chi tiết</th>
+                            <th class="text-right">Tổng tiền</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {#each importHistory as receipt}
+                            <tr>
+                                <td>{receipt.importDate?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
+                                <td>{receipt.supplierName}</td>
+                                <td>
+                                    <div class="text-xs truncate max-w-xs">
+                                        {#each receipt.items as item}
+                                            <span class="badge badge-ghost badge-xs mr-1">{item.quantity} {item.ingredientCode}</span>
+                                        {/each}
+                                    </div>
+                                </td>
+                                <td class="text-right font-mono text-success">{receipt.totalAmount.toLocaleString()} đ</td>
+                                <td>
+                                    {#if $userPermissions.has('manage_imports')}
+                                        <button
+                                            class="btn btn-xs btn-error text-white"
+                                            on:click={() => deleteReceipt(receipt.id)}
+                                        >
+                                            Xóa
+                                        </button>
+                                    {/if}
+                                </td>
+                            </tr>
+                        {/each}
+                    </tbody>
+                </svelte:fragment>
+            </ResponsiveTable>
+        {/if}
     {/if}
 </div>
 

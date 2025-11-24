@@ -35,6 +35,9 @@
 	let processing = false;
 	let errorMsg = '';
     
+    // UI State
+    let activeTab: 'create' | 'history' = 'create';
+
     // UI State for Mobile
     let isProductModalOpen = false;
     let isCustomerModalOpen = false;
@@ -308,117 +311,134 @@
 </script>
 
 <div class="pb-32"> <!-- Padding for Footer -->
-    <h1 class="text-xl font-bold text-primary mb-4 px-2">Bán hàng (POS)</h1>
+    <h1 class="text-xl font-bold text-primary mb-2 px-2">Bán hàng (POS)</h1>
 
-    {#if errorMsg}
-        <div role="alert" class="alert alert-error mb-4 mx-2">
-            <span>{errorMsg}</span>
-        </div>
-    {/if}
-
-    <!-- 1. Customer Selection (Card) -->
-    <div class="card bg-white shadow-sm border border-slate-200 p-4 mb-4 mx-2" on:click={() => isCustomerModalOpen = true}>
-        <div class="flex justify-between items-center">
-            <div>
-                {#if customer}
-                    <h2 class="font-bold text-lg text-primary">{customer.name}</h2>
-                    <p class="text-sm text-slate-500">{customer.phone || 'Chưa có SĐT'}</p>
-                    <p class="text-xs text-slate-400 mt-1 truncate max-w-[200px]">{shippingAddress || 'Chưa có địa chỉ'}</p>
-                {:else}
-                    <h2 class="font-bold text-lg text-slate-400">Chọn Khách hàng...</h2>
-                    <p class="text-xs text-slate-400">Chạm để chọn</p>
-                {/if}
-            </div>
-            <button class="btn btn-circle btn-sm btn-ghost">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </button>
-        </div>
+    <!-- TABS -->
+    <div role="tablist" class="tabs tabs-boxed mx-2 mb-4 bg-base-200">
+        <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Tạo Đơn</a>
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
-    <!-- 2. Cart Items List (Simplified) -->
-    <div class="flex flex-col mx-2 bg-white rounded-xl border border-slate-100 overflow-hidden">
-        {#each orderItems as item, i}
-            <div
-                class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50"
-                on:click={() => openEditItem(i)}
-            >
-                <div>
-                    <div class="font-medium text-slate-800 text-sm">{item.productName}</div>
-                    <div class="text-xs text-slate-400 mt-1">
-                        <span class="font-bold text-slate-600">{item.quantity}</span> x {item.unitPrice.toLocaleString()}
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="font-bold text-slate-800 text-sm">{item.lineTotal.toLocaleString()} đ</div>
-                    {#if item.unitPrice !== item.originalBasePrice}
-                        <div class="text-[9px] text-orange-500 font-bold">GIÁ RIÊNG</div>
-                    {/if}
-                </div>
-            </div>
-        {/each}
-        
-        {#if orderItems.length === 0}
-            <div class="text-center py-12 text-slate-300 italic text-sm">
-                Giỏ hàng trống
+    {#if activeTab === 'create'}
+        {#if errorMsg}
+            <div role="alert" class="alert alert-error mb-4 mx-2">
+                <span>{errorMsg}</span>
             </div>
         {/if}
-    </div>
 
-    <!-- 3. Add Item Button (FAB) -->
-    <button
-        class="btn btn-circle btn-primary btn-lg fixed bottom-28 right-4 shadow-xl z-30"
-        on:click={openProductSelector}
-    >
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-    </button>
-
-    <!-- 4. Sticky Footer Checkout -->
-    <div class="fixed bottom-[60px] left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div class="flex flex-col">
-                <span class="text-xs text-slate-500">Tổng tiền ({orderItems.length} món)</span>
-                <span class="text-xl font-bold text-primary">{totalRevenue.toLocaleString()} đ</span>
+        <!-- 1. Customer Selection (Card) -->
+        <div class="card bg-white shadow-sm border border-slate-200 p-4 mb-4 mx-2" on:click={() => isCustomerModalOpen = true}>
+            <div class="flex justify-between items-center">
+                <div>
+                    {#if customer}
+                        <h2 class="font-bold text-lg text-primary">{customer.name}</h2>
+                        <p class="text-sm text-slate-500">{customer.phone || 'Chưa có SĐT'}</p>
+                        <p class="text-xs text-slate-400 mt-1 truncate max-w-[200px]">{shippingAddress || 'Chưa có địa chỉ'}</p>
+                    {:else}
+                        <h2 class="font-bold text-lg text-slate-400">Chọn Khách hàng...</h2>
+                        <p class="text-xs text-slate-400">Chạm để chọn</p>
+                    {/if}
+                </div>
+                <button class="btn btn-circle btn-sm btn-ghost">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                </button>
             </div>
-            <button
-                class="btn btn-primary px-8"
-                disabled={processing || orderItems.length === 0}
-                on:click={handleSale}
-            >
-                {processing ? 'Đang xử lý...' : 'THANH TOÁN'}
-            </button>
-        </div>
-    </div>
-
-    <!-- History Section (Bottom with Pagination) -->
-    <div class="mt-8 px-2 pb-10">
-        <div class="flex justify-between items-center mb-3">
-             <h3 class="font-bold text-slate-700">Lịch sử đơn hàng</h3>
-             <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost">
-                 <option value={10}>10 dòng</option>
-                 <option value={20}>20 dòng</option>
-                 <option value={30}>30 dòng</option>
-             </select>
         </div>
 
-        <div class="space-y-2">
-             {#each ordersHistory as order}
-                <div class="flex justify-between items-center p-3 bg-white rounded border border-slate-100 shadow-sm {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
-                    <div class="flex flex-col">
-                        <span class="font-bold text-xs text-slate-800">{order.customerInfo.name}</span>
-                        <span class="text-[10px] text-slate-400">
-                            {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ''}
-                        </span>
-                    </div>
-                    <div class="text-right">
-                        <div class="font-bold text-sm text-primary">{order.totalRevenue.toLocaleString()}</div>
-                        <div class="text-[10px] uppercase font-bold {order.status === 'canceled' ? 'text-red-500' : 'text-emerald-500'}">
-                            {order.status === 'canceled' ? 'Đã Hủy' : 'Thành công'}
+        <!-- 2. Cart Items List (Simplified) -->
+        <div class="flex flex-col mx-2 bg-white rounded-xl border border-slate-100 overflow-hidden">
+            {#each orderItems as item, i}
+                <div
+                    class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50"
+                    on:click={() => openEditItem(i)}
+                >
+                    <div>
+                        <div class="font-medium text-slate-800 text-sm">{item.productName}</div>
+                        <div class="text-xs text-slate-400 mt-1">
+                            <span class="font-bold text-slate-600">{item.quantity}</span> x {item.unitPrice.toLocaleString()}
                         </div>
                     </div>
+                    <div class="text-right">
+                        <div class="font-bold text-slate-800 text-sm">{item.lineTotal.toLocaleString()} đ</div>
+                        {#if item.unitPrice !== item.originalBasePrice}
+                            <div class="text-[9px] text-orange-500 font-bold">GIÁ RIÊNG</div>
+                        {/if}
+                    </div>
                 </div>
-             {/each}
+            {/each}
+
+            {#if orderItems.length === 0}
+                <div class="text-center py-12 text-slate-300 italic text-sm">
+                    Giỏ hàng trống
+                </div>
+            {/if}
         </div>
-    </div>
+
+        <!-- 3. Add Item Button (FAB) -->
+        <button
+            class="btn btn-circle btn-primary btn-lg fixed bottom-28 right-4 shadow-xl z-30"
+            on:click={openProductSelector}
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+        </button>
+
+        <!-- 4. Sticky Footer Checkout -->
+        <div class="fixed bottom-[60px] left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-500">Tổng tiền ({orderItems.length} món)</span>
+                    <span class="text-xl font-bold text-primary">{totalRevenue.toLocaleString()} đ</span>
+                </div>
+                <button
+                    class="btn btn-primary px-8"
+                    disabled={processing || orderItems.length === 0}
+                    on:click={handleSale}
+                >
+                    {processing ? 'Đang xử lý...' : 'THANH TOÁN'}
+                </button>
+            </div>
+        </div>
+    {/if} <!-- End Create Tab -->
+
+    {#if activeTab === 'history'}
+        <!-- History Section (Bottom with Pagination) -->
+        <div class="mt-4 px-2 pb-10">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-slate-700">Lịch sử đơn hàng</h3>
+                <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost">
+                    <option value={10}>10 dòng</option>
+                    <option value={20}>20 dòng</option>
+                    <option value={30}>30 dòng</option>
+                </select>
+            </div>
+
+            <div class="space-y-2">
+                {#each ordersHistory as order}
+                    <div class="flex justify-between items-center p-3 bg-white rounded border border-slate-100 shadow-sm {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                        <div class="flex flex-col">
+                            <span class="font-bold text-xs text-slate-800">{order.customerInfo.name}</span>
+                            <span class="text-[10px] text-slate-400">
+                                {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ''}
+                            </span>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-sm text-primary">{order.totalRevenue.toLocaleString()}</div>
+                            <div class="text-[10px] uppercase font-bold {order.status === 'canceled' ? 'text-red-500' : 'text-emerald-500'}">
+                                {order.status === 'canceled' ? 'Đã Hủy' : 'Thành công'}
+                            </div>
+                        </div>
+                         <button class="btn btn-xs btn-ghost text-error" on:click={() => handleCancelOrder(order)}>
+                            {#if order.status === 'canceled'}
+                                Đã hủy
+                            {:else}
+                                Hủy
+                            {/if}
+                        </button>
+                    </div>
+                {/each}
+            </div>
+        </div>
+    {/if} <!-- End History Tab -->
 
 </div>
 

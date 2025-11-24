@@ -6,6 +6,7 @@
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import Modal from '$lib/components/ui/Modal.svelte';
 
 	// --- Types ---
     interface Category {
@@ -35,6 +36,10 @@
 	let processing = false;
     let errorMsg = '';
     
+    // UI State
+    let activeTab: 'create' | 'history' = 'create';
+    let isCategoryModalOpen = false;
+
     let expenseData = {
         date: new Date().toISOString().split('T')[0],
         categoryId: '',
@@ -85,6 +90,7 @@
             });
             await logAction($authStore.user!, 'CREATE', 'expense_categories', `Thêm mới danh mục: ${newCategoryName}`);
             newCategoryName = '';
+            // Don't close modal automatically, maybe they want to add more
         } catch (e) {
             alert("Lỗi thêm danh mục.");
         }
@@ -150,10 +156,23 @@
 <div class="max-w-7xl mx-auto pb-24">
     <h1 class="text-2xl font-bold text-primary mb-6">Quản lý Chi phí (Expenses)</h1>
 
-    {#if $userPermissions.has('manage_expenses')}
+    <!-- TABS -->
+    <div role="tablist" class="tabs tabs-boxed mb-6 bg-base-200">
+        {#if $userPermissions.has('manage_expenses')}
+            <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Chi phí</a>
+        {/if}
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
+    </div>
+
+    {#if activeTab === 'create' && $userPermissions.has('manage_expenses')}
         <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8">
             <div class="card-body p-4">
-                <h2 class="card-title text-lg border-b pb-2 mb-4">Ghi nhận Chi phí Mới</h2>
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                     <h2 class="card-title text-lg">Ghi nhận Chi phí Mới</h2>
+                     <button class="btn btn-sm btn-ghost text-primary" on:click={() => isCategoryModalOpen = true}>
+                        + Quản lý Danh mục
+                     </button>
+                </div>
 
                 {#if errorMsg}
                     <div role="alert" class="alert alert-error text-sm mb-4"><span>{errorMsg}</span></div>
@@ -217,71 +236,77 @@
         </div>
     {/if}
     
-    <!-- Quick Add Category (Collapsible on Mobile) -->
-    <div class="collapse collapse-arrow bg-base-50 border border-slate-200 mb-8 rounded-lg">
-        <input type="checkbox" />
-        <div class="collapse-title font-medium">
-            Quản lý Danh mục Chi phí
-        </div>
-        <div class="collapse-content">
-            <div class="flex gap-2 mb-4">
-                <input type="text" bind:value={newCategoryName} class="input input-bordered input-sm flex-grow" placeholder="Tên danh mục mới..." />
-                <button class="btn btn-sm btn-info" on:click={handleAddCategory}>Thêm</button>
-            </div>
-            <div class="flex flex-wrap gap-2">
-                {#each categories as cat}
-                    <span class="badge badge-lg badge-outline bg-white">{cat.name}</span>
-                {/each}
-            </div>
+    {#if activeTab === 'history'}
+        <!-- History Log -->
+        <!-- <h3 class="font-bold text-lg mb-3">Lịch sử Chi phí Gần nhất</h3> -->
+        {#if loading}
+            <div class="text-center py-8">Đang tải...</div>
+        {:else}
+            <ResponsiveTable>
+                <svelte:fragment slot="mobile">
+                    <div class="space-y-3">
+                        {#each expensesLog as log}
+                            <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-100">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="text-xs text-gray-500">{log.date?.toDate().toLocaleDateString('vi-VN')}</div>
+                                    <div class="font-bold text-error">-{log.amount.toLocaleString()} đ</div>
+                                </div>
+                                <div class="mb-1 font-medium">{log.description}</div>
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="badge badge-ghost badge-sm">{log.categoryName}</span>
+                                    <span class="text-gray-500">{log.supplier}</span>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                </svelte:fragment>
+
+                <svelte:fragment slot="desktop">
+                    <thead>
+                        <tr>
+                            <th class="w-1/6">Ngày</th>
+                            <th class="w-1/6">Mục</th>
+                            <th class="w-2/5">Mô tả chi tiết</th>
+                            <th class="w-1/6">Nhà cung cấp</th>
+                            <th class="text-right w-1/6">Số tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {#each expensesLog as log}
+                            <tr>
+                                <td>{log.date?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
+                                <td><span class="badge badge-warning badge-outline">{log.categoryName}</span></td>
+                                <td>{log.description}</td>
+                                <td>{log.supplier}</td>
+                                <td class="text-right font-mono text-error">-{log.amount.toLocaleString()} đ</td>
+                            </tr>
+                        {/each}
+                    </tbody>
+                </svelte:fragment>
+            </ResponsiveTable>
+        {/if}
+    {/if}
+</div>
+
+<!-- Modal: Category Management -->
+<Modal title="Quản lý Danh mục Chi phí" isOpen={isCategoryModalOpen} onClose={() => isCategoryModalOpen = false} showConfirm={false}>
+    <div class="mb-6">
+        <label class="label"><span class="label-text">Thêm danh mục mới</span></label>
+        <div class="flex gap-2">
+            <input type="text" bind:value={newCategoryName} class="input input-bordered w-full" placeholder="Tên danh mục..." />
+            <button class="btn btn-primary" on:click={handleAddCategory}>Thêm</button>
         </div>
     </div>
 
-    <!-- History Log -->
-    <h3 class="font-bold text-lg mb-3">Lịch sử Chi phí Gần nhất</h3>
-    {#if loading}
-        <div class="text-center py-8">Đang tải...</div>
-    {:else}
-        <ResponsiveTable>
-            <svelte:fragment slot="mobile">
-                <div class="space-y-3">
-                    {#each expensesLog as log}
-                        <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-100">
-                            <div class="flex justify-between items-start mb-2">
-                                <div class="text-xs text-gray-500">{log.date?.toDate().toLocaleDateString('vi-VN')}</div>
-                                <div class="font-bold text-error">-{log.amount.toLocaleString()} đ</div>
-                            </div>
-                            <div class="mb-1 font-medium">{log.description}</div>
-                            <div class="flex justify-between items-center text-xs">
-                                <span class="badge badge-ghost badge-sm">{log.categoryName}</span>
-                                <span class="text-gray-500">{log.supplier}</span>
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-            </svelte:fragment>
-
-            <svelte:fragment slot="desktop">
-                <thead>
-                    <tr>
-                        <th class="w-1/6">Ngày</th>
-                        <th class="w-1/6">Mục</th>
-                        <th class="w-2/5">Mô tả chi tiết</th>
-                        <th class="w-1/6">Nhà cung cấp</th>
-                        <th class="text-right w-1/6">Số tiền</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {#each expensesLog as log}
-                        <tr>
-                            <td>{log.date?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
-                            <td><span class="badge badge-warning badge-outline">{log.categoryName}</span></td>
-                            <td>{log.description}</td>
-                            <td>{log.supplier}</td>
-                            <td class="text-right font-mono text-error">-{log.amount.toLocaleString()} đ</td>
-                        </tr>
-                    {/each}
-                </tbody>
-            </svelte:fragment>
-        </ResponsiveTable>
-    {/if}
-</div>
+    <div>
+        <label class="label"><span class="label-text font-bold">Danh sách hiện tại</span></label>
+        <div class="flex flex-wrap gap-2 max-h-[40vh] overflow-y-auto p-1">
+            {#each categories as cat}
+                <span class="badge badge-lg badge-outline bg-base-100 p-3">{cat.name}</span>
+            {/each}
+            {#if categories.length === 0}
+                <span class="text-sm text-slate-400 italic">Chưa có danh mục nào.</span>
+            {/if}
+        </div>
+    </div>
+</Modal>
