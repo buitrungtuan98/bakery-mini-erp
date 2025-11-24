@@ -33,6 +33,8 @@ export interface Partner {
     type: 'supplier' | 'customer' | 'manufacturer';
     phone?: string;
     address?: string;
+    customerType?: 'sỉ' | 'lẻ'; // Thêm trường này
+    customPrices?: { productId: string; price: number; }[]; // Thêm trường này nếu cần
 }
 
 // --- Generic Store Creator ---
