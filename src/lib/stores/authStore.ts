@@ -22,11 +22,11 @@ function createAuthStore() {
 
     return {
         subscribe,
-        init: () => {
+        init: async () => {
             const db = getFirestore();
 
             // 1. Start by loading Roles definition
-            permissionStore.initRoles();
+            await permissionStore.initRoles();
 
             onAuthStateChanged(auth, async (firebaseUser) => {
                 if (firebaseUser) {
@@ -54,6 +54,7 @@ function createAuthStore() {
                         });
                     } catch (error) {
                         console.error("Auth Store Error:", error);
+                        permissionStore.setUserRole('staff');
                         set({
                              user: {
                                 uid: firebaseUser.uid,

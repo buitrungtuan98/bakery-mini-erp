@@ -10,8 +10,8 @@
 	// --- Types ---
 	interface Partner {
 		id: string; name: string; type: 'supplier' | 'customer'; customerType?: 'sỉ' | 'lẻ';
-		phone?: string; defaultAddress?: string; // Địa chỉ mặc định từ Partner
-        address?: string; // Fallback nếu tên trường cũ là address
+		phone?: string; defaultAddress?: string; 
+        address?: string; 
 		customPrices?: { productId: string; price: number; }[];
 	}
 
@@ -23,6 +23,7 @@
 	interface OrderItem {
 		productId: string; productName?: string; quantity: number; unitPrice: number; lineTotal: number;
 		lineCOGS: number;  initialPrice: number; 
+        originalBasePrice?: number;
 	}
     
     interface Order {
@@ -96,7 +97,8 @@
             unitPrice: finalUnitPrice, 
             lineTotal: lineTotal, 
             lineCOGS: lineCOGS, 
-            initialPrice: basePrice
+            initialPrice: basePrice,
+            originalBasePrice: product.sellingPrice
         };
 	}
 	
@@ -187,7 +189,8 @@
                 unitPrice: product.sellingPrice,
                 lineTotal: 0,
                 lineCOGS: 0,
-                initialPrice: product.sellingPrice
+                initialPrice: product.sellingPrice,
+                originalBasePrice: product.sellingPrice
             };
             orderItems = [...orderItems, updatePricing(newItem, products, customer, false)];
         }
@@ -377,7 +380,10 @@
                 </div>
                 <div class="text-right">
                     <div class="font-bold text-primary">{item.lineTotal.toLocaleString()} đ</div>
-                    <div class="text-[10px] text-slate-400">Chạm để sửa</div>
+                    {#if item.unitPrice !== item.originalBasePrice}
+                        <div class="badge badge-xs badge-warning text-[9px] mt-1">Giá riêng</div>
+                    {/if}
+                    <div class="text-[10px] text-slate-400 mt-1">Chạm để sửa</div>
                 </div>
             </div>
         {/each}
