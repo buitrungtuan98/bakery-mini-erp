@@ -141,8 +141,8 @@
     
     // --- Delete/Reverse Logic (Giữ nguyên) ---
     async function handleDeleteRun(run: ProductionRun) {
-        if ($authStore.user?.role !== 'admin') {
-            return alert("Chỉ Admin mới được xóa lịch sử sản xuất.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) {
+            return alert("Bạn không có quyền xóa lịch sử sản xuất.");
         }
         if (!confirm(`Xác nhận xóa lệnh sản xuất "${run.productName}" ngày ${run.productionDate.toDate().toLocaleDateString()}? Hành động này sẽ đảo ngược tồn kho.`)) return;
 
@@ -452,7 +452,7 @@
                                     <button 
                                         class="btn btn-xs btn-error text-white" 
                                         on:click={() => handleDeleteRun(run)}
-                                        disabled={$authStore.user?.role !== 'admin'}
+                                        disabled={!['admin', 'manager'].includes($authStore.user?.role || '')}
                                     >
                                         Xóa/Đảo kho
                                     </button>

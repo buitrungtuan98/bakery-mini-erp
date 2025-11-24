@@ -81,7 +81,7 @@
     // --- Handlers ---
     
     async function handleAddCategory() {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thêm danh mục.");
         if (!newCategoryName.trim()) return;
 
         try {
@@ -98,7 +98,7 @@
     }
 
     async function handleAddExpense() {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thêm chi phí.");
         if (!expenseData.categoryId) return (errorMsg = "Vui lòng chọn danh mục chi phí.");
         if (!expenseData.selectedSupplierId) return (errorMsg = "Vui lòng chọn Nhà cung cấp/Người bán.");
         if (expenseData.amount <= 0) return (errorMsg = "Số tiền phải lớn hơn 0.");

@@ -182,8 +182,9 @@
     
     // --- Delete Logic (Admin Only) ---
     async function deleteReceipt(id: string) {
-        if ($authStore.user?.role !== 'admin') {
-            return alert("Chỉ Admin mới được xóa phiếu nhập.");
+        // Chỉ admin hoặc manager mới được xóa
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) {
+            return alert("Bạn không có quyền xóa phiếu nhập.");
         }
         if(!confirm("Xóa phiếu nhập có thể làm sai lệch tồn kho và giá vốn trung bình. Bạn có chắc chắn?")) return;
         

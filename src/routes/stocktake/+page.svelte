@@ -99,7 +99,7 @@
 
     // --- XỬ LÝ KIỂM KÊ NGUYÊN LIỆU (INGREDIENTS) ---
     async function handleStocktakeIngredients() {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền cân bằng kho.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền cân bằng kho.");
         if (!confirm("Xác nhận cập nhật tồn kho theo số liệu thực tế này?")) return;
         processing = true;
         
@@ -145,7 +145,7 @@
 
     // --- XỬ LÝ KIỂM KÊ CÔNG CỤ (ASSETS) ---
     async function handleStocktakeAssets(asset: Asset) {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền cập nhật tài sản.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền cập nhật tài sản.");
         
         // KIỂM TRA BẮT BUỘC ID
         if (!asset.id) {

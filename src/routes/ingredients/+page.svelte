@@ -138,7 +138,7 @@
 	}
 
 	async function handleSubmit() {
-        if ($authStore.user?.role !== 'admin') return alert("Bạn không có quyền thực hiện thao tác này.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thực hiện thao tác này.");
         
         // Tìm thông tin Nhà sản xuất
         const manufacturerSnapshot = manufacturers.find(m => m.id === formData.manufacturerId);
@@ -171,7 +171,7 @@
 	}
 
     async function handleDelete(id: string) {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới được xóa.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền xóa.");
         if(!confirm("Bạn có chắc muốn xóa?")) return;
         
         try {
@@ -184,7 +184,7 @@
 <div class="max-w-7xl mx-auto">
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-2xl font-bold">Danh sách Nguyên liệu</h1>
-		{#if $authStore.user?.role === 'admin'}
+		{#if ['admin', 'manager'].includes($authStore.user?.role || '')}
 			<button class="btn btn-primary" on:click={openAddModal}>
 				+ Thêm Nguyên liệu
 			</button>

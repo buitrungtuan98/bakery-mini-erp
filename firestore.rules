@@ -3,80 +3,94 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function: Kiểm tra người dùng đã đăng nhập chưa
+    // --- Helper Functions ---
+
     function isAuth() {
       return request.auth != null;
     }
 
-    // Helper function: Kiểm tra người dùng có quyền 'admin' không
-    // Cần 1 lượt đọc từ collection 'users'
+    // Lấy role từ document của user
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
     function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuth() && getUserRole() == 'admin';
     }
 
-    // =================================================================
-    // 1. COLLECTION: users (Quản lý Xác thực & Phân quyền)
-    // =================================================================
+    function isManager() {
+      return isAuth() && (getUserRole() == 'manager' || getUserRole() == 'admin');
+    }
+
+    function isSales() {
+      return isAuth() && (getUserRole() == 'sales' || getUserRole() == 'admin');
+    }
+
+    // --- 1. COLLECTION: users (Quản lý User & Role) ---
     match /users/{userId} {
-      // User chỉ được tạo document của chính mình (Khi đăng nhập lần đầu)
-      allow create: if request.auth.uid == userId; 
-      // User đã xác thực có thể đọc. Admin có thể đọc/sửa tất cả.
-      allow read: if isAuth(); 
-      // User có thể sửa thông tin của mình. Admin có thể sửa role/data của người khác.
-      allow update: if request.auth.uid == userId || isAdmin();
+      // User tự tạo doc của mình khi login lần đầu
+      allow create: if request.auth.uid == userId;
+      // Ai cũng đọc được để lấy thông tin role (được cache ở client)
+      allow read: if isAuth();
+      // Chỉ Admin mới được update role của người khác
+      allow update: if isAdmin() || (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
     }
 
-    // =================================================================
-    // 2. MASTER DATA: (ingredients, products, partners)
-    // =================================================================
-    // Staff/Admin đều cần đọc để hiển thị danh sách, nhưng chỉ Admin mới được thay đổi.
+    // --- 2. MASTER DATA (Ingredients, Products, Partners) ---
     
+    // Manager & Admin được sửa NVL, Thành phẩm
     match /ingredients/{ingId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isManager();
     }
 
     match /products/{productId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isManager();
     }
     
+    // Sales & Admin được sửa Khách hàng/NCC (Partner)
+    // Manager cũng cần tạo NCC khi nhập hàng
     match /partners/{partnerId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isSales() || isManager();
     }
 
-    // =================================================================
-    // 3. TRANSACTION DATA: (imports, production_runs, orders)
-    // =================================================================
-    // Tất cả các giao dịch đều tác động đến kho/tiền, chỉ Admin mới có quyền tạo/sửa.
+    // --- 3. TRANSACTION DATA (Imports, Production, Orders) ---
 
+    // Imports: Manager & Admin
     match /imports/{importId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isManager();
     }
 
+    // Production: Manager & Admin
     match /production_runs/{prodRunId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isManager();
     }
     
+    // Orders: Sales & Admin
     match /orders/{orderId} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isSales();
     }
 
-    // =================================================================
-    // 4. CATCH-ALL: Chặn mọi truy cập vào các collections không được định nghĩa
-    // =================================================================
+    // Expenses Log: Admin & Manager
+     match /expenses_log/{logId} {
+      allow read: if isAuth();
+      allow write: if isManager();
+    }
+
+    // --- 4. SYSTEM LOGS ---
+    match /audit_logs/{logId} {
+      allow read: if isAdmin(); // Chỉ Admin xem log
+      allow create: if isAuth(); // Ai cũng được ghi log hành động của mình
+    }
+
+    // --- 5. CATCH-ALL ---
     match /{document=**} {
       allow read, write: if false; 
-    }
-    
-    // Thêm quy tắc này vào Firebase Console -> Rules
-    match /audit_logs/{logId} {
-      allow write: if isAdmin(); 
-      allow read: if isAdmin(); // Chỉ Admin mới được xem log audit
     }
   }
 }
