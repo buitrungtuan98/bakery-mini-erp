@@ -4,6 +4,7 @@
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, updateDoc, addDoc, onSnapshot, limit } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
+    import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
 
     // --- Types ---
     interface Ingredient { 
@@ -44,16 +45,15 @@
         await loadData();
     });
 
-    // Hàm tải dữ liệu (ĐÃ FIX LỖI MAPPING ID)
+    // Hàm tải dữ liệu
     async function loadData() {
-        // Tắt listeners cũ (nếu có)
         if (unsubscribeHistory) unsubscribeHistory();
         if (unsubscribeIngredients) unsubscribeIngredients();
         if (unsubscribeAssets) unsubscribeAssets();
         
         loading = true;
         
-        // 1. Load Ingredients (Tồn kho NVL)
+        // 1. Load Ingredients
         const ingSnap = await getDocs(query(collection(db, 'ingredients'), orderBy('name')));
         unsubscribeIngredients = onSnapshot(query(collection(db, 'ingredients'), orderBy('name')), (snapshot) => {
             ingredients = snapshot.docs.map(doc => ({ 
@@ -63,13 +63,12 @@
             } as Ingredient));
         });
 
-        // 2. Load Assets (Tồn kho CCDC - FIX MAPPING)
+        // 2. Load Assets
         const assetSnap = await getDocs(query(collection(db, 'assets'), orderBy('name')));
         unsubscribeAssets = onSnapshot(query(collection(db, 'assets'), orderBy('name')), (snapshot) => {
             assets = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
-                    // FIX: Đảm bảo doc.id là giá trị cuối cùng được gán
                     ...data, 
                     id: doc.id, 
                     actualGood: data.quantity.good,
@@ -79,7 +78,7 @@
             });
         });
         
-        // 3. Load Lịch sử Kiểm kho (Real-time)
+        // 3. Load History
         const historyQuery = query(collection(db, 'stocktake_logs'), orderBy('createdAt', 'desc'), limit(15));
         unsubscribeHistory = onSnapshot(historyQuery, (snapshot) => {
             stocktakeHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StocktakeLog));
@@ -89,7 +88,6 @@
         loading = false;
     }
 
-    // Dọn dẹp khi thoát trang
     onDestroy(() => {
         if (unsubscribeHistory) unsubscribeHistory();
         if (unsubscribeIngredients) unsubscribeIngredients();
@@ -97,7 +95,7 @@
     });
 
 
-    // --- XỬ LÝ KIỂM KÊ NGUYÊN LIỆU (INGREDIENTS) ---
+    // --- LOGIC ---
     async function handleStocktakeIngredients() {
         if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền cân bằng kho.");
         if (!confirm("Xác nhận cập nhật tồn kho theo số liệu thực tế này?")) return;
@@ -107,16 +105,13 @@
             const changedItems = ingredients.filter(i => (i.actualStock || 0) !== i.currentStock);
             
             await runTransaction(db, async (transaction) => {
-                
                 for (const item of changedItems) {
                     const ref = doc(db, 'ingredients', item.id);
                     const diff = (item.actualStock || 0) - item.currentStock;
-                    const diffAmount = diff * item.avgCost; // Giá trị tiền hao hụt/tăng thêm
+                    const diffAmount = diff * item.avgCost;
 
-                    // 1. Update Kho
                     transaction.update(ref, { currentStock: item.actualStock });
                     
-                    // 2. Log Stocktake
                     const logRef = doc(collection(db, 'stocktake_logs'));
                     transaction.set(logRef, {
                         type: 'ingredient_adjustment',
@@ -131,38 +126,28 @@
                         createdAt: serverTimestamp()
                     });
                     
-                    // 3. Log Audit
                     await logAction($authStore.user!, 'UPDATE', 'ingredients', `Kiểm kê kho NVL: ${item.name}. Thay đổi: ${diff} ${item.baseUnit}`);
                 }
             });
             alert("Đã cân bằng kho nguyên liệu thành công!");
-            await loadData(); // Tải lại để reset view
+            // await loadData();
         } catch (e) { 
             alert("Lỗi: Không thể cân bằng kho. " + e); 
         } 
         finally { processing = false; }
     }
 
-    // --- XỬ LÝ KIỂM KÊ CÔNG CỤ (ASSETS) ---
     async function handleStocktakeAssets(asset: Asset) {
         if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền cập nhật tài sản.");
-        
-        // KIỂM TRA BẮT BUỘC ID
-        if (!asset.id) {
-            alert("Lỗi dữ liệu: Tài sản bị thiếu ID vật lý. Vui lòng tải lại trang.");
-            return;
-        }
+        if (!asset.id) return alert("Lỗi dữ liệu: Tài sản bị thiếu ID.");
         
         const newTotal = (asset.actualGood || 0) + (asset.actualBroken || 0) + (asset.actualLost || 0);
         const originalTotal = asset.quantity.total;
         
-        // Validation
         if (newTotal > originalTotal) return alert(`Lỗi: Tổng số lượng mới (${newTotal}) không thể lớn hơn số lượng đã mua ban đầu (${originalTotal}).`);
 
         try {
-            const ref = doc(db, 'assets', asset.id); // Tham chiếu đã được an toàn
-            
-            // Update Kho
+            const ref = doc(db, 'assets', asset.id);
             await updateDoc(ref, {
                 quantity: {
                     total: newTotal, 
@@ -171,8 +156,6 @@
                     lost: asset.actualLost 
                 }
             });
-            
-            // Log Audit
             await logAction($authStore.user!, 'UPDATE', 'assets', `Kiểm kê: ${asset.name} (Tốt: ${asset.actualGood}, Hỏng: ${asset.actualBroken}, Mất: ${asset.actualLost})`);
             alert("Đã cập nhật tài sản!");
 
@@ -182,8 +165,8 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6">Kiểm Kê Kho (Stocktake)</h1>
+<div class="max-w-7xl mx-auto pb-24">
+    <h1 class="text-2xl font-bold mb-6 text-primary">Kiểm Kê Kho (Stocktake)</h1>
 
     <div class="tabs tabs-boxed mb-4">
         <a class="tab {activeTab === 'ingredients' ? 'tab-active' : ''}" on:click={() => activeTab = 'ingredients'}>Nguyên liệu</a>
@@ -191,11 +174,46 @@
     </div>
 
     {#if loading}
-        <div class="text-center">Đang tải dữ liệu kho...</div>
+        <div class="flex justify-center py-8"><span class="loading loading-spinner loading-lg"></span></div>
     {:else}
         {#if activeTab === 'ingredients'}
-            <div class="overflow-x-auto bg-base-100 shadow-xl rounded-box p-4">
-                <table class="table w-full">
+            <div class="mb-4 text-right">
+                <button class="btn btn-primary" on:click={handleStocktakeIngredients} disabled={processing}>
+                    {processing ? 'Đang lưu...' : 'Lưu Điều Chỉnh'}
+                </button>
+            </div>
+
+            <ResponsiveTable>
+                <svelte:fragment slot="mobile">
+                    {#each ingredients as item}
+                        {@const diff = (item.actualStock || 0) - item.currentStock}
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 mb-2 {diff !== 0 ? 'border-l-4 border-l-warning' : ''}">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="font-bold text-slate-700">{item.name}</div>
+                                <div class="text-xs text-slate-400">Sys: {item.currentStock} {item.baseUnit}</div>
+                            </div>
+
+                            <div class="flex items-center gap-4 mb-2">
+                                <div class="form-control w-1/2">
+                                    <label class="label text-xs p-0 pb-1">Thực tế</label>
+                                    <input type="number" bind:value={item.actualStock} class="input input-bordered input-sm font-bold text-primary" />
+                                </div>
+                                <div class="w-1/2 text-right">
+                                    <div class="text-xs text-slate-400">Chênh lệch</div>
+                                    <div class="font-bold {diff < 0 ? 'text-error' : (diff > 0 ? 'text-success' : 'text-slate-300')}">
+                                        {diff > 0 ? '+' : ''}{diff} {item.baseUnit}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {#if diff !== 0}
+                                <input type="text" bind:value={item.reason} placeholder="Lý do..." class="input input-bordered input-xs w-full" />
+                            {/if}
+                        </div>
+                    {/each}
+                </svelte:fragment>
+
+                <svelte:fragment slot="desktop">
                     <thead>
                         <tr>
                             <th>Tên NVL</th>
@@ -225,79 +243,60 @@
                             </tr>
                         {/each}
                     </tbody>
-                </table>
-                <div class="mt-4 text-right">
-                    <button class="btn btn-primary" on:click={handleStocktakeIngredients} disabled={processing}>
-                        {processing ? 'Đang lưu...' : 'Cân bằng Kho Nguyên liệu'}
-                    </button>
-                </div>
-            </div>
+                </svelte:fragment>
+            </ResponsiveTable>
         {/if}
 
         {#if activeTab === 'assets'}
-            <div class="grid grid-cols-1 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {#each assets as item}
-                    <div class="card bg-base-100 shadow-sm border border-base-200">
-                        <div class="card-body flex-row items-center justify-between p-4">
-                            <div class="w-1/4">
-                                <div class="font-bold">{item.name}</div>
-                                <div class="text-xs text-gray-500">Hệ thống: Tốt {item.quantity.good} / Hỏng {item.quantity.broken}</div>
-                            </div>
+                    <div class="card bg-white shadow-sm border border-slate-200">
+                        <div class="card-body p-4">
+                            <h3 class="font-bold">{item.name}</h3>
+                            <div class="text-xs text-slate-400 mb-2">Tổng mua: {item.quantity.total}</div>
                             
-                            <div class="flex gap-2 w-2/3">
-                                <div class="form-control w-1/4">
-                                    <label class="label text-xs">Tốt (Mới)</label>
-                                    <input type="number" bind:value={item.actualGood} class="input input-bordered input-sm text-success font-bold" />
+                            <div class="grid grid-cols-3 gap-2">
+                                <div class="form-control">
+                                    <label class="label text-xs p-0 pb-1 text-success">Tốt</label>
+                                    <input type="number" bind:value={item.actualGood} class="input input-bordered input-sm font-bold" />
                                 </div>
-                                <div class="form-control w-1/4">
-                                    <label class="label text-xs">Hỏng (Mới)</label>
-                                    <input type="number" bind:value={item.actualBroken} class="input input-bordered input-sm text-warning font-bold" />
+                                <div class="form-control">
+                                    <label class="label text-xs p-0 pb-1 text-warning">Hỏng</label>
+                                    <input type="number" bind:value={item.actualBroken} class="input input-bordered input-sm font-bold" />
                                 </div>
-                                <div class="form-control w-1/4">
-                                    <label class="label text-xs">Đã Mất</label>
-                                    <input type="number" bind:value={item.actualLost} class="input input-bordered input-sm text-error font-bold" />
-                                </div>
-                                <div class="w-1/4 pt-6">
-                                    <button class="btn btn-sm btn-ghost" on:click={() => handleStocktakeAssets(item)} disabled={processing}>Lưu</button>
+                                <div class="form-control">
+                                    <label class="label text-xs p-0 pb-1 text-error">Mất</label>
+                                    <input type="number" bind:value={item.actualLost} class="input input-bordered input-sm font-bold" />
                                 </div>
                             </div>
+                            <button class="btn btn-sm btn-ghost w-full mt-2" on:click={() => handleStocktakeAssets(item)} disabled={processing}>Cập nhật</button>
                         </div>
                     </div>
                 {/each}
             </div>
         {/if}
         
-        <div class="mt-8">
-            <h2 class="text-xl font-bold mb-4">Lịch sử Điều chỉnh Kho</h2>
-            <div class="overflow-x-auto bg-base-100 shadow-xl rounded-box">
-                <table class="table table-compact w-full">
+        <div class="mt-8 opacity-60">
+            <h2 class="text-lg font-bold mb-4">Lịch sử Điều chỉnh</h2>
+            <div class="overflow-x-auto bg-base-100 shadow rounded-box">
+                <table class="table table-xs w-full">
                     <thead>
                         <tr>
                             <th>Ngày</th>
                             <th>Mục</th>
-                            <th>Loại Điều chỉnh</th>
-                            <th class="text-right">SL Chênh lệch</th>
-                            <th class="text-right">Giá trị Tiền</th>
+                            <th class="text-right">SL</th>
                             <th>Lý do</th>
                         </tr>
                     </thead>
                     <tbody>
                         {#each stocktakeHistory as log}
-                            <tr class="text-sm">
+                            <tr>
                                 <td>{log.createdAt.toDate().toLocaleDateString('vi-VN')}</td>
-                                <td>{log.itemName}</td>
-                                <td>
-                                    <span class="badge {log.type.includes('ingredient') ? 'badge-info' : 'badge-warning'}">
-                                        {log.type.includes('ingredient') ? 'NVL' : 'Tài sản'}
-                                    </span>
-                                </td>
+                                <td class="max-w-[120px] truncate">{log.itemName}</td>
                                 <td class="text-right {log.differenceQty < 0 ? 'text-error' : 'text-success'}">
-                                    {log.differenceQty > 0 ? '+' : ''}{log.differenceQty.toLocaleString()}
+                                    {log.differenceQty > 0 ? '+' : ''}{log.differenceQty}
                                 </td>
-                                <td class="text-right font-mono {log.differenceValue < 0 ? 'text-error' : 'text-success'}">
-                                    {log.differenceValue.toLocaleString()} đ
-                                </td>
-                                <td>{log.reason}</td>
+                                <td class="max-w-[100px] truncate">{log.reason}</td>
                             </tr>
                         {/each}
                     </tbody>

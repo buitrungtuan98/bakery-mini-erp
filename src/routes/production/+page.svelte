@@ -4,6 +4,7 @@
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, Timestamp, onSnapshot, limit, deleteDoc } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
+    import Modal from '$lib/components/ui/Modal.svelte';
 
 	// --- Types ---
 	interface Ingredient {
@@ -47,15 +48,21 @@
     let productionDate: string = new Date().toISOString().split('T')[0];
     
 	let selectedProductId = '';
+    let selectedProduct: Product | undefined; // Reactive helper
     let actualYield = 0;
     let productionInputs: ProductionInput[] = [];
     
-    // TRẠNG THÁI MỚI: Tỉ lệ mẻ (Batch Scale)
+    // Scale
     let batchScale = 1; 
     
+    // UI State
+    let isProductModalOpen = false;
+
     let unsubscribe: () => void;
 
     // --- Reactive Calculation ---
+    $: selectedProduct = products.find(p => p.id === selectedProductId);
+
     $: totalActualCost = productionInputs.reduce((sum, input) => {
         return sum + (input.actualQuantityUsed * input.snapshotCost);
     }, 0);
@@ -63,6 +70,10 @@
     $: actualCostPerUnit = (actualYield > 0 && totalActualCost > 0) 
         ? totalActualCost / actualYield 
         : 0;
+
+    // Filter Products for Modal
+    let productSearchTerm = '';
+    $: filteredProducts = products.filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()));
 
 	// --- Load Data ---
 	onMount(async () => {
@@ -88,58 +99,54 @@
     });
 
     // --- Handlers ---
-
-    function handleProductSelect() {
+    function selectProduct(id: string) {
+        selectedProductId = id;
+        isProductModalOpen = false;
         errorMsg = '';
-        const selectedProduct = products.find(p => p.id === selectedProductId);
-        if (!selectedProduct) {
+
+        const prod = products.find(p => p.id === selectedProductId);
+        if (!prod) {
             productionInputs = [];
             actualYield = 0;
             return;
         }
 
-        // Reset Scale về 1 khi chọn sản phẩm mới
+        // Reset Scale
         batchScale = 1;
+        actualYield = prod.estimatedYieldQty || 0;
 
-        // Tính toán Yield ước tính ban đầu
-        actualYield = selectedProduct.estimatedYieldQty || 0;
-
-        productionInputs = selectedProduct.items.map(recipeItem => {
+        productionInputs = prod.items.map(recipeItem => {
             const ing = ingredients.find(i => i.id === recipeItem.ingredientId);
             return {
                 ingredientId: recipeItem.ingredientId,
                 theoreticalQuantity: recipeItem.quantity,
-                actualQuantityUsed: recipeItem.quantity, // Mặc định = Lý thuyết
+                actualQuantityUsed: recipeItem.quantity,
                 snapshotCost: ing?.avgCost || 0,
             };
         });
     }
-    
-    // LOGIC MỚI: Xử lý thay đổi Tỉ lệ (Scale)
-    function handleScaleChange() {
-        if (batchScale <= 0) return; // Không cho phép scale âm hoặc 0
-        
-        const selectedProduct = products.find(p => p.id === selectedProductId);
-        if (!selectedProduct) return;
 
-        // 1. Scale số lượng thành phẩm (Yield)
-        // Nếu Yield gốc là 30, Scale x2 -> Tự điền 60
-        if (selectedProduct.estimatedYieldQty) {
-            actualYield = Math.round(selectedProduct.estimatedYieldQty * batchScale);
+    
+    function handleScaleChange() {
+        if (batchScale <= 0) return;
+        
+        const prod = products.find(p => p.id === selectedProductId);
+        if (!prod) return;
+
+        if (prod.estimatedYieldQty) {
+            actualYield = Math.round(prod.estimatedYieldQty * batchScale);
         }
 
-        // 2. Scale toàn bộ nguyên liệu tiêu hao
         productionInputs = productionInputs.map(input => {
-            // Tính lại dựa trên lý thuyết gốc * scale
             const newQty = input.theoreticalQuantity * batchScale;
             return {
                 ...input,
-                actualQuantityUsed: Number(newQty.toFixed(2)) // Làm tròn 2 số thập phân cho đẹp
+                actualQuantityUsed: Number(newQty.toFixed(2))
             };
         });
     }
     
-    // --- Delete/Reverse Logic (Giữ nguyên) ---
+    // --- Delete/Reverse Logic ---
     async function handleDeleteRun(run: ProductionRun) {
         if (!['admin', 'manager'].includes($authStore.user?.role || '')) {
             return alert("Bạn không có quyền xóa lịch sử sản xuất.");
@@ -177,10 +184,10 @@
         }
     }
     
-    // --- Submit Production Logic (Giữ nguyên) ---
+    // --- Submit Logic ---
 	async function handleProduction() {
 		errorMsg = '';
-        const selectedProduct = products.find(p => p.id === selectedProductId);
+        const prod = products.find(p => p.id === selectedProductId);
 
         if (!selectedProductId || actualYield <= 0 || productionInputs.length === 0) {
             return (errorMsg = "Vui lòng chọn sản phẩm và nhập số lượng thành phẩm đạt chuẩn.");
@@ -197,13 +204,13 @@
             }
         }
         
-        if (!confirm(`Xác nhận chạy lệnh sản xuất ${actualYield.toLocaleString()} ${selectedProduct?.name}?`)) return;
+        if (!confirm(`Xác nhận chạy lệnh sản xuất ${actualYield.toLocaleString()} ${prod?.name}?`)) return;
 
 		processing = true;
 
 		try {
 			await runTransaction(db, async (transaction) => {
-                if (!selectedProduct) throw new Error("Sản phẩm không hợp lệ.");
+                if (!prod) throw new Error("Sản phẩm không hợp lệ.");
 
                 const ingRefs = productionInputs.map(input => doc(db, 'ingredients', input.ingredientId));
                 const ingSnaps = await Promise.all(ingRefs.map(ref => transaction.get(ref)));
@@ -227,8 +234,8 @@
                 const productionLogRef = doc(collection(db, 'production_runs'));
                 transaction.set(productionLogRef, {
                     productId: selectedProductId,
-                    productName: selectedProduct.name,
-                    theoreticalCostSnapshot: selectedProduct.theoreticalCost,
+                    productName: prod.name,
+                    theoreticalCostSnapshot: prod.theoreticalCost,
                     productionDate: Timestamp.fromDate(selectedDate), 
                     
                     actualYield: actualYield,
@@ -245,14 +252,14 @@
                     createdAt: serverTimestamp()
                 });
                 
-                await logAction($authStore.user!, 'TRANSACTION', 'production_runs', `SX ${selectedProduct.name}, Yield: ${actualYield}, COGS: ${totalActualCost.toLocaleString()} đ`);
+                await logAction($authStore.user!, 'TRANSACTION', 'production_runs', `SX ${prod.name}, Yield: ${actualYield}, COGS: ${totalActualCost.toLocaleString()} đ`);
             });
 
             alert(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm!`);
-            selectedProductId = '';
-            actualYield = 0;
-            productionInputs = [];
-            batchScale = 1; // Reset scale
+            // selectedProductId = '';
+            // actualYield = 0;
+            // productionInputs = [];
+            // batchScale = 1;
 
 		} catch (error) {
 			console.error(error);
@@ -263,205 +270,140 @@
 	}
 </script>
 
-<div class="max-w-4xl mx-auto">
-    <h1 class="text-2xl font-bold text-primary mb-6">Phân hệ Sản xuất (Production)</h1>
+<div class="max-w-4xl mx-auto pb-24">
+    <h1 class="text-2xl font-bold text-primary mb-4 px-2">Sản xuất (Production)</h1>
 
-    <div class="card bg-base-100 shadow-xl p-6">
-        {#if errorMsg}
-            <div role="alert" class="alert alert-error mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span>{errorMsg}</span>
-            </div>
-        {/if}
-
-        <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="form-control col-span-2">
-                <label class="label" for="prod-select"><span class="label-text">Chọn Sản phẩm (Công thức)</span></label>
-                <select 
-                    id="prod-select"
-                    bind:value={selectedProductId} 
-                    on:change={handleProductSelect}
-                    class="select select-bordered w-full"
-                    disabled={loading}
-                >
-                    <option value="" disabled selected>{loading ? 'Đang tải...' : '-- Chọn Công thức --'}</option>
-                    {#each products as prod}
-                        <option value={prod.id}>{prod.name} ({prod.theoreticalCost.toLocaleString()} đ/sp)</option>
-                    {/each}
-                </select>
-            </div>
-
-            <div class="form-control">
-                <label class="label" for="prod-date"><span class="label-text">Ngày Sản xuất</span></label>
-                <input 
-                    id="prod-date"
-                    type="date" 
-                    bind:value={productionDate} 
-                    class="input input-bordered w-full" 
-                />
-            </div>
+    {#if errorMsg}
+        <div role="alert" class="alert alert-error mb-4 mx-2">
+            <span>{errorMsg}</span>
         </div>
+    {/if}
 
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <div class="form-control">
-                <label class="label" for="batch-scale">
-                    <span class="label-text">Quy mô mẻ (Scale)</span>
-                    <span class="badge badge-sm badge-ghost">x{batchScale}</span>
-                </label>
-                <div class="join w-full">
-                    <button class="btn join-item btn-sm" on:click={() => { batchScale = 0.5; handleScaleChange(); }}>½</button>
-                    <button class="btn join-item btn-sm" on:click={() => { batchScale = 1; handleScaleChange(); }}>x1</button>
-                    <button class="btn join-item btn-sm" on:click={() => { batchScale = 2; handleScaleChange(); }}>x2</button>
-                    <button class="btn join-item btn-sm" on:click={() => { batchScale = 3; handleScaleChange(); }}>x3</button>
-                    <input 
-                        id="batch-scale"
-                        type="number" 
-                        bind:value={batchScale} 
-                        on:input={handleScaleChange}
-                        min="0.1" 
-                        step="0.1" 
-                        class="input input-bordered input-sm join-item w-full text-center" 
-                        placeholder="Nhập tỉ lệ..."
-                    />
-                </div>
-                <label class="label"><span class="label-text-alt text-info">Nhập số (VD: 1.5) hoặc chọn nhanh.</span></label>
-            </div>
-
-            <div class="form-control">
-                <label class="label" for="actual-yield"><span class="label-text">Số lượng thành phẩm (Yield)</span></label>
-                <input 
-                    id="actual-yield"
-                    type="number" 
-                    bind:value={actualYield} 
-                    min="0" 
-                    class="input input-bordered w-full" 
-                    placeholder="Tự động tính hoặc nhập tay" 
-                />
-                <label class="label"><span class="label-text-alt text-success font-bold">Ước tính gốc: {products.find(p => p.id === selectedProductId)?.estimatedYieldQty?.toLocaleString() || 'N/A'}</span></label>
-            </div>
-        </div>
-        
-        {#if productionInputs.length > 0}
-        <div class="divider">Nguyên liệu tiêu hao Thực tế</div>
-        <div class="overflow-x-auto">
-            <table class="table table-compact w-full">
-                <thead>
-                    <tr>
-                        <th class="w-1/3">Nguyên liệu</th>
-                        <th class="text-right">Lý thuyết (x1)</th>
-                        <th class="text-right">Thực tế tiêu hao</th>
-                        <th class="text-right">Giá vốn (Snapshot)</th>
-                        <th class="text-right">Tổng chi phí</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {#each productionInputs as input}
-                        {@const ing = ingredients.find(i => i.id === input.ingredientId)}
-                        <tr class="hover">
-                            <td>{ing?.code} - {ing?.name}</td>
-                            <td class="text-right text-gray-500">
-                                {input.theoreticalQuantity.toLocaleString()} {ing?.baseUnit}
-                            </td>
-                            <td class="text-right">
-                                <input 
-                                    type="number" 
-                                    bind:value={input.actualQuantityUsed} 
-                                    min="0" 
-                                    class="input input-bordered input-xs w-20 text-right"
-                                /> {ing?.baseUnit}
-                            </td>
-                            <td class="text-right text-warning font-mono">
-                                {input.snapshotCost.toLocaleString()} đ/{ing?.baseUnit}
-                            </td>
-                            <td class="text-right font-bold text-error">
-                                {(input.actualQuantityUsed * input.snapshotCost).toLocaleString()} đ
-                            </td>
-                        </tr>
-                    {/each}
-                </tbody>
-            </table>
-        </div>
-        <div class="divider">Tóm tắt Chi phí</div>
-        
-        <div class="flex justify-between items-center mt-4">
-            <div class="text-lg font-semibold">Tổng chi phí Nguyên liệu Thực tế:</div>
-            <div class="text-2xl font-bold text-error">{totalActualCost.toLocaleString()} đ</div>
-        </div>
-
-        <div class="flex justify-between items-center my-2">
-            <div class="text-lg font-semibold">Giá vốn Thực tế / 1 đơn vị thành phẩm:</div>
-            <div class="text-2xl font-bold text-accent">
-                {Math.round(actualCostPerUnit).toLocaleString()} đ
-            </div>
-        </div>
-
-        <div class="card-actions justify-end mt-6">
-            <button class="btn btn-primary px-8" on:click={handleProduction} disabled={processing || actualYield <= 0 || totalActualCost === 0}>
-                {#if processing}
-                    <span class="loading loading-spinner"></span>
+    <!-- 1. Select Product & Date -->
+    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4 mx-2">
+        <div class="form-control mb-4" on:click={() => isProductModalOpen = true}>
+            <label class="label"><span class="label-text">Sản phẩm (Công thức)</span></label>
+            <div class="flex items-center justify-between border rounded-lg p-3 bg-slate-50">
+                {#if selectedProduct}
+                    <span class="font-bold">{selectedProduct.name}</span>
                 {:else}
-                    Chạy Lệnh Sản Xuất & Trừ Kho
+                    <span class="text-slate-400">Chọn công thức...</span>
                 {/if}
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+            </div>
+        </div>
+
+        <div class="form-control">
+            <label class="label"><span class="label-text">Ngày SX</span></label>
+            <input type="date" bind:value={productionDate} class="input input-bordered w-full" />
+        </div>
+    </div>
+
+    {#if selectedProductId}
+        <!-- 2. Scale & Yield -->
+        <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4 mx-2">
+            <div class="grid grid-cols-2 gap-4">
+                 <div class="form-control">
+                    <label class="label"><span class="label-text text-xs">Tỉ lệ (Scale)</span></label>
+                    <select bind:value={batchScale} on:change={handleScaleChange} class="select select-bordered select-sm w-full font-bold text-primary">
+                        <option value={0.5}>0.5x (1/2 mẻ)</option>
+                        <option value={1}>1x (Chuẩn)</option>
+                        <option value={1.5}>1.5x</option>
+                        <option value={2}>2x (Nhân đôi)</option>
+                        <option value={3}>3x</option>
+                        <option value={4}>4x</option>
+                        <option value={5}>5x</option>
+                    </select>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text text-xs">Thành phẩm (Yield)</span></label>
+                    <input type="number" bind:value={actualYield} class="input input-bordered input-sm w-full font-bold text-center" />
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Inputs List -->
+        <div class="mx-2 mb-4">
+            <h3 class="font-bold text-sm text-slate-500 mb-2 uppercase">Nguyên liệu tiêu hao</h3>
+            <div class="space-y-2">
+                {#each productionInputs as input}
+                    {@const ing = ingredients.find(i => i.id === input.ingredientId)}
+                    <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
+                        <div class="flex-1">
+                            <div class="font-bold text-slate-700">{ing?.name}</div>
+                            <div class="text-xs text-slate-400">{ing?.code} (Kho: {ing?.currentStock})</div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input
+                                type="number"
+                                bind:value={input.actualQuantityUsed}
+                                class="input input-bordered input-sm w-20 text-right"
+                            />
+                            <span class="text-xs font-bold text-slate-500 w-8">{ing?.baseUnit}</span>
+                        </div>
+                    </div>
+                {/each}
+            </div>
+        </div>
+
+        <!-- 4. Summary & Action -->
+        <div class="bg-white p-4 mx-2 rounded-lg border border-slate-200 shadow-sm mb-6">
+             <div class="flex justify-between items-center mb-2">
+                <span class="text-sm text-slate-500">Tổng chi phí NVL:</span>
+                <span class="font-bold text-error">{totalActualCost.toLocaleString()} đ</span>
+            </div>
+            <div class="flex justify-between items-center mb-4">
+                <span class="text-sm text-slate-500">Giá vốn / SP:</span>
+                <span class="font-bold text-accent">{Math.round(actualCostPerUnit).toLocaleString()} đ</span>
+            </div>
+
+            <button
+                class="btn btn-primary w-full shadow-lg"
+                on:click={handleProduction}
+                disabled={processing || actualYield <= 0}
+            >
+                {processing ? 'Đang xử lý...' : 'HOÀN TẤT & TRỪ KHO'}
             </button>
         </div>
-        {/if}
+    {/if}
+
+    <!-- History (Simplified for Mobile) -->
+    <div class="mx-2 mt-8 opacity-60">
+        <h3 class="font-bold text-sm mb-2">Lịch sử gần đây</h3>
+        {#each productionHistory as run}
+             <div class="bg-white p-3 rounded border border-slate-200 mb-2 text-xs flex justify-between items-center">
+                 <div>
+                     <div class="font-bold">{run.productName}</div>
+                     <div class="text-slate-400">{run.productionDate?.toDate().toLocaleDateString('vi-VN')} - Yield: {run.actualYield}</div>
+                 </div>
+                 <button
+                    class="btn btn-xs btn-ghost text-red-400"
+                    on:click={() => handleDeleteRun(run)}
+                >Xóa</button>
+             </div>
+        {/each}
     </div>
-    
-    <div class="mt-10">
-        <h2 class="text-xl font-bold mb-4">Lịch sử Sản xuất Gần nhất</h2>
-        <div class="overflow-x-auto bg-base-100 shadow-xl rounded-box">
-            <table class="table table-zebra w-full table-compact">
-                <thead>
-                    <tr>
-                        <th class="w-1/12">Ngày SX</th>
-                        <th class="w-1/4">Sản phẩm</th>
-                        <th class="text-right">Yield (SL)</th>
-                        <th class="text-right text-warning">Giá vốn Thực tế</th>
-                        <th class="text-right text-success">Giá vốn Lý thuyết</th>
-                        <th>Hiệu suất</th>
-                        <th class="w-1/6">User</th>
-                        <th>Thao tác</th> 
-                    </tr>
-                </thead>
-                <tbody>
-                    {#if loading}
-                        <tr><td colspan="8" class="text-center">Đang tải lịch sử...</td></tr>
-                    {:else if productionHistory.length === 0}
-                        <tr><td colspan="8" class="text-center text-gray-500">Chưa có lệnh sản xuất nào được ghi nhận.</td></tr>
-                    {:else}
-                        {#each productionHistory as run}
-                            {@const theoreticalTotalCost = run.actualYield * run.theoreticalCostSnapshot}
-                            {@const actualTotalCost = run.totalActualCost}
-                            {@const variance = actualTotalCost - theoreticalTotalCost}
-                            {@const variancePercent = theoreticalTotalCost > 0 ? (variance / theoreticalTotalCost) * 100 : 0}
-                            
-                            <tr>
-                                <td>{run.productionDate?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
-                                <td>{run.productName}</td>
-                                <td class="text-right font-mono">{run.actualYield.toLocaleString()}</td>
-                                <td class="text-right font-mono text-warning">{Math.round(run.actualCostPerUnit).toLocaleString()} đ</td>
-                                <td class="text-right font-mono text-success">{run.theoreticalCostSnapshot.toLocaleString()} đ</td>
-                                
-                                <td>
-                                    <span class="badge badge-sm {variance > 0 ? 'badge-error' : 'badge-success'} text-white">
-                                        {variancePercent.toFixed(1)}%
-                                    </span>
-                                </td>
-                                <td>{run.createdBy}</td>
-                                <td>
-                                    <button 
-                                        class="btn btn-xs btn-error text-white" 
-                                        on:click={() => handleDeleteRun(run)}
-                                        disabled={!['admin', 'manager'].includes($authStore.user?.role || '')}
-                                    >
-                                        Xóa/Đảo kho
-                                    </button>
-                                </td>
-                            </tr>
-                        {/each}
-                    {/if}
-                </tbody>
-            </table>
-        </div>
-    </div>
+
 </div>
+
+<!-- Modal: Select Product -->
+<Modal title="Chọn Công thức" isOpen={isProductModalOpen} onClose={() => isProductModalOpen = false} showConfirm={false}>
+    <input
+        type="text"
+        bind:value={productSearchTerm}
+        placeholder="Tìm tên sản phẩm..."
+        class="input input-bordered w-full mb-4 sticky top-0"
+        autofocus
+    />
+    <div class="space-y-2 max-h-[60vh] overflow-y-auto pb-10">
+        {#each filteredProducts as prod}
+            <button
+                class="w-full text-left p-3 rounded hover:bg-slate-100 border border-slate-100 flex justify-between items-center"
+                on:click={() => selectProduct(prod.id)}
+            >
+                <span class="font-bold">{prod.name}</span>
+                <span class="text-xs text-slate-400">Giá vốn: {prod.theoreticalCost.toLocaleString()} đ</span>
+            </button>
+        {/each}
+    </div>
+</Modal>

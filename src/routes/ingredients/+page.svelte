@@ -2,13 +2,13 @@
     import { db } from '$lib/firebase';
     import { collection, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
     import { authStore } from '$lib/stores/authStore';
-    import { ingredientStore, partnerStore, type Ingredient, type Partner } from '$lib/stores/masterDataStore'; // Use Store
+    import { ingredientStore, partnerStore, type Ingredient, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
 
     // Components
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
-    import TableWrapper from '$lib/components/ui/TableWrapper.svelte';
+    import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
 
     // --- State ---
@@ -19,7 +19,7 @@
     $: ingredients = $ingredientStore;
     $: manufacturers = $partnerStore.filter(p => p.type === 'manufacturer');
 
-    let loading = false; // Store handles loading mostly, but local processing needs this
+    let loading = false;
     let isModalOpen = false;
     let isEditing = false;
     let processing = false;
@@ -46,7 +46,6 @@
     function processIngredients(data: Ingredient[], term: string, start: string, end: string): Ingredient[] {
         let filtered = data;
         
-        // 1. Filter by Search
         if (term) {
             const lowerTerm = term.toLowerCase();
             filtered = filtered.filter(item => 
@@ -56,7 +55,6 @@
             );
         }
 
-        // 2. Filter by Date
         if (start || end) {
             const startTimestamp = start ? new Date(start).getTime() : 0;
             const endTimestamp = end ? new Date(end).setHours(23, 59, 59, 999) : Infinity;
@@ -67,7 +65,6 @@
             });
         }
         
-        // 3. Sort
         return filtered.sort((a, b) => b.code.localeCompare(a.code));
     }
 
@@ -159,59 +156,97 @@
     {#if ingredients.length === 0}
         <Loading />
     {:else}
-        <TableWrapper>
-            <thead>
-                <tr class="bg-slate-50 text-slate-600">
-                    <th>Mã NVL</th>
-                    <th>Tên Nguyên liệu</th>
-                    <th>Nhà Sản xuất</th>
-                    <th>Đơn vị</th>
-                    <th class="text-right">Tồn kho</th>
-                    {#if $authStore.user?.role === 'admin'}
-                        <th class="text-right">Giá vốn TB</th>
-                    {/if}
-                    <th>Ngày tạo</th>
-                    <th class="text-center">Thao tác</th>
-                </tr>
-            </thead>
-            <tbody>
-                {#if paginatedIngredients.length === 0}
-                    <tr><td colspan="8" class="text-center text-gray-500 py-4">Không tìm thấy dữ liệu.</td></tr>
-                {:else}
-                    {#each paginatedIngredients as item}
-                        <tr class="hover">
-                            <td class="font-bold text-slate-700">{item.code}</td>
-                            <td>
-                                <div class="font-medium">{item.name}</div>
-                                {#if item.currentStock < item.minStock}
-                                    <span class="badge badge-error badge-xs text-white mt-1">Sắp hết</span>
-                                {/if}
-                            </td>
-                            <td class="text-sm">{item.manufacturerName}</td>
-                            <td><span class="badge badge-ghost badge-sm">{item.baseUnit}</span></td>
+        <ResponsiveTable>
+             <svelte:fragment slot="mobile">
+                 {#each paginatedIngredients as item}
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col gap-2">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-bold text-slate-800">{item.name}</h3>
+                                <p class="text-xs text-slate-500">Mã: {item.code}</p>
+                            </div>
+                            <span class="badge badge-sm badge-ghost">{item.baseUnit}</span>
+                        </div>
+                        <div class="text-sm text-slate-600">
+                            NSX: {item.manufacturerName || 'N/A'}
+                        </div>
+                        <div class="flex justify-between items-end mt-2">
+                             <div class="flex flex-col">
+                                 <span class="text-xs text-slate-400">Tồn kho</span>
+                                 <span class="font-mono font-bold {item.currentStock < item.minStock ? 'text-red-500' : 'text-slate-700'}">
+                                     {item.currentStock?.toLocaleString() || 0}
+                                 </span>
+                             </div>
+                             {#if $authStore.user?.role === 'admin'}
+                                <div class="flex flex-col text-right">
+                                    <span class="text-xs text-slate-400">Giá vốn</span>
+                                    <span class="font-mono text-emerald-600">{item.avgCost?.toLocaleString() || 0} đ</span>
+                                </div>
+                             {/if}
+                        </div>
+                        <div class="divider my-1"></div>
+                        <div class="flex justify-end gap-2">
+                            <button class="btn btn-xs btn-outline" on:click={() => openEditModal(item)}>Sửa</button>
+                            <button class="btn btn-xs btn-outline btn-error" on:click={() => handleDelete(item.id)}>Xóa</button>
+                        </div>
+                    </div>
+                 {/each}
+             </svelte:fragment>
 
-                            <td class="text-right font-mono {item.currentStock < item.minStock ? 'text-red-600 font-bold' : ''}">
-                                {item.currentStock?.toLocaleString() || '0'}
-                            </td>
-
-                            {#if $authStore.user?.role === 'admin'}
-                                <td class="text-right font-mono text-emerald-600">
-                                    {item.avgCost?.toLocaleString() || '0'} đ
+             <svelte:fragment slot="desktop">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-600">
+                        <th>Mã NVL</th>
+                        <th>Tên Nguyên liệu</th>
+                        <th>Nhà Sản xuất</th>
+                        <th>Đơn vị</th>
+                        <th class="text-right">Tồn kho</th>
+                        {#if $authStore.user?.role === 'admin'}
+                            <th class="text-right">Giá vốn TB</th>
+                        {/if}
+                        <th>Ngày tạo</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#if paginatedIngredients.length === 0}
+                        <tr><td colspan="8" class="text-center text-gray-500 py-4">Không tìm thấy dữ liệu.</td></tr>
+                    {:else}
+                        {#each paginatedIngredients as item}
+                            <tr class="hover">
+                                <td class="font-bold text-slate-700">{item.code}</td>
+                                <td>
+                                    <div class="font-medium">{item.name}</div>
+                                    {#if item.currentStock < item.minStock}
+                                        <span class="badge badge-error badge-xs text-white mt-1">Sắp hết</span>
+                                    {/if}
                                 </td>
-                            {/if}
-                            <td class="text-xs text-gray-500">{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}</td>
-                            <td class="text-center">
-                                <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}>Sửa</button>
-                                <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}>Xóa</button>
-                            </td>
-                        </tr>
-                    {/each}
-                {/if}
-            </tbody>
-        </TableWrapper>
+                                <td class="text-sm">{item.manufacturerName}</td>
+                                <td><span class="badge badge-ghost badge-sm">{item.baseUnit}</span></td>
+
+                                <td class="text-right font-mono {item.currentStock < item.minStock ? 'text-red-600 font-bold' : ''}">
+                                    {item.currentStock?.toLocaleString() || '0'}
+                                </td>
+
+                                {#if $authStore.user?.role === 'admin'}
+                                    <td class="text-right font-mono text-emerald-600">
+                                        {item.avgCost?.toLocaleString() || '0'} đ
+                                    </td>
+                                {/if}
+                                <td class="text-xs text-gray-500">{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}</td>
+                                <td class="text-center">
+                                    <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}>Sửa</button>
+                                    <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}>Xóa</button>
+                                </td>
+                            </tr>
+                        {/each}
+                    {/if}
+                </tbody>
+             </svelte:fragment>
+        </ResponsiveTable>
 
         {#if totalPages > 1}
-            <div class="flex justify-end mt-4">
+            <div class="flex justify-center md:justify-end mt-4">
                 <div class="join">
                     <button class="join-item btn btn-sm" on:click={() => currentPage = Math.max(1, currentPage - 1)} disabled={currentPage === 1}>«</button>
                     <button class="join-item btn btn-sm bg-base-100">Trang {currentPage} / {totalPages}</button>
