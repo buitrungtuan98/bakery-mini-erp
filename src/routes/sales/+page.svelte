@@ -45,6 +45,7 @@
     let selectedItemIndex = -1;
     let editingItem: OrderItem = { productId: '', quantity: 0, unitPrice: 0, lineTotal: 0, lineCOGS: 0, initialPrice: 0 };
     let productSearchTerm = '';
+    let customerSearchTerm = '';
 
     // History Pagination (Client side sort/filter if needed, but here we just use store/limit)
     let historyLimit = 10;
@@ -67,6 +68,9 @@
 
     // Filter Products
     $: filteredProducts = products.filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()));
+
+    // Filter Customers
+    $: filteredCustomers = customers.filter(c => c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()));
 	
 	// Hàm tính giá đơn vị và tổng tiền của item
 	function updatePricing(item: OrderItem, products: Product[], currentCustomer: Partner | undefined, isManualUpdate: boolean): OrderItem {
@@ -445,8 +449,15 @@
 <!-- MODAL: Select Customer -->
 <Modal title="Chọn Khách hàng" isOpen={isCustomerModalOpen} onClose={() => isCustomerModalOpen = false} showConfirm={false}>
     {#if isCustomerModalOpen}
+        <input
+            type="text"
+            bind:value={customerSearchTerm}
+            placeholder="Tìm tên khách hàng..."
+            class="input input-bordered w-full mb-4 sticky top-0"
+            autofocus
+        />
         <div class="space-y-1 max-h-[60vh] overflow-y-auto">
-            {#each customers as cust}
+            {#each filteredCustomers as cust}
                 <button
                     class="w-full text-left p-3 rounded-lg border-b border-slate-50 active:bg-slate-50 flex justify-between items-center"
                     on:click={() => handleCustomerChangeAndRecalculate(cust.id)}
@@ -460,6 +471,9 @@
                     {/if}
                 </button>
             {/each}
+            {#if filteredCustomers.length === 0}
+                <div class="text-center text-slate-400 py-4">Không tìm thấy khách hàng.</div>
+            {/if}
         </div>
     {/if}
 </Modal>
