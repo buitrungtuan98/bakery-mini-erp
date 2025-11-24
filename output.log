@@ -85,131 +85,270 @@ https://svelte.dev/e/a11y_no_noninteractive_tabindex (svelte)
                 </ul>
             </div>
 
-/app/src/routes/admin/users/+page.svelte:165:25
+/app/src/routes/admin/roles/+page.svelte:145:21
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+                {#each roles as role}
+                    <a
+                        class="tab flex-shrink-0 {activeRoleTab === role.id ? 'tab-active' : ''}"
+                        on:click={() => activeRoleTab = role.id}
+                    >
+                        {role.name}
+                    </a>
+                {/each}
+
+/app/src/routes/admin/roles/+page.svelte:145:21
+Warn: `<a>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+                {#each roles as role}
+                    <a
+                        class="tab flex-shrink-0 {activeRoleTab === role.id ? 'tab-active' : ''}"
+                        on:click={() => activeRoleTab = role.id}
+                    >
+                        {role.name}
+                    </a>
+                {/each}
+
+/app/src/routes/admin/roles/+page.svelte:145:21
+Warn: `<a>` element should have an href attribute
+https://svelte.dev/e/a11y_missing_attribute (svelte)
+                {#each roles as role}
+                    <a
+                        class="tab flex-shrink-0 {activeRoleTab === role.id ? 'tab-active' : ''}"
+                        on:click={() => activeRoleTab = role.id}
+                    >
+                        {role.name}
+                    </a>
+                {/each}
+
+/app/src/routes/admin/users/+page.svelte:161:25
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
                     <div class="form-control w-full md:w-1/3">
-                        <label class="label"><span class="label-text">Email Google</span></label>
+                        <label class="label pt-0"><span class="label-text">Email Google</span></label>
                         <input type="email" bind:value={inviteEmail} placeholder="user@gmail.com" class="input input-bordered w-full" />
 
-/app/src/routes/admin/users/+page.svelte:169:25
+/app/src/routes/admin/users/+page.svelte:165:25
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
                     <div class="form-control w-full md:w-1/4">
-                        <label class="label"><span class="label-text">Vai trò dự kiến</span></label>
+                        <label class="label pt-0"><span class="label-text">Vai trò dự kiến</span></label>
                         <select bind:value={inviteRole} class="select select-bordered w-full">
 
-/app/src/routes/assets/+page.svelte:131:4
+/app/src/routes/admin/users/+page.svelte:231:37
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+                                <div class="form-control">
+                                    <label class="label pt-0"><span class="label-text text-xs uppercase font-bold text-slate-400">Vai trò</span></label>
+                                    <select
+
+/app/src/routes/assets/+page.svelte:165:4
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
 		<div class="form-control w-full mb-3">
 			<label class="label">Tên Tài sản</label>
 			<input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Lò nướng Sanaky" />
 
-/app/src/routes/assets/+page.svelte:136:17
+/app/src/routes/assets/+page.svelte:170:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
             <div class="form-control">
                 <label class="label">Loại</label>
                 <select bind:value={formData.category} class="select select-bordered">
 
-/app/src/routes/assets/+page.svelte:144:17
+/app/src/routes/assets/+page.svelte:178:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
             <div class="form-control">
                 <label class="label">Giá mua (đ)</label>
                 <input type="number" bind:value={formData.originalPrice} class="input input-bordered" />
 
-/app/src/routes/assets/+page.svelte:150:17
+/app/src/routes/assets/+page.svelte:184:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
             <div class="form-control">
                 <label class="label text-success">Tốt</label>
                 <input type="number" bind:value={formData.quantity.good} class="input input-bordered input-sm" />
 
-/app/src/routes/assets/+page.svelte:154:17
+/app/src/routes/assets/+page.svelte:188:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
             <div class="form-control">
                 <label class="label text-warning">Hỏng</label>
                 <input type="number" bind:value={formData.quantity.broken} class="input input-bordered input-sm" />
 
-/app/src/routes/assets/+page.svelte:158:17
+/app/src/routes/assets/+page.svelte:192:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
             <div class="form-control">
                 <label class="label text-error">Mất</label>
                 <input type="number" bind:value={formData.quantity.lost} class="input input-bordered input-sm" />
 
-/app/src/routes/expenses/+page.svelte:177:17
+/app/src/routes/assets/+page.svelte:80:8
+Error: Cannot use 'hasPermission' as a store. 'hasPermission' needs to be an object with a subscribe method on it.
+
+No overload matches this call.
+  Overload 1 of 2, '(store: SvelteStore<any>): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'.
+  Overload 2 of 2, '(store: SvelteStore<any> | null | undefined): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'. (ts)
+		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
+		{#if $hasPermission('manage_assets')}
+			<button class="btn btn-primary" on:click={openAddModal}>+ Thêm Tài sản</button>
+
+/app/src/routes/expenses/+page.svelte:166:29
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-            <div class="form-control">
-                <label class="label"><span class="label-text">Ngày Chi</span></label>
-                <input type="date" bind:value={expenseData.date} class="input input-bordered" />
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Ngày Chi</span></label>
+                            <input type="date" bind:value={expenseData.date} class="input input-bordered w-full" />
 
-/app/src/routes/expenses/+page.svelte:182:17
+/app/src/routes/expenses/+page.svelte:170:29
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-            <div class="form-control">
-                <label class="label"><span class="label-text">Danh mục Chi phí</span></label>
-                <select bind:value={expenseData.categoryId} class="select select-bordered" disabled={categories.length === 0}>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Số tiền (đ)</span></label>
+                            <input type="number" bind:value={expenseData.amount} min="0" class="input input-bordered w-full font-bold text-right" placeholder="0" />
 
-/app/src/routes/expenses/+page.svelte:190:21
+/app/src/routes/expenses/+page.svelte:178:29
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-                {#if categories.length === 0}
-                    <label class="label"><span class="label-text-alt text-warning">Vui lòng thêm danh mục bên dưới.</span></label>
-                {/if}
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Loại Chi phí</span></label>
+                            <select bind:value={expenseData.categoryId} class="select select-bordered w-full" disabled={categories.length === 0}>
 
-/app/src/routes/expenses/+page.svelte:195:17
+/app/src/routes/expenses/+page.svelte:187:29
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-            <div class="form-control">
-                <label class="label"><span class="label-text">Số tiền Chi (đ)</span></label>
-                <input type="number" bind:value={expenseData.amount} min="0" class="input input-bordered text-right" placeholder="0" />
+                        <div class="form-control">
+                            <label class="label"><span class="label-text">Nhà cung cấp</span></label>
+                            <select bind:value={expenseData.selectedSupplierId} class="select select-bordered w-full" disabled={suppliers.length === 0}>
 
-/app/src/routes/expenses/+page.svelte:200:17
+/app/src/routes/expenses/+page.svelte:199:25
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-            <div class="form-control">
-                <label class="label"><span class="label-text">Nhà cung cấp/Người bán</span></label>
-                <select bind:value={expenseData.selectedSupplierId} class="select select-bordered" disabled={suppliers.length === 0}>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text">Mô tả Chi tiết</span></label>
+                        <input type="text" bind:value={expenseData.description} class="input input-bordered w-full" placeholder="VD: Mua lò nướng, Trả tiền điện..." />
 
-/app/src/routes/expenses/+page.svelte:208:21
-Warn: A form label must be associated with a control
-https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-                {#if suppliers.length === 0}
-                    <label class="label"><span class="label-text-alt text-warning">Vui lòng tạo NCC trong Partners.</span></label>
-                {/if}
+/app/src/routes/expenses/+page.svelte:153:10
+Error: Cannot use 'hasPermission' as a store. 'hasPermission' needs to be an object with a subscribe method on it.
 
-/app/src/routes/expenses/+page.svelte:214:13
-Warn: A form label must be associated with a control
-https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-        <div class="form-control mt-4">
-            <label class="label"><span class="label-text">Mô tả Chi tiết (VD: Mua 1 cái lò nướng 100 lít)</span></label>
-            <input type="text" bind:value={expenseData.description} class="input input-bordered" placeholder="Mô tả" />
+No overload matches this call.
+  Overload 1 of 2, '(store: SvelteStore<any>): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'.
+  Overload 2 of 2, '(store: SvelteStore<any> | null | undefined): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'. (ts)
 
-/app/src/routes/expenses/+page.svelte:242:25
-Warn: `<a>` element should have an href attribute
-https://svelte.dev/e/a11y_missing_attribute (svelte)
-                {#each categories as cat}
-                    <li><a class="p-2">{cat.name}</a></li>
-                {/each}
+    {#if $hasPermission('manage_expenses')}
+        <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8">
 
-/app/src/routes/imports/+page.svelte:214:17
+/app/src/routes/imports/+page.svelte:196:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
             <div class="form-control w-full">
-                <label class="label"><span class="label-text font-bold">Ngày Nhập hàng</span></label>
+                <label class="label"><span class="label-text">Ngày Nhập</span></label>
                 <input type="date" bind:value={importDate} class="input input-bordered w-full" />
 
-/app/src/routes/imports/+page.svelte:219:17
+/app/src/routes/imports/+page.svelte:201:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
             <div class="form-control w-full">
-                <label class="label"><span class="label-text font-bold">Nhà cung cấp</span></label>
+                <label class="label"><span class="label-text">Nhà cung cấp</span></label>
                 <select
+
+/app/src/routes/imports/+page.svelte:218:17
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+            {#each importItems as item, i}
+                <div class="bg-base-50 p-3 rounded-lg border border-slate-200 relative" on:click={() => openEditItem(i)}>
+                    <div class="font-bold text-slate-700">{item.tempIngredient?.name || 'Chọn NVL...'}</div>
+                    <div class="flex justify-between items-end mt-1">
+                        <div class="text-sm">
+                            {item.quantity} <span class="text-gray-500">{item.tempIngredient?.baseUnit}</span>
+                        </div>
+                        <div class="text-primary font-bold">
+                            {item.price.toLocaleString()} đ
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1 text-right">Chạm để sửa</div>
+                </div>
+            {/each}
+
+/app/src/routes/imports/+page.svelte:218:17
+Warn: `<div>` with a click handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+            {#each importItems as item, i}
+                <div class="bg-base-50 p-3 rounded-lg border border-slate-200 relative" on:click={() => openEditItem(i)}>
+                    <div class="font-bold text-slate-700">{item.tempIngredient?.name || 'Chọn NVL...'}</div>
+                    <div class="flex justify-between items-end mt-1">
+                        <div class="text-sm">
+                            {item.quantity} <span class="text-gray-500">{item.tempIngredient?.baseUnit}</span>
+                        </div>
+                        <div class="text-primary font-bold">
+                            {item.price.toLocaleString()} đ
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1 text-right">Chạm để sửa</div>
+                </div>
+            {/each}
+
+/app/src/routes/imports/+page.svelte:326:9
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+    <div class="form-control w-full mb-4">
+        <label class="label">Nguyên liệu</label>
+        <select bind:value={editingItem.ingredientId} class="select select-bordered w-full">
+
+/app/src/routes/imports/+page.svelte:337:13
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+        <div class="form-control">
+            <label class="label">Số lượng</label>
+            <input type="number" bind:value={editingItem.quantity} min="0" class="input input-bordered w-full" />
+
+/app/src/routes/imports/+page.svelte:341:13
+Warn: A form label must be associated with a control
+https://svelte.dev/e/a11y_label_has_associated_control (svelte)
+        <div class="form-control">
+            <label class="label">Thành tiền</label>
+            <input type="number" bind:value={editingItem.price} min="0" class="input input-bordered w-full" />
+
+/app/src/routes/imports/+page.svelte:190:10
+Error: Cannot use 'hasPermission' as a store. 'hasPermission' needs to be an object with a subscribe method on it.
+
+No overload matches this call.
+  Overload 1 of 2, '(store: SvelteStore<any>): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'.
+  Overload 2 of 2, '(store: SvelteStore<any> | null | undefined): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'. (ts)
+
+    {#if $hasPermission('manage_imports')}
+    <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8 p-4">
+
+/app/src/routes/imports/+page.svelte:273:30
+Error: Cannot use 'hasPermission' as a store. 'hasPermission' needs to be an object with a subscribe method on it.
+
+No overload matches this call.
+  Overload 1 of 2, '(store: SvelteStore<any>): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'.
+  Overload 2 of 2, '(store: SvelteStore<any> | null | undefined): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'. (ts)
+                        </div>
+                        {#if $hasPermission('manage_imports')}
+                            <div class="text-right">
+
+/app/src/routes/imports/+page.svelte:306:38
+Error: Cannot use 'hasPermission' as a store. 'hasPermission' needs to be an object with a subscribe method on it.
+
+No overload matches this call.
+  Overload 1 of 2, '(store: SvelteStore<any>): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'.
+  Overload 2 of 2, '(store: SvelteStore<any> | null | undefined): any', gave the following error.
+    Argument of type '(perm: Permission) => Readable<boolean>' is not assignable to parameter of type 'SvelteStore<any>'. (ts)
+                            <td>
+                                {#if $hasPermission('manage_imports')}
+                                    <button
 
 /app/src/routes/ingredients/+page.svelte:144:17
 Warn: A form label must be associated with a control
@@ -489,19 +628,19 @@ https://svelte.dev/e/a11y_label_has_associated_control (svelte)
                     <label class="label py-0"><span class="label-text text-xs">Lượng</span></label>
                     <input type="number" bind:value={item.quantity} class="input input-bordered input-sm w-full text-right" />
 
-/app/src/routes/reports/+page.svelte:173:21
+/app/src/routes/reports/+page.svelte:145:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-                <div class="form-control join-item">
-                    <label class="label py-0"><span class="label-text text-xs">Từ ngày</span></label>
-                    <input type="date" bind:value={startDate} class="input input-sm input-bordered" />
+            <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs">Từ ngày</span></label>
+                <input type="date" bind:value={startDate} class="input input-bordered w-full" />
 
-/app/src/routes/reports/+page.svelte:177:21
+/app/src/routes/reports/+page.svelte:149:17
 Warn: A form label must be associated with a control
 https://svelte.dev/e/a11y_label_has_associated_control (svelte)
-                <div class="form-control join-item">
-                    <label class="label py-0"><span class="label-text text-xs">Đến ngày</span></label>
-                    <input type="date" bind:value={endDate} class="input input-sm input-bordered" />
+            <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs">Đến ngày</span></label>
+                <input type="date" bind:value={endDate} class="input input-bordered w-full" />
 
 /app/src/routes/sales/+page.svelte:347:5
 Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
@@ -708,4 +847,4 @@ https://svelte.dev/e/a11y_label_has_associated_control (svelte)
                                     <input type="number" bind:value={item.actualLost} class="input input-bordered input-sm font-bold" />
 
 ====================================
-svelte-check found 0 errors and 74 warnings in 13 files
+svelte-check found 5 errors and 80 warnings in 14 files

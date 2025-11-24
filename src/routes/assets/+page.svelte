@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
-    import { checkPermission } from '$lib/stores/permissionStore';
-    import { permissionStore } from '$lib/stores/permissionStore';
+    import { checkPermission, hasPermission } from '$lib/stores/permissionStore';
 	import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, serverTimestamp } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger';
+    import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
 
 	interface Asset {
 		id: string; name: string;
@@ -74,53 +74,87 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto pb-20">
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
-		{#if $permissionStore.userPermissions.has('manage_assets')}
+		{#if $hasPermission('manage_assets')}
 			<button class="btn btn-primary" on:click={openAddModal}>+ Thêm Tài sản</button>
 		{/if}
 	</div>
 
-	<div class="overflow-x-auto bg-base-100 shadow-xl rounded-box">
-		<table class="table table-zebra w-full">
-			<thead>
-				<tr>
-					<th>Tên Tài sản</th>
-                    <th>Loại</th>
-					<th>Tổng SL</th>
-                    <th class="text-success">Tốt</th>
-                    <th class="text-warning">Hỏng</th>
-                    <th class="text-error">Mất</th>
-                    <th>Giá trị gốc</th>
-					<th class="text-center">Thao tác</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#if loading}
-					<tr><td colspan="8" class="text-center">Đang tải...</td></tr>
-				{:else if assets.length === 0}
-                    <tr><td colspan="8" class="text-center text-gray-500">Chưa có tài sản nào.</td></tr>
-                {:else}
-					{#each assets as item}
-						<tr>
-							<td class="font-bold">{item.name}</td>
+	{#if loading}
+		<div class="text-center py-8">Đang tải...</div>
+	{:else if assets.length === 0}
+        <div class="text-center py-8 text-gray-500">Chưa có tài sản nào.</div>
+    {:else}
+        <ResponsiveTable>
+            <svelte:fragment slot="mobile">
+                {#each assets as item}
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 mb-3">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="font-bold text-slate-800">{item.name}</h3>
+                                <span class="badge badge-sm badge-ghost">{item.category}</span>
+                            </div>
+                            <span class="font-bold text-primary">{item.originalPrice.toLocaleString()} đ</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 text-center text-xs mb-3">
+                            <div class="bg-green-50 p-1 rounded border border-green-100">
+                                <div class="text-success font-bold">{item.quantity.good}</div>
+                                <div class="text-gray-500">Tốt</div>
+                            </div>
+                            <div class="bg-yellow-50 p-1 rounded border border-yellow-100">
+                                <div class="text-warning font-bold">{item.quantity.broken}</div>
+                                <div class="text-gray-500">Hỏng</div>
+                            </div>
+                            <div class="bg-red-50 p-1 rounded border border-red-100">
+                                <div class="text-error font-bold">{item.quantity.lost}</div>
+                                <div class="text-gray-500">Mất</div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end gap-2 border-t pt-2">
+                            <button class="btn btn-xs btn-outline" on:click={() => openEditModal(item)}>Sửa</button>
+                            <button class="btn btn-xs btn-outline btn-error" on:click={() => handleDelete(item.id)}>Xóa</button>
+                        </div>
+                    </div>
+                {/each}
+            </svelte:fragment>
+
+            <svelte:fragment slot="desktop">
+                <thead>
+                    <tr>
+                        <th>Tên Tài sản</th>
+                        <th>Loại</th>
+                        <th>Tổng SL</th>
+                        <th class="text-success">Tốt</th>
+                        <th class="text-warning">Hỏng</th>
+                        <th class="text-error">Mất</th>
+                        <th>Giá trị gốc</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {#each assets as item}
+                        <tr>
+                            <td class="font-bold">{item.name}</td>
                             <td>{item.category}</td>
                             <td class="font-bold">{item.quantity.total}</td>
                             <td class="text-success">{item.quantity.good}</td>
                             <td class="text-warning">{item.quantity.broken}</td>
                             <td class="text-error">{item.quantity.lost}</td>
                             <td>{item.originalPrice.toLocaleString()} đ</td>
-							<td class="text-center">
-								<button class="btn btn-xs btn-ghost text-info" on:click={() => openEditModal(item)}>Sửa</button>
+                            <td class="text-center">
+                                <button class="btn btn-xs btn-ghost text-info" on:click={() => openEditModal(item)}>Sửa</button>
                                 <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}>Xóa</button>
-							</td>
-						</tr>
-					{/each}
-				{/if}
-			</tbody>
-		</table>
-	</div>
+                            </td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </svelte:fragment>
+        </ResponsiveTable>
+	{/if}
 </div>
 
 <input type="checkbox" class="modal-toggle" bind:checked={isModalOpen} />

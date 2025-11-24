@@ -5,12 +5,13 @@
     import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
     import { onMount } from 'svelte';
     import { logAction } from '$lib/logger';
+    import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
 
     interface UserProfile {
         id: string;
         email: string;
         displayName?: string;
-        role: string; // Dynamic Role ID
+        role: string;
         createdAt?: any;
     }
 
@@ -24,20 +25,16 @@
     let users: UserProfile[] = [];
     let invites: Invite[] = [];
     let loading = true;
-    let currentUserRole = '';
 
     // Invite Form
     let inviteEmail = '';
     let inviteRole = 'staff';
     let inviteLoading = false;
 
-    // Subscribe store
-    $: currentUserRole = $authStore.user?.role || '';
     // Dynamic Roles from Store
     $: availableRoles = $permissionStore.roles;
 
     onMount(async () => {
-        // Init permissions to ensure we have roles list
         await permissionStore.initRoles();
 
         if (!$userPermissions.has('view_users')) {
@@ -106,7 +103,6 @@
         } catch (e) { alert("Lỗi xóa user: " + e); }
     }
 
-    // --- Invite Logic ---
     async function handleInvite() {
         if(!inviteEmail) return alert("Vui lòng nhập Email.");
         if (users.find(u => u.email === inviteEmail)) return alert("Email này đã là thành viên hệ thống.");
@@ -157,39 +153,39 @@
     {:else}
 
         <!-- SECTION 1: INVITE USER -->
-        <div class="card bg-base-100 shadow-xl mb-8">
-            <div class="card-body">
-                <h2 class="card-title text-lg">Mời thành viên mới</h2>
+        <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8">
+            <div class="card-body p-4">
+                <h2 class="card-title text-lg mb-4">Mời thành viên mới</h2>
                 <div class="flex flex-col md:flex-row gap-4 items-end">
                     <div class="form-control w-full md:w-1/3">
-                        <label class="label"><span class="label-text">Email Google</span></label>
+                        <label class="label pt-0"><span class="label-text">Email Google</span></label>
                         <input type="email" bind:value={inviteEmail} placeholder="user@gmail.com" class="input input-bordered w-full" />
                     </div>
                     <div class="form-control w-full md:w-1/4">
-                        <label class="label"><span class="label-text">Vai trò dự kiến</span></label>
+                        <label class="label pt-0"><span class="label-text">Vai trò dự kiến</span></label>
                         <select bind:value={inviteRole} class="select select-bordered w-full">
                             {#each availableRoles as r}
                                 <option value={r.id}>{r.name}</option>
                             {/each}
                         </select>
                     </div>
-                    <button class="btn btn-primary" on:click={handleInvite} disabled={inviteLoading}>
+                    <button class="btn btn-primary w-full md:w-auto" on:click={handleInvite} disabled={inviteLoading}>
                         {#if inviteLoading}<span class="loading loading-spinner"></span>{/if}
                         Gửi lời mời
                     </button>
                 </div>
 
                 {#if invites.length > 0}
-                    <div class="mt-4">
-                        <h3 class="font-bold text-sm text-gray-500 mb-2">Lời mời đang chờ (Pending)</h3>
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <h3 class="font-bold text-sm text-gray-500 mb-2 uppercase">Lời mời đang chờ</h3>
                         <div class="overflow-x-auto">
-                            <table class="table table-xs table-compact w-full bg-base-200 rounded-lg">
+                            <table class="table table-xs w-full bg-base-50 rounded-lg border border-slate-200">
                                 <thead>
                                     <tr>
                                         <th>Email được mời</th>
                                         <th>Vai trò</th>
                                         <th>Ngày mời</th>
-                                        <th>Thao tác</th>
+                                        <th class="text-right">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -197,9 +193,9 @@
                                         {@const roleName = availableRoles.find(r => r.id === inv.role)?.name || inv.role}
                                         <tr>
                                             <td>{inv.email}</td>
-                                            <td><span class="badge badge-outline">{roleName}</span></td>
+                                            <td><span class="badge badge-ghost badge-sm">{roleName}</span></td>
                                             <td>{inv.createdAt?.toDate().toLocaleDateString('vi-VN')}</td>
-                                            <td>
+                                            <td class="text-right">
                                                 <button class="btn btn-ghost btn-xs text-error" on:click={() => handleDeleteInvite(inv.id)}>Hủy</button>
                                             </td>
                                         </tr>
@@ -213,21 +209,52 @@
         </div>
 
         <!-- SECTION 2: USER LIST -->
-        <div class="overflow-x-auto bg-base-100 shadow-xl rounded-box">
-            <table class="table w-full">
-                <!-- head -->
-                <thead>
-                    <tr>
-                        <th>Email / Tên hiển thị</th>
-                        <th>Ngày tham gia</th>
-                        <th>Vai trò (Role)</th>
-                        <th class="text-center">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {#if loading}
-                        <tr><td colspan="4" class="text-center">Đang tải...</td></tr>
-                    {:else}
+        {#if loading}
+            <div class="text-center py-8">Đang tải...</div>
+        {:else}
+            <ResponsiveTable>
+                <svelte:fragment slot="mobile">
+                    <div class="space-y-4">
+                        {#each users as user}
+                            <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="font-bold text-lg">{user.email}</div>
+                                    {#if user.id !== $authStore.user?.uid}
+                                        <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDeleteUser(user.id, user.email)}>Xóa</button>
+                                    {/if}
+                                </div>
+                                <div class="text-sm text-slate-500 mb-3">
+                                    Tham gia: {user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}
+                                </div>
+
+                                <div class="form-control">
+                                    <label class="label pt-0"><span class="label-text text-xs uppercase font-bold text-slate-400">Vai trò</span></label>
+                                    <select
+                                        class="select select-bordered select-sm w-full"
+                                        bind:value={user.role}
+                                        on:change={(e) => updateUserRole(user, e.currentTarget.value)}
+                                        disabled={user.id === $authStore.user?.uid}
+                                    >
+                                        {#each availableRoles as r}
+                                            <option value={r.id}>{r.name}</option>
+                                        {/each}
+                                    </select>
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                </svelte:fragment>
+
+                <svelte:fragment slot="desktop">
+                    <thead>
+                        <tr>
+                            <th>Email / Tên hiển thị</th>
+                            <th>Ngày tham gia</th>
+                            <th>Vai trò (Role)</th>
+                            <th class="text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
                         {#each users as user}
                             <tr class="hover">
                                 <td>
@@ -262,9 +289,9 @@
                                 </td>
                             </tr>
                         {/each}
-                    {/if}
-                </tbody>
-            </table>
-        </div>
+                    </tbody>
+                </svelte:fragment>
+            </ResponsiveTable>
+        {/if}
     {/if}
 </div>
