@@ -80,15 +80,14 @@ function createPermissionStore() {
         initRoles: async () => {
             try {
                 const snapshot = await getDocs(collection(db, 'roles'));
-                if (snapshot.empty) {
-                    set({ roles: DEFAULT_ROLES, userPermissions: new Set(), loading: false });
-                    return;
+                let roles = DEFAULT_ROLES;
+                if (!snapshot.empty) {
+                    roles = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RoleDef));
                 }
-                const roles = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RoleDef));
-                set({ roles: roles, userPermissions: new Set(), loading: false });
+                update(store => ({ ...store, roles, loading: false }));
             } catch (e) {
                 console.error("Failed to load roles:", e);
-                set({ roles: DEFAULT_ROLES, userPermissions: new Set(), loading: false });
+                update(store => ({ ...store, roles: DEFAULT_ROLES, loading: false }));
             }
         },
 

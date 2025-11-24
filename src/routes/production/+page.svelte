@@ -3,22 +3,15 @@
 	import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
     import { permissionStore } from '$lib/stores/permissionStore';
-	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, Timestamp, onSnapshot, limit, deleteDoc } from 'firebase/firestore';
+    import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
+	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, Timestamp, onSnapshot, limit, deleteDoc } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
     import Modal from '$lib/components/ui/Modal.svelte';
 
 	// --- Types ---
-	interface Ingredient {
-		id: string; code: string; name: string; baseUnit: string;
-		avgCost: number; currentStock: number;
-	}
 	interface RecipeItem {
 		ingredientId: string; quantity: number; unit: string;
-	}
-	interface Product {
-		id: string; name: string; theoreticalCost: number; 
-		items: RecipeItem[]; currentStock: number; estimatedYieldQty: number;
 	}
 	interface ProductionInput {
 		ingredientId: string; theoreticalQuantity: number;
@@ -60,7 +53,12 @@
     // UI State
     let isProductModalOpen = false;
 
+    let historyLimit = 10;
     let unsubscribe: () => void;
+
+    // --- Data Binding ---
+    $: products = $productStore;
+    $: ingredients = $ingredientStore;
 
     // --- Reactive Calculation ---
     $: selectedProduct = products.find(p => p.id === selectedProductId);
@@ -78,22 +76,17 @@
     $: filteredProducts = products.filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()));
 
 	// --- Load Data ---
-	onMount(async () => {
-		const [ingSnap, prodSnap] = await Promise.all([
-            getDocs(collection(db, 'ingredients')),
-            getDocs(query(collection(db, 'products'), orderBy('name')))
-        ]);
-        
-		ingredients = ingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient));
-		products = prodSnap.docs.map(doc => ({ 
-            id: doc.id, ...doc.data(), currentStock: doc.data().currentStock || 0 
-        } as Product)); 
-        
-        const historyQuery = query(collection(db, 'production_runs'), orderBy('createdAt', 'desc'), limit(15));
+    function fetchHistory(limitCount: number) {
+        if (unsubscribe) unsubscribe();
+        const historyQuery = query(collection(db, 'production_runs'), orderBy('createdAt', 'desc'), limit(limitCount));
         unsubscribe = onSnapshot(historyQuery, (snapshot) => {
             productionHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductionRun));
             loading = false;
         });
+    }
+
+	onMount(async () => {
+		fetchHistory(historyLimit);
 	});
 
     onDestroy(() => {
@@ -325,24 +318,27 @@
             </div>
         </div>
 
-        <!-- 3. Inputs List -->
-        <div class="mx-2 mb-4">
-            <h3 class="font-bold text-sm text-slate-500 mb-2 uppercase">Nguyên liệu tiêu hao</h3>
-            <div class="space-y-2">
+        <!-- 3. Inputs List (Clean) -->
+        <div class="mx-2 mb-4 bg-white rounded-lg border border-slate-100 overflow-hidden">
+             <div class="bg-slate-50 px-4 py-2 text-xs font-bold text-slate-500 uppercase flex justify-between">
+                <span>Nguyên liệu</span>
+                <span>Thực dùng</span>
+             </div>
+            <div class="divide-y divide-slate-50">
                 {#each productionInputs as input}
                     {@const ing = ingredients.find(i => i.id === input.ingredientId)}
-                    <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                        <div class="flex-1">
-                            <div class="font-bold text-slate-700">{ing?.name}</div>
-                            <div class="text-xs text-slate-400">{ing?.code} (Kho: {ing?.currentStock})</div>
+                    <div class="p-3 flex justify-between items-center">
+                        <div>
+                            <div class="font-medium text-slate-800 text-sm">{ing?.name}</div>
+                            <div class="text-[10px] text-slate-400">Kho: {ing?.currentStock} {ing?.baseUnit}</div>
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1">
                             <input
                                 type="number"
                                 bind:value={input.actualQuantityUsed}
-                                class="input input-bordered input-sm w-20 text-right"
+                                class="input input-bordered input-xs w-20 text-right font-bold"
                             />
-                            <span class="text-xs font-bold text-slate-500 w-8">{ing?.baseUnit}</span>
+                            <span class="text-xs text-slate-400 w-6 text-center">{ing?.baseUnit}</span>
                         </div>
                     </div>
                 {/each}
@@ -370,43 +366,59 @@
         </div>
     {/if}
 
-    <!-- History (Simplified for Mobile) -->
-    <div class="mx-2 mt-8 opacity-60">
-        <h3 class="font-bold text-sm mb-2">Lịch sử gần đây</h3>
-        {#each productionHistory as run}
-             <div class="bg-white p-3 rounded border border-slate-200 mb-2 text-xs flex justify-between items-center">
-                 <div>
-                     <div class="font-bold">{run.productName}</div>
-                     <div class="text-slate-400">{run.productionDate?.toDate().toLocaleDateString('vi-VN')} - Yield: {run.actualYield}</div>
+    <!-- History (Simplified with Pagination) -->
+    <div class="mx-2 mt-8 pb-10">
+        <div class="flex justify-between items-center mb-2">
+             <h3 class="font-bold text-slate-700">Lịch sử sản xuất</h3>
+             <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost">
+                 <option value={10}>10 dòng</option>
+                 <option value={20}>20 dòng</option>
+                 <option value={30}>30 dòng</option>
+             </select>
+        </div>
+
+        <div class="space-y-2">
+            {#each productionHistory as run}
+                 <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                     <div>
+                         <div class="font-bold text-sm text-slate-800">{run.productName}</div>
+                         <div class="text-xs text-slate-400 mt-1">
+                             {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
+                             <span class="mx-1">•</span>
+                             <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
+                         </div>
+                     </div>
+                     <button
+                        class="btn btn-xs btn-ghost text-red-400"
+                        on:click={() => handleDeleteRun(run)}
+                    >Xóa</button>
                  </div>
-                 <button
-                    class="btn btn-xs btn-ghost text-red-400"
-                    on:click={() => handleDeleteRun(run)}
-                >Xóa</button>
-             </div>
-        {/each}
+            {/each}
+        </div>
     </div>
 
 </div>
 
 <!-- Modal: Select Product -->
 <Modal title="Chọn Công thức" isOpen={isProductModalOpen} onClose={() => isProductModalOpen = false} showConfirm={false}>
-    <input
-        type="text"
-        bind:value={productSearchTerm}
-        placeholder="Tìm tên sản phẩm..."
-        class="input input-bordered w-full mb-4 sticky top-0"
-        autofocus
-    />
-    <div class="space-y-2 max-h-[60vh] overflow-y-auto pb-10">
-        {#each filteredProducts as prod}
-            <button
-                class="w-full text-left p-3 rounded hover:bg-slate-100 border border-slate-100 flex justify-between items-center"
-                on:click={() => selectProduct(prod.id)}
-            >
-                <span class="font-bold">{prod.name}</span>
-                <span class="text-xs text-slate-400">Giá vốn: {prod.theoreticalCost.toLocaleString()} đ</span>
-            </button>
-        {/each}
-    </div>
+    {#if isProductModalOpen}
+        <input
+            type="text"
+            bind:value={productSearchTerm}
+            placeholder="Tìm tên sản phẩm..."
+            class="input input-bordered w-full mb-4 sticky top-0"
+            autofocus
+        />
+        <div class="space-y-1 max-h-[60vh] overflow-y-auto pb-10">
+            {#each filteredProducts as prod}
+                <button
+                    class="w-full text-left p-3 rounded-lg border-b border-slate-50 active:bg-slate-50 flex justify-between items-center"
+                    on:click={() => selectProduct(prod.id)}
+                >
+                    <span class="font-bold text-slate-800">{prod.name}</span>
+                    <span class="text-xs text-slate-400">GV: {prod.theoreticalCost.toLocaleString()}</span>
+                </button>
+            {/each}
+        </div>
+    {/if}
 </Modal>
