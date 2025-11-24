@@ -9,93 +9,121 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Lấy role từ document của user
+    // Fetch User's Role ID (e.g. 'admin', 'manager')
     function getUserRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
+
+    // --- DYNAMIC PERMISSION CHECK ---
+    // Checks if the user's role has the specific permission in the 'roles' collection.
+    // Fallback: If 'admin', always true.
+    function hasPermission(perm) {
+      let roleId = getUserRole();
+      return roleId == 'admin' ||
+             get(/databases/$(database)/documents/roles/$(roleId)).data.permissions.hasAny([perm]);
+    }
+
+    // Legacy Helpers (Optional, but useful for bootstrapping if roles collection is empty)
+    // We will rely on hasPermission() primarily, but for initial setup (when roles might be missing),
+    // we might need a fallback. However, let's enforce the new system.
+    // If 'roles' doc is missing, get() fails -> Deny access.
+    // This is secure. Admin is excepted above.
 
     function isAdmin() {
       return isAuth() && getUserRole() == 'admin';
     }
 
-    function isManager() {
-      return isAuth() && (getUserRole() == 'manager' || getUserRole() == 'admin');
-    }
+    // --- 1. SYSTEM CONFIGURATION ---
 
-    function isSales() {
-      return isAuth() && (getUserRole() == 'sales' || getUserRole() == 'admin');
-    }
-
-    // --- 1. COLLECTION: users (Quản lý User & Role) ---
-    match /users/{userId} {
-      // User tự tạo doc của mình khi login lần đầu
-      allow create: if request.auth.uid == userId;
-      // Ai cũng đọc được để lấy thông tin role (được cache ở client)
+    // ROLES: Configurable Permissions
+    // Admin manages roles. Authenticated users read to know their rights.
+    match /roles/{roleId} {
       allow read: if isAuth();
-      // Chỉ Admin mới được update role của người khác
+      allow write: if isAdmin();
+    }
+
+    // USERS: Profile & Role Assignment
+    match /users/{userId} {
+      allow create: if request.auth.uid == userId;
+      allow read: if isAuth();
+      // Only Admin changes roles. User can update profile (but not role).
       allow update: if isAdmin() || (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
     }
 
-    // --- COLLECTION: invited_emails (Hệ thống mời) ---
+    // INVITES
     match /invited_emails/{inviteId} {
-      // Admin tạo lời mời
-      allow read: if isAuth(); // Cho phép đọc để kiểm tra khi login
-      allow write: if isAdmin();
-      // Cho phép xóa khi user đã đăng ký thành công (logic này xử lý ở client hoặc cloud function,
-      // ở đây ta cho phép isAuth delete nếu email khớp với email của họ - hơi khó check, nên để Admin hoặc backend xử lý.
-      // Tạm thời để isAdmin write, client login check read)
-    }
-
-    // --- 2. MASTER DATA (Ingredients, Products, Partners) ---
-    
-    // Manager & Admin được sửa NVL, Thành phẩm
-    match /ingredients/{ingId} {
       allow read: if isAuth();
-      allow write: if isManager();
+      allow write: if isAdmin() || hasPermission('manage_users');
     }
 
+    // --- 2. MASTER DATA ---
+    
+    // Ingredients: View(Inventory), Edit(Inventory)
+    match /ingredients/{ingId} {
+      allow read: if isAuth(); // Or hasPermission('view_inventory')
+      allow write: if isAdmin() || hasPermission('edit_inventory');
+    }
+
+    // Products: View(Inventory), Edit(Inventory)
     match /products/{productId} {
       allow read: if isAuth();
-      allow write: if isManager();
+      allow write: if isAdmin() || hasPermission('edit_inventory');
     }
     
-    // Sales & Admin được sửa Khách hàng/NCC (Partner)
-    // Manager cũng cần tạo NCC khi nhập hàng
+    // Partners: View(Sales/Partners), Edit(Partners)
     match /partners/{partnerId} {
       allow read: if isAuth();
-      allow write: if isSales() || isManager();
+      allow write: if isAdmin() || hasPermission('manage_partners');
     }
 
-    // --- 3. TRANSACTION DATA (Imports, Production, Orders) ---
-
-    // Imports: Manager & Admin
-    match /imports/{importId} {
+    // Assets: View(Inventory/Assets), Edit(Assets)
+    match /assets/{assetId} {
       allow read: if isAuth();
-      allow write: if isManager();
+      allow write: if isAdmin() || hasPermission('manage_assets');
     }
 
-    // Production: Manager & Admin
+    // Expense Categories
+    match /expense_categories/{catId} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || hasPermission('manage_expenses');
+    }
+
+    // --- 3. TRANSACTION DATA ---
+
+    // Imports: Manage(Imports) -> Creates stock
+    match /imports/{importId} {
+      allow read: if isAuth(); // History view
+      allow write: if isAdmin() || hasPermission('manage_imports');
+    }
+
+    // Production: Create(Production)
     match /production_runs/{prodRunId} {
       allow read: if isAuth();
-      allow write: if isManager();
+      allow write: if isAdmin() || hasPermission('create_production');
     }
     
-    // Orders: Sales & Admin
+    // Orders: Create(Order) / Manage(Order)
     match /orders/{orderId} {
       allow read: if isAuth();
-      allow write: if isSales();
+      allow write: if isAdmin() || hasPermission('create_order') || hasPermission('manage_orders');
     }
 
-    // Expenses Log: Admin & Manager
+    // Expenses Log: Manage(Expenses)
      match /expenses_log/{logId} {
       allow read: if isAuth();
-      allow write: if isManager();
+      allow write: if isAdmin() || hasPermission('manage_expenses');
+    }
+
+    // Stocktake Logs: Edit(Inventory) -> Result of stocktake
+    match /stocktake_logs/{logId} {
+      allow read: if isAuth();
+      allow create: if isAdmin() || hasPermission('edit_inventory') || hasPermission('manage_assets');
     }
 
     // --- 4. SYSTEM LOGS ---
     match /audit_logs/{logId} {
-      allow read: if isAdmin(); // Chỉ Admin xem log
-      allow create: if isAuth(); // Ai cũng được ghi log hành động của mình
+      allow read: if isAdmin();
+      allow create: if isAuth();
     }
 
     // --- 5. CATCH-ALL ---
