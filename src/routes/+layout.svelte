@@ -2,13 +2,24 @@
 	import "../app.css";
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/authStore';
+    import { initMasterData } from '$lib/stores/masterDataStore'; // Cache Master Data
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import Navbar from '$lib/components/Navbar.svelte'; // Đã import đúng
+	import Navbar from '$lib/components/Navbar.svelte';
 
 	onMount(() => {
 		authStore.init();
+        // Init Master Data (Lazy load but consistent)
+        // Chỉ cần gọi 1 lần, các store sẽ tự quản lý subscription
+        if ($authStore.user) {
+             initMasterData();
+        }
 	});
+
+    // Reactive init khi user đăng nhập sau
+    $: if ($authStore.user) {
+        initMasterData();
+    }
 
 	$: if (!$authStore.loading) {
 		if (!$authStore.user && $page.url.pathname !== '/login') {
