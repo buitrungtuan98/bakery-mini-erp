@@ -108,6 +108,11 @@ export const permissionStore = createPermissionStore();
 // Usage: $userPermissions.has('view_sales')
 export const userPermissions = derived(permissionStore, $store => $store.userPermissions);
 
+// Legacy Helper: Only for backward compat if needed (but better to use userPermissions directly)
+export const hasPermission = (perm: Permission) => {
+    return derived(permissionStore, $store => $store.userPermissions.has(perm));
+};
+
 // Synchronous Helper for JS Logic (e.g. Handlers)
 export const checkPermission = (perm: Permission) => {
     return get(permissionStore).userPermissions.has(perm);

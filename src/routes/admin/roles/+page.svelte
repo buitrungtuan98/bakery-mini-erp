@@ -1,7 +1,7 @@
 <script lang="ts">
     import { db } from '$lib/firebase';
     import { collection, doc, setDoc, getDocs, query, orderBy } from 'firebase/firestore';
-    import { permissionStore, type RoleDef, type Permission } from '$lib/stores/permissionStore';
+    import { permissionStore, userPermissions, type RoleDef, type Permission } from '$lib/stores/permissionStore';
     import { onMount } from 'svelte';
     import { authStore } from '$lib/stores/authStore';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -9,6 +9,9 @@
     let roles: RoleDef[] = [];
     let loading = true;
     let processing = false;
+
+    // Mobile Tab State
+    let activeRoleTab = 'manager'; // Default tab for mobile
 
     // List of all available system permissions
     const ALL_PERMISSIONS: { id: Permission, label: string, group: string }[] = [
@@ -19,6 +22,7 @@
 
         { id: 'view_sales', label: 'Truy cập Bán hàng', group: 'Sales' },
         { id: 'create_order', label: 'Tạo Đơn hàng', group: 'Sales' },
+        { id: 'manage_orders', label: 'Quản lý Đơn hàng (Hủy)', group: 'Sales' },
         { id: 'manage_partners', label: 'Quản lý Đối tác', group: 'Sales' },
 
         { id: 'view_inventory', label: 'Xem Tồn kho', group: 'Inventory' },
@@ -36,7 +40,6 @@
         { id: 'manage_roles', label: 'Cấu hình Phân quyền', group: 'Admin' },
     ];
 
-    // Grouping for UI
     const GROUPS = ['General', 'Sales', 'Inventory', 'Production', 'Finance', 'Admin'];
 
     onMount(async () => {
@@ -45,32 +48,25 @@
 
     async function loadRoles() {
         loading = true;
-        // Fetch fresh from DB or use Store (Store might be cached defaults)
-        // Better to fetch from DB to edit
         const snapshot = await getDocs(collection(db, 'roles'));
         if (!snapshot.empty) {
             roles = snapshot.docs.map(d => d.data() as RoleDef);
         } else {
-            // If empty, init with store defaults (which has defaults)
             roles = $permissionStore.roles;
         }
         loading = false;
     }
 
     async function saveRoles() {
-        if (!confirm("Lưu cấu hình phân quyền? Thay đổi sẽ áp dụng cho user sau khi họ refresh.")) return;
+        if (!confirm("Lưu cấu hình phân quyền?")) return;
         processing = true;
         try {
-            // Save each role
             for (const role of roles) {
                 await setDoc(doc(db, 'roles', role.id), role);
             }
             alert("Đã lưu cấu hình thành công!");
-            // Reload store to reflect changes immediately for Admin
             permissionStore.initRoles();
-            // Also re-apply for current user
             if ($authStore.user?.role) permissionStore.setUserRole($authStore.user.role);
-
         } catch (e) {
             alert("Lỗi lưu: " + e);
         } finally {
@@ -88,7 +84,6 @@
         roles[roleIndex] = role;
     }
 
-    // Helper to check if role has permission
     function has(role: RoleDef, perm: Permission) {
         return role.permissions.includes(perm);
     }
@@ -105,7 +100,9 @@
     {#if loading}
         <div class="p-8 text-center">Đang tải cấu hình...</div>
     {:else}
-        <div class="overflow-x-auto">
+
+        <!-- DESKTOP VIEW (Matrix Table) -->
+        <div class="hidden md:block overflow-x-auto">
             <table class="table w-full border border-slate-200">
                 <thead>
                     <tr class="bg-base-200">
@@ -132,7 +129,6 @@
                                             on:change={() => togglePermission(idx, perm.id)}
                                             disabled={role.id === 'admin' && perm.group === 'Admin'}
                                         />
-                                        <!-- Prevent disabling Admin access for Admin role -->
                                     </td>
                                 {/each}
                             </tr>
@@ -142,9 +138,56 @@
             </table>
         </div>
 
+        <!-- MOBILE VIEW (Tabs & Toggles) -->
+        <div class="md:hidden">
+            <div class="tabs tabs-boxed bg-base-200 mb-4 overflow-x-auto flex-nowrap">
+                {#each roles as role}
+                    <a
+                        class="tab flex-shrink-0 {activeRoleTab === role.id ? 'tab-active' : ''}"
+                        on:click={() => activeRoleTab = role.id}
+                    >
+                        {role.name}
+                    </a>
+                {/each}
+            </div>
+
+            {#each roles as role, roleIdx}
+                {#if activeRoleTab === role.id}
+                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <h3 class="font-bold text-lg mb-4 text-primary">Quyền hạn cho {role.name}</h3>
+
+                        {#each GROUPS as group}
+                            <div class="collapse collapse-arrow bg-base-50 mb-2 border border-slate-100">
+                                <input type="checkbox" />
+                                <div class="collapse-title text-sm font-bold uppercase text-slate-500">
+                                    {group}
+                                </div>
+                                <div class="collapse-content">
+                                    {#each ALL_PERMISSIONS.filter(p => p.group === group) as perm}
+                                        <div class="form-control">
+                                            <label class="label cursor-pointer">
+                                                <span class="label-text">{perm.label}</span>
+                                                <input
+                                                    type="checkbox"
+                                                    class="checkbox checkbox-primary"
+                                                    checked={has(role, perm.id)}
+                                                    on:change={() => togglePermission(roleIdx, perm.id)}
+                                                    disabled={role.id === 'admin' && perm.group === 'Admin'}
+                                                />
+                                            </label>
+                                        </div>
+                                    {/each}
+                                </div>
+                            </div>
+                        {/each}
+                    </div>
+                {/if}
+            {/each}
+        </div>
+
         <div class="alert alert-info shadow-sm mt-6 text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <span>Lưu ý: Vai trò 'Admin' nên luôn có toàn quyền quản trị để tránh bị khóa khỏi hệ thống.</span>
+            <span>Lưu ý: Vai trò 'Admin' nên luôn có toàn quyền quản trị.</span>
         </div>
     {/if}
 </div>
