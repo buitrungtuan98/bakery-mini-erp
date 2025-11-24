@@ -47,6 +47,7 @@
 
                 {#if role === 'admin'}
                      <li><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} text-secondary font-bold">Quản lý User</a></li>
+                     <li><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''}">Lịch sử HT</a></li>
                 {/if}
 			</ul>
 		</div>
@@ -76,6 +77,7 @@
 
             {#if role === 'admin'}
                  <li class="relative"><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} py-1 text-secondary font-bold">Quản lý User</a></li>
+                 <li class="relative"><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''} py-1">Lịch sử HT</a></li>
             {/if}
 		</ul>
 	</div>

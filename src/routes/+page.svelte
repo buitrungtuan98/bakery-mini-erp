@@ -152,73 +152,93 @@
         <div class="hero-content text-center py-6">
             <div class="max-w-md">
                 <h1 class="text-3xl font-bold text-primary">Tổng quan Dòng tiền & Tồn kho</h1>
-                <p class="text-sm text-gray-600">Dữ liệu từ: **{contextPeriodStart}** đến **{contextPeriodEnd}**</p>
+                {#if $authStore.user?.role === 'admin'}
+                    <p class="text-sm text-gray-600">Dữ liệu từ: **{contextPeriodStart}** đến **{contextPeriodEnd}**</p>
+                {:else}
+                    <p class="text-sm text-gray-600">Xin chào, {$authStore.user?.email}</p>
+                {/if}
             </div>
         </div>
     </div>
     
-    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <h2 class="text-xl font-bold">Thống kê Tài chính</h2>
-        <div class="flex flex-col md:flex-row gap-4 items-center">
-            <div class="join">
-                <button class="join-item btn btn-sm {selectedPeriod === 'month' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'month'}>Tháng</button>
-                <button class="join-item btn btn-sm {selectedPeriod === 'quarter' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'quarter'}>Quý</button>
-                <button class="join-item btn btn-sm {selectedPeriod === 'year' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'year'}>Năm</button>
-                <button class="join-item btn btn-sm {selectedPeriod === 'all' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'all'}>Tổng</button>
-                <button class="join-item btn btn-sm {selectedPeriod === 'custom' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'custom'}>Tùy chỉnh</button>
-            </div>
+    {#if $authStore.user?.role === 'admin'}
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <h2 class="text-xl font-bold">Thống kê Tài chính</h2>
+            <div class="flex flex-col md:flex-row gap-4 items-center">
+                <div class="join">
+                    <button class="join-item btn btn-sm {selectedPeriod === 'month' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'month'}>Tháng</button>
+                    <button class="join-item btn btn-sm {selectedPeriod === 'quarter' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'quarter'}>Quý</button>
+                    <button class="join-item btn btn-sm {selectedPeriod === 'year' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'year'}>Năm</button>
+                    <button class="join-item btn btn-sm {selectedPeriod === 'all' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'all'}>Tổng</button>
+                    <button class="join-item btn btn-sm {selectedPeriod === 'custom' ? 'btn-neutral' : ''}" on:click={() => selectedPeriod = 'custom'}>Tùy chỉnh</button>
+                </div>
 
-            {#if selectedPeriod === 'custom'}
-                <div class="flex gap-2">
-                    <input type="date" bind:value={customStartDate} class="input input-bordered input-sm" />
-                    <input type="date" bind:value={customEndDate} class="input input-bordered input-sm" />
-                </div>
-            {/if}
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        
-        <div class="stats shadow bg-base-100">
-            <div class="stat">
-                <div class="stat-figure text-primary">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </div>
-                <div class="stat-title">Doanh thu Thuần</div>
-                <div class="stat-value text-primary">
-                    {loading ? '...' : totalRevenue.toLocaleString() + ' đ'}
-                </div>
-                <div class="stat-desc">Tổng tiền hàng đã bán</div>
-            </div>
-        </div>
-        
-        <div class="stats shadow bg-base-100">
-            <div class="stat">
-                <div class="stat-figure text-error">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v2a2 2 0 01-2 2h-5m-5 0H5a2 2 0 01-2-2v-2a2 2 0 012-2h5m-5 0v-2a2 2 0 012-2h10a2 2 0 012 2v2"></path></svg>
-                </div>
-                <div class="stat-title">Chi phí Khác (Overhead)</div>
-                <div class="stat-value text-error">
-                    {loading ? '...' : totalExpenses.toLocaleString() + ' đ'}
-                </div>
-                <div class="stat-desc">Chi phí mua thêm/vận hành</div>
-            </div>
-        </div>
-        
-        <div class="stats shadow bg-base-100">
-            <div class="stat">
-                <div class="stat-figure text-accent">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h-2m-2 0H8m6 0a2 2 0 100-4 2 2 0 000 4zM7 13h10M7 17h10M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z"></path></svg>
-                </div>
-                <div class="stat-title">Lợi nhuận Thuần (Net)</div>
-                <div class="stat-value text-accent">
-                    {loading ? '...' : netProfit.toLocaleString() + ' đ'}
-                </div>
-                <div class="stat-desc">{netProfit > 0 ? 'Dòng tiền dương' : 'Cần kiểm soát'}</div>
+                {#if selectedPeriod === 'custom'}
+                    <div class="flex gap-2">
+                        <input type="date" bind:value={customStartDate} class="input input-bordered input-sm" />
+                        <input type="date" bind:value={customEndDate} class="input input-bordered input-sm" />
+                    </div>
+                {/if}
             </div>
         </div>
 
-        <div class="stats shadow bg-base-100">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+
+            <div class="stats shadow bg-base-100">
+                <div class="stat">
+                    <div class="stat-figure text-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="stat-title">Doanh thu Thuần</div>
+                    <div class="stat-value text-primary">
+                        {loading ? '...' : totalRevenue.toLocaleString() + ' đ'}
+                    </div>
+                    <div class="stat-desc">Tổng tiền hàng đã bán</div>
+                </div>
+            </div>
+
+            <div class="stats shadow bg-base-100">
+                <div class="stat">
+                    <div class="stat-figure text-error">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v2a2 2 0 01-2 2h-5m-5 0H5a2 2 0 01-2-2v-2a2 2 0 012-2h5m-5 0v-2a2 2 0 012-2h10a2 2 0 012 2v2"></path></svg>
+                    </div>
+                    <div class="stat-title">Chi phí Khác (Overhead)</div>
+                    <div class="stat-value text-error">
+                        {loading ? '...' : totalExpenses.toLocaleString() + ' đ'}
+                    </div>
+                    <div class="stat-desc">Chi phí mua thêm/vận hành</div>
+                </div>
+            </div>
+
+            <div class="stats shadow bg-base-100">
+                <div class="stat">
+                    <div class="stat-figure text-accent">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h-2m-2 0H8m6 0a2 2 0 100-4 2 2 0 000 4zM7 13h10M7 17h10M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z"></path></svg>
+                    </div>
+                    <div class="stat-title">Lợi nhuận Thuần (Net)</div>
+                    <div class="stat-value text-accent">
+                        {loading ? '...' : netProfit.toLocaleString() + ' đ'}
+                    </div>
+                    <div class="stat-desc">{netProfit > 0 ? 'Dòng tiền dương' : 'Cần kiểm soát'}</div>
+                </div>
+            </div>
+
+            <div class="stats shadow bg-base-100">
+                <div class="stat">
+                    <div class="stat-figure text-warning">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M18.83 17.83A9 9 0 0012 21a9 9 0 006.83-3.17L12 12V9"></path></svg>
+                    </div>
+                    <div class="stat-title">Cảnh báo Tồn kho</div>
+                    <div class="stat-value text-error">
+                        {loading ? '...' : lowStockIngredients.length.toLocaleString()}
+                    </div>
+                    <div class="stat-desc text-error">Nguyên liệu dưới mức Min-stock</div>
+                </div>
+            </div>
+        </div>
+    {:else}
+         <!-- Giao diện cho Non-Admin -->
+         <div class="stats shadow bg-base-100 w-full mb-8">
             <div class="stat">
                 <div class="stat-figure text-warning">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M18.83 17.83A9 9 0 0012 21a9 9 0 006.83-3.17L12 12V9"></path></svg>
@@ -227,10 +247,17 @@
                 <div class="stat-value text-error">
                     {loading ? '...' : lowStockIngredients.length.toLocaleString()}
                 </div>
-                <div class="stat-desc text-error">Nguyên liệu dưới mức Min-stock</div>
+                <div class="stat-desc text-error">Nguyên liệu sắp hết</div>
             </div>
+             <div class="stat">
+                 <div class="stat-title">Vai trò của bạn</div>
+                 <div class="stat-value text-secondary text-2xl uppercase">
+                     {$authStore.user?.role || 'Staff'}
+                 </div>
+                 <div class="stat-desc">Liên hệ Admin để cấp thêm quyền</div>
+             </div>
         </div>
-    </div>
+    {/if}
 
     {#if lowStockIngredients.length > 0}
         <div role="alert" class="alert alert-warning mb-8 shadow-lg">
