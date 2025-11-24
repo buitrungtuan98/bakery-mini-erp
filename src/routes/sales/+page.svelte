@@ -376,7 +376,7 @@
 
         <!-- 3. Add Item Button (FAB) -->
         <button
-            class="btn btn-circle btn-primary btn-lg fixed bottom-28 right-4 shadow-xl z-30"
+        class="btn btn-circle btn-primary btn-lg fixed bottom-44 right-4 shadow-xl z-30"
             on:click={openProductSelector}
         >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
