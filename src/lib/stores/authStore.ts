@@ -1,13 +1,13 @@
 import { writable } from 'svelte/store';
 import { auth } from '$lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getFirestore } from 'firebase/firestore';
 
 interface UserData {
     uid: string;
     email: string | null;
     photoURL: string | null;
-    role: 'admin' | 'staff' | null; // Role custom của chúng ta
+    role: 'admin' | 'manager' | 'sales' | 'staff';
 }
 
 function createAuthStore() {
@@ -23,23 +23,50 @@ function createAuthStore() {
         subscribe,
         init: () => {
             const db = getFirestore();
-            // Lắng nghe sự thay đổi trạng thái đăng nhập từ Firebase
+
             onAuthStateChanged(auth, async (firebaseUser) => {
                 if (firebaseUser) {
-                    // Nếu đã login, lấy thêm role từ collection 'users'
-                    // Lưu ý: Lần đầu login có thể chưa có doc trong users, cần xử lý tạo mới (sẽ làm sau)
-                    const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-                    const role = userDoc.exists() ? userDoc.data().role : 'staff'; // Mặc định là staff
+                    try {
+                        const userRef = doc(db, 'users', firebaseUser.uid);
+                        const userDoc = await getDoc(userRef);
 
-                    set({
-                        user: {
-                            uid: firebaseUser.uid,
-                            email: firebaseUser.email,
-                            photoURL: firebaseUser.photoURL,
-                            role: role
-                        },
-                        loading: false
-                    });
+                        let role: UserData['role'] = 'staff';
+
+                        if (userDoc.exists()) {
+                            role = userDoc.data().role || 'staff';
+                        } else {
+                            // Tạo user doc nếu chưa có (lần đầu login)
+                            await setDoc(userRef, {
+                                email: firebaseUser.email,
+                                displayName: firebaseUser.displayName,
+                                photoURL: firebaseUser.photoURL,
+                                role: 'staff', // Mặc định là staff
+                                createdAt: new Date()
+                            });
+                        }
+
+                        set({
+                            user: {
+                                uid: firebaseUser.uid,
+                                email: firebaseUser.email,
+                                photoURL: firebaseUser.photoURL,
+                                role: role
+                            },
+                            loading: false
+                        });
+                    } catch (error) {
+                        console.error("Auth Store Error:", error);
+                        // Fallback nếu lỗi mạng/quyền
+                        set({
+                             user: {
+                                uid: firebaseUser.uid,
+                                email: firebaseUser.email,
+                                photoURL: firebaseUser.photoURL,
+                                role: 'staff'
+                            },
+                            loading: false
+                        });
+                    }
                 } else {
                     set({ user: null, loading: false });
                 }

@@ -48,7 +48,7 @@
     }
 
 	async function handleSubmit() {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thêm/sửa tài sản.");
         
         // Tự động tính tổng
         formData.quantity.total = formData.quantity.good + formData.quantity.broken; 
@@ -66,7 +66,7 @@
 	}
 
     async function handleDelete(id: string) {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền xóa tài sản.");
         if(!confirm("Xóa tài sản này?")) return;
         await deleteDoc(doc(db, 'assets', id));
     }
@@ -75,7 +75,7 @@
 <div class="max-w-7xl mx-auto">
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
-		{#if $authStore.user?.role === 'admin'}
+		{#if ['admin', 'manager'].includes($authStore.user?.role || '')}
 			<button class="btn btn-primary" on:click={openAddModal}>+ Thêm Tài sản</button>
 		{/if}
 	</div>

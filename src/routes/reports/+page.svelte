@@ -1,39 +1,81 @@
 <script lang="ts">
     import { db } from '$lib/firebase';
     import { authStore } from '$lib/stores/authStore';
-    import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+    import { collection, getDocs, query, orderBy, where, Timestamp } from 'firebase/firestore';
     import { onMount } from 'svelte';
-    import * as XLSX from 'xlsx/xlsx.mjs'; // Import SheetJS
+    import * as XLSX from 'xlsx/xlsx.mjs';
 
     let loading = true;
     let transactions: any[] = []; 
 
+    // --- Date Filter State ---
+    let startDate: string;
+    let endDate: string;
+
+    // Helper: Lấy ngày đầu tháng và cuối tháng hiện tại
+    function setDefaultDates() {
+        const now = new Date();
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Ngày cuối của tháng
+
+        startDate = formatDate(firstDay);
+        endDate = formatDate(lastDay);
+    }
+
+    function formatDate(date: Date): string {
+        return date.toISOString().split('T')[0];
+    }
+
     onMount(async () => {
-        // Fetch dữ liệu từ 4 collection
-        const [importSnap, prodSnap, orderSnap, expenseSnap] = await Promise.all([
-            getDocs(query(collection(db, 'imports'), orderBy('createdAt'))),
-            getDocs(query(collection(db, 'production_runs'), orderBy('createdAt'))),
-            getDocs(query(collection(db, 'orders'), orderBy('createdAt'))),
-            getDocs(query(collection(db, 'expenses_log'), orderBy('createdAt'))) // THÊM FETCH EXPENSES
-        ]);
-        
-        // Lưu trữ dữ liệu thô và gán type
-        transactions = [
-            ...importSnap.docs.map(doc => ({ id: doc.id, type: 'IMPORT', data: doc.data() })),
-            ...prodSnap.docs.map(doc => ({ id: doc.id, type: 'PRODUCTION', data: doc.data() })),
-            ...orderSnap.docs.map(doc => ({ id: doc.id, type: 'SALE', data: doc.data() })),
-            ...expenseSnap.docs.map(doc => ({ id: doc.id, type: 'EXPENSE', data: doc.data() })), // THÊM EXPENSE
-        ];
-
-        // Sắp xếp lại theo thời gian
-        transactions.sort((a, b) => {
-            const dateA = a.data.createdAt?.toDate() || new Date(0);
-            const dateB = b.data.createdAt?.toDate() || new Date(0);
-            return dateA.getTime() - dateB.getTime();
-        });
-
-        loading = false;
+        setDefaultDates();
+        await fetchReportData();
     });
+
+    async function fetchReportData() {
+        loading = true;
+        transactions = [];
+
+        try {
+            // Chuyển đổi string date sang Firestore Timestamp
+            // Start Date: 00:00:00
+            const start = new Date(startDate);
+            const startTs = Timestamp.fromDate(start);
+
+            // End Date: 23:59:59
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            const endTs = Timestamp.fromDate(end);
+
+            // Fetch dữ liệu từ 4 collection với điều kiện ngày
+            const [importSnap, prodSnap, orderSnap, expenseSnap] = await Promise.all([
+                getDocs(query(collection(db, 'imports'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, 'production_runs'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, 'orders'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, 'expenses_log'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc')))
+            ]);
+
+            // Lưu trữ dữ liệu thô và gán type
+            transactions = [
+                ...importSnap.docs.map(doc => ({ id: doc.id, type: 'IMPORT', data: doc.data() })),
+                ...prodSnap.docs.map(doc => ({ id: doc.id, type: 'PRODUCTION', data: doc.data() })),
+                ...orderSnap.docs.map(doc => ({ id: doc.id, type: 'SALE', data: doc.data() })),
+                ...expenseSnap.docs.map(doc => ({ id: doc.id, type: 'EXPENSE', data: doc.data() })),
+            ];
+
+            // Sắp xếp lại theo thời gian (Giảm dần để thấy mới nhất trước)
+            transactions.sort((a, b) => {
+                const dateA = a.data.createdAt?.toDate() || new Date(0);
+                const dateB = b.data.createdAt?.toDate() || new Date(0);
+                return dateB.getTime() - dateA.getTime();
+            });
+
+        } catch (error) {
+            console.error("Lỗi tải báo cáo:", error);
+            alert("Lỗi tải dữ liệu báo cáo (có thể do thiếu Index). Vui lòng mở Console để xem link tạo Index.");
+        } finally {
+            loading = false;
+        }
+    }
 
     // --- Logic chính: Tạo Ledger phẳng (MỞ RỘNG PHIẾU THÀNH NHIỀU DÒNG) ---
     function createFlatLedger(txs: any[]) {
@@ -123,23 +165,39 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold">Bảng kê Chi tiết Giao dịch</h1>
+    <div class="flex flex-col md:flex-row justify-between items-end mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl font-bold mb-2">Báo cáo Giao dịch</h1>
+            <div class="join">
+                <div class="form-control join-item">
+                    <label class="label py-0"><span class="label-text text-xs">Từ ngày</span></label>
+                    <input type="date" bind:value={startDate} class="input input-sm input-bordered" />
+                </div>
+                <div class="form-control join-item">
+                    <label class="label py-0"><span class="label-text text-xs">Đến ngày</span></label>
+                    <input type="date" bind:value={endDate} class="input input-sm input-bordered" />
+                </div>
+                <button class="btn btn-sm btn-primary join-item mt-5" on:click={fetchReportData} disabled={loading}>
+                    {#if loading} <span class="loading loading-spinner loading-xs"></span> {/if}
+                    Xem Báo cáo
+                </button>
+            </div>
+        </div>
+
         <button class="btn btn-success text-white" on:click={exportToExcel} disabled={loading || transactions.length === 0}>
-            {#if loading}
-                <span class="loading loading-spinner"></span> Đang tải...
-            {:else}
-                Xuất Excel Báo cáo ({createFlatLedger(transactions).length} Dòng chi tiết)
-            {/if}
+            Xuất Excel ({createFlatLedger(transactions).length} Dòng)
         </button>
     </div>
 
     <div class="card bg-base-100 shadow-xl overflow-x-auto">
         <div class="card-body p-4">
             {#if loading}
-                <p class="text-center">Đang tải lịch sử giao dịch...</p>
+                <p class="text-center py-10">Đang tải dữ liệu báo cáo...</p>
             {:else if transactions.length === 0}
-                <p class="text-center text-gray-500">Chưa có giao dịch nào được ghi nhận.</p>
+                <div class="text-center py-10">
+                    <p class="text-gray-500 text-lg">Không có giao dịch nào trong khoảng thời gian này.</p>
+                    <p class="text-sm text-gray-400">Vui lòng chọn khoảng thời gian khác.</p>
+                </div>
             {:else}
                 <table class="table table-xs md:table-sm w-full">
                     <thead>
@@ -155,11 +213,19 @@
                     </thead>
                     <tbody>
                         {#each createFlatLedger(transactions) as entry}
-                            <tr class="text-xs">
+                            <tr class="text-xs hover">
                                 <td>{entry["Ngày"]}</td>
                                 <td>{entry["Số chứng từ"]}</td>
                                 <td>{entry["Diễn giải"]}</td>
-                                <td>{entry["Loại"]}</td>
+                                <td>
+                                    <span class="badge badge-xs
+                                        {entry["Loại"] === 'Bán hàng' ? 'badge-primary' : ''}
+                                        {entry["Loại"] === 'Nhập NVL' ? 'badge-error' : ''}
+                                        {entry["Loại"] === 'Sản xuất TP' ? 'badge-warning' : ''}
+                                    ">
+                                        {entry["Loại"]}
+                                    </span>
+                                </td>
                                 <td class="text-right font-mono {entry["Thành tiền (Thu/Chi)"] > 0 ? 'text-success' : 'text-error'}">
                                     {entry["Thành tiền (Thu/Chi)"]?.toLocaleString() || '0'}
                                 </td>

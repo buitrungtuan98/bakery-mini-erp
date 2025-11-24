@@ -7,11 +7,16 @@
 	// Highlight menu đang chọn
 	$: activeRoute = $page.url.pathname;
 
+    // Check permission
+    $: role = $authStore.user?.role || 'staff';
+
+    // Helper check quyền cho UI
+    $: canManage = role === 'admin' || role === 'manager';
+    $: canSell = role === 'admin' || role === 'sales';
+
 	async function handleLogout() {
 		await signOut(auth);
 	}
-    
-    // Loai bỏ logic isGroupActive và masterPaths/transactionPaths
 </script>
 
 <div class="navbar bg-white/95 backdrop-blur-sm shadow-sm sticky top-0 z-50 py-0"> 
@@ -22,17 +27,27 @@
 			</div>
 			<ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
 				<li><a href="/" class="{activeRoute === '/' ? 'active' : ''}">Dashboard</a></li>
-				<li><a href="/ingredients" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''}">Nguyên liệu</a></li>
-                <li><a href="/products" class="{activeRoute.startsWith('/products') ? 'active' : ''}">Sản phẩm/CT</a></li>
-                <li><a href="/partners" class="{activeRoute.startsWith('/partners') ? 'active' : ''}">Đối tác</a></li>
-                <li><a href="/assets" class="{activeRoute.startsWith('/assets') ? 'active' : ''}">Tài sản/Công cụ</a></li>
-                <li><a href="/imports" class="{activeRoute.startsWith('/imports') ? 'active' : ''}">Nhập hàng</a></li>
-                <li><a href="/production" class="{activeRoute.startsWith('/production') ? 'active' : ''}">Sản xuất</a></li>
-                <li><a href="/sales" class="{activeRoute.startsWith('/sales') ? 'active' : ''}">Bán hàng</a></li>
-                <li><a href="/expenses" class="{activeRoute.startsWith('/expenses') ? 'active' : ''}">Chi phí Khác</a></li>
-                <li><a href="/stocktake" class="{activeRoute.startsWith('/stocktake') ? 'active' : ''}">Kiểm kho</a></li>
-                <li><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''}">Báo cáo</a></li>
-                <li><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''}">History</a></li>
+
+                {#if canManage}
+                    <li><a href="/ingredients" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''}">Nguyên liệu</a></li>
+                    <li><a href="/products" class="{activeRoute.startsWith('/products') ? 'active' : ''}">Sản phẩm/CT</a></li>
+                    <li><a href="/imports" class="{activeRoute.startsWith('/imports') ? 'active' : ''}">Nhập hàng</a></li>
+                    <li><a href="/production" class="{activeRoute.startsWith('/production') ? 'active' : ''}">Sản xuất</a></li>
+                    <li><a href="/stocktake" class="{activeRoute.startsWith('/stocktake') ? 'active' : ''}">Kiểm kho</a></li>
+                {/if}
+
+                {#if canSell}
+                    <li><a href="/sales" class="{activeRoute.startsWith('/sales') ? 'active' : ''}">Bán hàng</a></li>
+                    <li><a href="/partners" class="{activeRoute.startsWith('/partners') ? 'active' : ''}">Đối tác</a></li>
+                {/if}
+
+                {#if canManage || canSell}
+                    <li><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''}">Báo cáo</a></li>
+                {/if}
+
+                {#if role === 'admin'}
+                     <li><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} text-secondary font-bold">Quản lý User</a></li>
+                {/if}
 			</ul>
 		</div>
 		<a href="/" class="btn btn-ghost normal-case text-lg text-primary font-bold">Bánh Mì Boss</a>
@@ -42,19 +57,26 @@
 		<ul class="menu menu-horizontal px-0 text-sm"> 
 			<li class="relative"><a href="/" class="{activeRoute === '/' ? 'active' : ''} py-1">Dashboard</a></li>
 
-			<li class="relative"><a href="/ingredients" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''} py-1">Nguyên liệu</a></li>
-			<li class="relative"><a href="/products" class="{activeRoute.startsWith('/products') ? 'active' : ''} py-1">Sản phẩm/CT</a></li>
-			<li class="relative"><a href="/partners" class="{activeRoute.startsWith('/partners') ? 'active' : ''} py-1">Đối tác</a></li>
-			<li class="relative"><a href="/assets" class="{activeRoute.startsWith('/assets') ? 'active' : ''} py-1">Tài sản</a></li>
+            {#if canManage}
+                <li class="relative"><a href="/ingredients" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''} py-1">Nguyên liệu</a></li>
+                <li class="relative"><a href="/products" class="{activeRoute.startsWith('/products') ? 'active' : ''} py-1">Sản phẩm/CT</a></li>
+                <li class="relative"><a href="/imports" class="{activeRoute.startsWith('/imports') ? 'active' : ''} py-1">Nhập hàng</a></li>
+                <li class="relative"><a href="/production" class="{activeRoute.startsWith('/production') ? 'active' : ''} py-1">Sản xuất</a></li>
+                <li class="relative"><a href="/stocktake" class="{activeRoute.startsWith('/stocktake') ? 'active' : ''} py-1">Kiểm kho</a></li>
+            {/if}
 
-			<li class="relative"><a href="/imports" class="{activeRoute.startsWith('/imports') ? 'active' : ''} py-1">Nhập hàng</a></li>
-			<li class="relative"><a href="/production" class="{activeRoute.startsWith('/production') ? 'active' : ''} py-1">Sản xuất</a></li>
-			<li class="relative"><a href="/sales" class="{activeRoute.startsWith('/sales') ? 'active' : ''} py-1">Bán hàng</a></li>
-			<li class="relative"><a href="/expenses" class="{activeRoute.startsWith('/expenses') ? 'active' : ''} py-1">Chi phí</a></li>
-			
-			<li class="relative"><a href="/stocktake" class="{activeRoute.startsWith('/stocktake') ? 'active' : ''} py-1">Kiểm kho</a></li>
-			<li class="relative"><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''} py-1">Báo cáo</a></li>
-			<li class="relative"><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''} py-1">History</a></li>
+            {#if canSell}
+                <li class="relative"><a href="/sales" class="{activeRoute.startsWith('/sales') ? 'active' : ''} py-1">Bán hàng</a></li>
+                <li class="relative"><a href="/partners" class="{activeRoute.startsWith('/partners') ? 'active' : ''} py-1">Đối tác</a></li>
+            {/if}
+
+            {#if canManage || canSell}
+                <li class="relative"><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''} py-1">Báo cáo</a></li>
+            {/if}
+
+            {#if role === 'admin'}
+                 <li class="relative"><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} py-1 text-secondary font-bold">Quản lý User</a></li>
+            {/if}
 		</ul>
 	</div>
 	
@@ -67,7 +89,8 @@
                     </div>
                 </div>
                 <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-                    <li class="menu-title">{$authStore.user.email} ({$authStore.user.role})</li>
+                    <li class="menu-title">{$authStore.user.email}</li>
+                    <li class="menu-title text-primary font-bold uppercase text-xs">Role: {$authStore.user.role}</li>
                     <li><button on:click={handleLogout}>Đăng xuất</button></li>
                 </ul>
             </div>

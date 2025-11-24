@@ -118,7 +118,7 @@
     }
 
 	async function handleSubmit() {
-        if ($authStore.user?.role !== 'admin') {
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) {
             return alert("Bạn không có quyền thực hiện thao tác này.");
         }
         
@@ -162,7 +162,7 @@
 	}
 
     async function handleDelete(id: string) {
-        if ($authStore.user?.role !== 'admin') return alert("Bạn không có quyền thực hiện thao tác này.");
+        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thực hiện thao tác này.");
         if(!confirm("Bạn có chắc muốn xóa công thức này?")) return;
         
         try {
@@ -177,7 +177,7 @@
 <div class="max-w-7xl mx-auto">
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-2xl font-bold">Quản lý Sản phẩm & Công thức</h1>
-		{#if $authStore.user?.role === 'admin'}
+		{#if ['admin', 'manager'].includes($authStore.user?.role || '')}
 			<button class="btn btn-primary" on:click={openAddModal}>
 				+ Thêm Sản phẩm/Công thức
 			</button>

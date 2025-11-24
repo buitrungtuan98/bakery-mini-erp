@@ -105,7 +105,7 @@
     }
 
 	async function handleSubmit() {
-        if ($authStore.user?.role !== 'admin') return alert("Bạn không có quyền thực hiện thao tác này.");
+        if (!['admin', 'sales', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thực hiện thao tác này.");
         
 		try {
             const cleanCustomPrices = formData.customPrices
@@ -143,7 +143,7 @@
 	}
 
     async function handleDelete(id: string) {
-        if ($authStore.user?.role !== 'admin') return alert("Bạn không có quyền thực hiện thao tác này.");
+        if (!['admin', 'sales', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thực hiện thao tác này.");
         if(!confirm("Bạn có chắc muốn xóa đối tượng này?")) return;
         
         try {
@@ -157,7 +157,7 @@
 
 <div class="flex justify-between items-center mb-6">
 	<h1 class="text-2xl font-bold">Quản lý Đối tượng (Partners)</h1>
-	{#if $authStore.user?.role === 'admin'}
+		{#if ['admin', 'sales', 'manager'].includes($authStore.user?.role || '')}
 		<button class="btn btn-primary" on:click={openAddModal}>
 			+ Thêm Đối tượng
 		</button>

@@ -186,7 +186,7 @@
 
 	// --- CANCEL/REVERSE LOGIC (HỦY ĐƠN) ---
     async function handleCancelOrder(order: Order) {
-        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới được hủy đơn.");
+        if (!['admin', 'sales'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền hủy đơn.");
         
         const orderDate = order.createdAt.toDate().toDateString();
         const todayDate = new Date().toDateString();
