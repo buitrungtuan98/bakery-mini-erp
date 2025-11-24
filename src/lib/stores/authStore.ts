@@ -8,7 +8,7 @@ interface UserData {
     uid: string;
     email: string | null;
     photoURL: string | null;
-    role: string | null; // Changed from strict union to string to support dynamic roles
+    role: string | null;
 }
 
 function createAuthStore() {
@@ -22,11 +22,11 @@ function createAuthStore() {
 
     return {
         subscribe,
-        init: () => {
+        init: async () => { // Make init async
             const db = getFirestore();
 
-            // 1. Start by loading Roles definition
-            permissionStore.initRoles();
+            // 1. Ensure roles are loaded FIRST
+            await permissionStore.initRoles();
 
             onAuthStateChanged(auth, async (firebaseUser) => {
                 if (firebaseUser) {
@@ -54,6 +54,8 @@ function createAuthStore() {
                         });
                     } catch (error) {
                         console.error("Auth Store Error:", error);
+                        // Fallback permissions for safety
+                        permissionStore.setUserRole('staff');
                         set({
                              user: {
                                 uid: firebaseUser.uid,

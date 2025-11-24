@@ -10,8 +10,8 @@
 	// --- Types ---
 	interface Partner {
 		id: string; name: string; type: 'supplier' | 'customer'; customerType?: 'sỉ' | 'lẻ';
-		phone?: string; defaultAddress?: string; // Địa chỉ mặc định từ Partner
-        address?: string; // Fallback nếu tên trường cũ là address
+		phone?: string; defaultAddress?: string;
+        address?: string;
 		customPrices?: { productId: string; price: number; }[];
 	}
 
@@ -21,8 +21,14 @@
 	}
 
 	interface OrderItem {
-		productId: string; productName?: string; quantity: number; unitPrice: number; lineTotal: number;
-		lineCOGS: number;  initialPrice: number; 
+		productId: string;
+        productName?: string;
+        quantity: number;
+        unitPrice: number;
+        lineTotal: number;
+		lineCOGS: number;
+        initialPrice: number;
+        originalBasePrice?: number; // To track standard price vs custom price
 	}
     
     interface Order {
@@ -61,15 +67,12 @@
 	// Dữ liệu Phiếu bán hàng
 	let selectedCustomerId = '';
 	let customer: Partner | undefined;
-	let orderItems: OrderItem[] = []; // Default empty
+	let orderItems: OrderItem[] = [];
 	let shippingFee = 0;
 	let shippingAddress = '';
     let shippingPhone = '';
 	
-	// Reactive Helper: Tìm khách hàng hiện tại
 	$: customer = customers.find(c => c.id === selectedCustomerId);
-
-    // Filter Products
     $: filteredProducts = products.filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()));
 	
 	// Hàm tính giá đơn vị và tổng tiền của item
@@ -96,7 +99,8 @@
             unitPrice: finalUnitPrice, 
             lineTotal: lineTotal, 
             lineCOGS: lineCOGS, 
-            initialPrice: basePrice
+            initialPrice: basePrice,
+            originalBasePrice: product.sellingPrice // Store standard price
         };
 	}
 	
@@ -170,16 +174,13 @@
     }
 
     function addProductToCart(product: Product) {
-        // Check if exists
         const existingIndex = orderItems.findIndex(i => i.productId === product.id);
 
         if (existingIndex >= 0) {
-            // Increment
             const item = orderItems[existingIndex];
             item.quantity += 1;
             orderItems[existingIndex] = updatePricing(item, products, customer, false);
         } else {
-            // Add new
             const newItem: OrderItem = {
                 productId: product.id,
                 productName: product.name,
@@ -187,7 +188,8 @@
                 unitPrice: product.sellingPrice,
                 lineTotal: 0,
                 lineCOGS: 0,
-                initialPrice: product.sellingPrice
+                initialPrice: product.sellingPrice,
+                originalBasePrice: product.sellingPrice
             };
             orderItems = [...orderItems, updatePricing(newItem, products, customer, false)];
         }
@@ -202,7 +204,6 @@
 
     function saveEditItem() {
         if (selectedItemIndex >= 0) {
-            // Check manual price change
             const originalItem = orderItems[selectedItemIndex];
             const isPriceChanged = editingItem.unitPrice !== originalItem.unitPrice;
 
@@ -218,7 +219,6 @@
 
 	// --- CANCEL/REVERSE LOGIC ---
     async function handleCancelOrder(order: Order) {
-        // Permission check
         const canCancel = checkPermission('manage_orders') || checkPermission('create_order');
         if (!canCancel) return alert("Bạn không có quyền hủy đơn.");
 
@@ -377,7 +377,12 @@
                 </div>
                 <div class="text-right">
                     <div class="font-bold text-primary">{item.lineTotal.toLocaleString()} đ</div>
-                    <div class="text-[10px] text-slate-400">Chạm để sửa</div>
+
+                    <!-- CUSTOM PRICE INDICATOR -->
+                    {#if item.unitPrice !== item.originalBasePrice}
+                        <div class="badge badge-xs badge-warning text-[9px] mt-1">Giá riêng</div>
+                    {/if}
+                    <div class="text-[10px] text-slate-400 mt-1">Chạm để sửa</div>
                 </div>
             </div>
         {/each}
