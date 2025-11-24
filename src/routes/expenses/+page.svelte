@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
-    import { checkPermission, hasPermission } from '$lib/stores/permissionStore';
+    import { checkPermission, userPermissions } from '$lib/stores/permissionStore';
 	import { collection, addDoc, getDocs, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, where } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -150,7 +150,7 @@
 <div class="max-w-7xl mx-auto pb-24">
     <h1 class="text-2xl font-bold text-primary mb-6">Quản lý Chi phí (Expenses)</h1>
 
-    {#if $hasPermission('manage_expenses')}
+    {#if $userPermissions.has('manage_expenses')}
         <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8">
             <div class="card-body p-4">
                 <h2 class="card-title text-lg border-b pb-2 mb-4">Ghi nhận Chi phí Mới</h2>

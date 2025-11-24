@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
-    import { checkPermission, hasPermission } from '$lib/stores/permissionStore';
+    import { checkPermission, userPermissions } from '$lib/stores/permissionStore';
 	import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, serverTimestamp } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -77,7 +77,7 @@
 <div class="max-w-7xl mx-auto pb-20">
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
-		{#if $hasPermission('manage_assets')}
+		{#if $userPermissions.has('manage_assets')}
 			<button class="btn btn-primary" on:click={openAddModal}>+ Thêm Tài sản</button>
 		{/if}
 	</div>

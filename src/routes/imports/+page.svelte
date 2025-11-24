@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { db } from '$lib/firebase'; 
 	import { authStore } from '$lib/stores/authStore';
-    import { checkPermission, hasPermission } from '$lib/stores/permissionStore';
+    import { checkPermission, userPermissions } from '$lib/stores/permissionStore';
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, where, deleteDoc } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -187,7 +187,7 @@
 <div class="max-w-7xl mx-auto pb-24">
     <h1 class="text-2xl font-bold text-primary mb-6">Nhập Kho (Imports)</h1>
     
-    {#if $hasPermission('manage_imports')}
+    {#if $userPermissions.has('manage_imports')}
     <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8 p-4">
         <h2 class="card-title text-lg border-b pb-2 mb-4">Tạo Phiếu Nhập</h2>
         
@@ -270,7 +270,7 @@
                                 <span>{idx > 0 ? ', ' : ''}{item.quantity} {item.ingredientName}</span>
                             {/each}
                         </div>
-                        {#if $hasPermission('manage_imports')}
+                        {#if $userPermissions.has('manage_imports')}
                             <div class="text-right">
                                 <button class="btn btn-xs btn-outline btn-error" on:click={() => deleteReceipt(receipt.id)}>Xóa</button>
                             </div>
@@ -303,7 +303,7 @@
                             </td>
                             <td class="text-right font-mono text-success">{receipt.totalAmount.toLocaleString()} đ</td>
                             <td>
-                                {#if $hasPermission('manage_imports')}
+                                {#if $userPermissions.has('manage_imports')}
                                     <button 
                                         class="btn btn-xs btn-error text-white" 
                                         on:click={() => deleteReceipt(receipt.id)}
