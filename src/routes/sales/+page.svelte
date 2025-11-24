@@ -1,25 +1,14 @@
 <script lang="ts">
 	import { db } from '$lib/firebase'; 
 	import { authStore } from '$lib/stores/authStore';
-    import { permissionStore, checkPermission } from '$lib/stores/permissionStore';
-	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, where, onSnapshot, limit } from 'firebase/firestore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { productStore, partnerStore, type Product, type Partner } from '$lib/stores/masterDataStore';
+	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, limit } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
 	import { logAction } from '$lib/logger'; 
     import Modal from '$lib/components/ui/Modal.svelte';
 
 	// --- Types ---
-	interface Partner {
-		id: string; name: string; type: 'supplier' | 'customer'; customerType?: 'sỉ' | 'lẻ';
-		phone?: string; defaultAddress?: string; 
-        address?: string; 
-		customPrices?: { productId: string; price: number; }[];
-	}
-
-	interface Product {
-		id: string; name: string; sellingPrice: number; theoreticalCost: number;
-		currentStock: number;
-	}
-
 	interface OrderItem {
 		productId: string; productName?: string; quantity: number; unitPrice: number; lineTotal: number;
 		lineCOGS: number;  initialPrice: number; 
@@ -39,13 +28,12 @@
     }
 
 	// --- State ---
-	let customers: Partner[] = [];
 	let products: Product[] = [];
+    let customers: Partner[] = [];
     let ordersHistory: Order[] = [];
 	let loading = true;
 	let processing = false;
 	let errorMsg = '';
-	let isDataFetched = false;
     
     // UI State for Mobile
     let isProductModalOpen = false;
@@ -55,8 +43,8 @@
     let editingItem: OrderItem = { productId: '', quantity: 0, unitPrice: 0, lineTotal: 0, lineCOGS: 0, initialPrice: 0 };
     let productSearchTerm = '';
 
-    // Quản lý Subscription
-    let unsubscribeProducts: () => void;
+    // History Pagination (Client side sort/filter if needed, but here we just use store/limit)
+    let historyLimit = 10;
     let unsubscribeOrders: () => void;
 
 	// Dữ liệu Phiếu bán hàng
@@ -66,6 +54,10 @@
 	let shippingFee = 0;
 	let shippingAddress = '';
     let shippingPhone = '';
+
+    // --- Data Binding ---
+    $: products = $productStore;
+    $: customers = $partnerStore.filter(p => p.type === 'customer' || !p.type); // Default to customer if type undefined? Usually strict.
 	
 	// Reactive Helper: Tìm khách hàng hiện tại
 	$: customer = customers.find(c => c.id === selectedCustomerId);
@@ -111,7 +103,7 @@
 		customer = customers.find(c => c.id === selectedCustomerId);
 
         if (customer) {
-            shippingAddress = customer.address || customer.defaultAddress || '';
+            shippingAddress = customer.address || '';
             shippingPhone = customer.phone || '';
         } else {
             shippingAddress = '';
@@ -124,42 +116,20 @@
         isCustomerModalOpen = false;
 	}
 
-	async function fetchData() {
-		if (isDataFetched) return;
-		loading = true;
-		isDataFetched = true;
-		
-		try {
-			const custSnap = await getDocs(query(collection(db, 'partners'), where('type', '==', 'customer')));
-			customers = custSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner));
+    function fetchHistory(limitCount: number) {
+        if (unsubscribeOrders) unsubscribeOrders();
+        const orderQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(limitCount));
+        unsubscribeOrders = onSnapshot(orderQuery, (snapshot) => {
+            ordersHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
+            loading = false;
+        });
+    }
 
-			const q = query(collection(db, 'products'), orderBy('name'));
-			unsubscribeProducts = onSnapshot(q, (snapshot) => {
-                products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
-                if (products.length > 0 && customer) {
-                     products = products; 
-                }
-            });
-            
-            const orderQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(20));
-            unsubscribeOrders = onSnapshot(orderQuery, (snapshot) => {
-                ordersHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-            });
-
-		} catch (error) {
-			console.error("Lỗi Fetch Master Data:", error);
-			errorMsg = "Lỗi tải dữ liệu.";
-		} finally {
-			loading = false;
-		}
-	}
-
-	$: if ($authStore.user && !isDataFetched) {
-		fetchData();
+	$: if ($authStore.user) {
+		fetchHistory(historyLimit);
 	}
     
     onDestroy(() => {
-        if (unsubscribeProducts) unsubscribeProducts();
         if (unsubscribeOrders) unsubscribeOrders();
     });
 
@@ -365,32 +335,31 @@
         </div>
     </div>
 
-    <!-- 2. Cart Items List -->
-    <div class="flex flex-col gap-3 mx-2">
+    <!-- 2. Cart Items List (Simplified) -->
+    <div class="flex flex-col mx-2 bg-white rounded-xl border border-slate-100 overflow-hidden">
         {#each orderItems as item, i}
             <div
-                class="bg-white p-3 rounded-lg shadow-sm border border-slate-100 flex justify-between items-center relative"
+                class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50"
                 on:click={() => openEditItem(i)}
             >
-                <div class="flex-1">
-                    <div class="font-bold text-slate-700">{item.productName || 'Sản phẩm ' + i}</div>
-                    <div class="text-xs text-slate-500 mt-1">
-                        {item.quantity} x {item.unitPrice.toLocaleString()} đ
+                <div>
+                    <div class="font-medium text-slate-800 text-sm">{item.productName}</div>
+                    <div class="text-xs text-slate-400 mt-1">
+                        <span class="font-bold text-slate-600">{item.quantity}</span> x {item.unitPrice.toLocaleString()}
                     </div>
                 </div>
                 <div class="text-right">
-                    <div class="font-bold text-primary">{item.lineTotal.toLocaleString()} đ</div>
+                    <div class="font-bold text-slate-800 text-sm">{item.lineTotal.toLocaleString()} đ</div>
                     {#if item.unitPrice !== item.originalBasePrice}
-                        <div class="badge badge-xs badge-warning text-[9px] mt-1">Giá riêng</div>
+                        <div class="text-[9px] text-orange-500 font-bold">GIÁ RIÊNG</div>
                     {/if}
-                    <div class="text-[10px] text-slate-400 mt-1">Chạm để sửa</div>
                 </div>
             </div>
         {/each}
         
         {#if orderItems.length === 0}
-            <div class="text-center py-10 text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-300 mx-2">
-                Chưa có sản phẩm nào.
+            <div class="text-center py-12 text-slate-300 italic text-sm">
+                Giỏ hàng trống
             </div>
         {/if}
     </div>
@@ -420,23 +389,34 @@
         </div>
     </div>
 
-    <!-- History Section (Bottom) -->
-    <div class="mt-8 px-2 opacity-50">
-        <h3 class="font-bold text-lg mb-2">Lịch sử gần đây</h3>
-        <div class="overflow-x-auto">
-             <table class="table table-xs">
-                 <thead><tr><th>Ngày</th><th>Khách</th><th>Tiền</th><th>TT</th></tr></thead>
-                 <tbody>
-                     {#each ordersHistory as order}
-                        <tr>
-                            <td>{order.createdAt?.toDate().getDate()}/{order.createdAt?.toDate().getMonth()+1}</td>
-                            <td class="max-w-[100px] truncate">{order.customerInfo.name}</td>
-                            <td>{order.totalRevenue.toLocaleString()}</td>
-                            <td>{order.status === 'canceled' ? 'Hủy' : 'OK'}</td>
-                        </tr>
-                     {/each}
-                 </tbody>
-             </table>
+    <!-- History Section (Bottom with Pagination) -->
+    <div class="mt-8 px-2 pb-10">
+        <div class="flex justify-between items-center mb-3">
+             <h3 class="font-bold text-slate-700">Lịch sử đơn hàng</h3>
+             <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost">
+                 <option value={10}>10 dòng</option>
+                 <option value={20}>20 dòng</option>
+                 <option value={30}>30 dòng</option>
+             </select>
+        </div>
+
+        <div class="space-y-2">
+             {#each ordersHistory as order}
+                <div class="flex justify-between items-center p-3 bg-white rounded border border-slate-100 shadow-sm {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                    <div class="flex flex-col">
+                        <span class="font-bold text-xs text-slate-800">{order.customerInfo.name}</span>
+                        <span class="text-[10px] text-slate-400">
+                            {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ''}
+                        </span>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-bold text-sm text-primary">{order.totalRevenue.toLocaleString()}</div>
+                        <div class="text-[10px] uppercase font-bold {order.status === 'canceled' ? 'text-red-500' : 'text-emerald-500'}">
+                            {order.status === 'canceled' ? 'Đã Hủy' : 'Thành công'}
+                        </div>
+                    </div>
+                </div>
+             {/each}
         </div>
     </div>
 
@@ -444,52 +424,56 @@
 
 <!-- MODAL: Select Customer -->
 <Modal title="Chọn Khách hàng" isOpen={isCustomerModalOpen} onClose={() => isCustomerModalOpen = false} showConfirm={false}>
-    <div class="space-y-2 max-h-[60vh] overflow-y-auto">
-        {#each customers as cust}
-            <button
-                class="w-full text-left p-3 rounded hover:bg-slate-100 border border-slate-100 flex justify-between items-center"
-                on:click={() => handleCustomerChangeAndRecalculate(cust.id)}
-            >
-                <div>
-                    <div class="font-bold">{cust.name}</div>
-                    <div class="text-xs text-slate-500">{cust.phone || 'No Phone'}</div>
-                </div>
-                {#if cust.customerType}
-                    <span class="badge badge-sm">{cust.customerType}</span>
-                {/if}
-            </button>
-        {/each}
-    </div>
+    {#if isCustomerModalOpen}
+        <div class="space-y-1 max-h-[60vh] overflow-y-auto">
+            {#each customers as cust}
+                <button
+                    class="w-full text-left p-3 rounded-lg border-b border-slate-50 active:bg-slate-50 flex justify-between items-center"
+                    on:click={() => handleCustomerChangeAndRecalculate(cust.id)}
+                >
+                    <div>
+                        <div class="font-bold text-sm text-slate-800">{cust.name}</div>
+                        <div class="text-xs text-slate-400">{cust.phone || ''}</div>
+                    </div>
+                    {#if cust.customerType}
+                        <span class="text-xs font-bold text-slate-300">{cust.customerType}</span>
+                    {/if}
+                </button>
+            {/each}
+        </div>
+    {/if}
 </Modal>
 
 <!-- MODAL: Select Product -->
 <Modal title="Thêm Sản phẩm" isOpen={isProductModalOpen} onClose={() => isProductModalOpen = false} showConfirm={false}>
-    <input
-        type="text"
-        bind:value={productSearchTerm}
-        placeholder="Tìm tên sản phẩm..."
-        class="input input-bordered w-full mb-4 sticky top-0"
-        autofocus
-    />
-    <div class="space-y-2 max-h-[60vh] overflow-y-auto pb-10">
-        {#each filteredProducts as prod}
-            <button
-                class="w-full text-left p-3 rounded hover:bg-slate-100 border border-slate-100 flex justify-between items-center"
-                on:click={() => addProductToCart(prod)}
-            >
-                <div>
-                    <div class="font-bold">{prod.name}</div>
-                    <div class="text-xs {prod.currentStock > 0 ? 'text-green-600' : 'text-red-500'}">
-                        Tồn: {prod.currentStock.toLocaleString()}
+    {#if isProductModalOpen}
+        <input
+            type="text"
+            bind:value={productSearchTerm}
+            placeholder="Tìm tên sản phẩm..."
+            class="input input-bordered w-full mb-4 sticky top-0"
+            autofocus
+        />
+        <div class="space-y-1 max-h-[60vh] overflow-y-auto pb-10">
+            {#each filteredProducts as prod}
+                <button
+                    class="w-full text-left p-3 rounded-lg border-b border-slate-50 active:bg-slate-50 flex justify-between items-center"
+                    on:click={() => addProductToCart(prod)}
+                >
+                    <div>
+                        <div class="font-bold text-slate-800">{prod.name}</div>
+                        <div class="text-xs {prod.currentStock > 0 ? 'text-green-600' : 'text-red-500'}">
+                            Tồn: {prod.currentStock.toLocaleString()}
+                        </div>
                     </div>
-                </div>
-                <div class="font-bold text-primary">{prod.sellingPrice.toLocaleString()} đ</div>
-            </button>
-        {/each}
-        {#if filteredProducts.length === 0}
-            <div class="text-center text-slate-400 py-4">Không tìm thấy sản phẩm.</div>
-        {/if}
-    </div>
+                    <div class="font-bold text-primary">{prod.sellingPrice.toLocaleString()}</div>
+                </button>
+            {/each}
+            {#if filteredProducts.length === 0}
+                <div class="text-center text-slate-400 py-4">Không tìm thấy sản phẩm.</div>
+            {/if}
+        </div>
+    {/if}
 </Modal>
 
 <!-- MODAL: Edit Item -->

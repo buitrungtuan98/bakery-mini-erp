@@ -130,6 +130,14 @@
     {#if products.length === 0}
         <Loading />
     {:else}
+        <div class="flex justify-end mb-2">
+            <select bind:value={itemsPerPage} class="select select-bordered select-xs">
+                <option value={10}>10 dòng / trang</option>
+                <option value={20}>20 dòng / trang</option>
+                <option value={30}>30 dòng / trang</option>
+            </select>
+        </div>
+
         <ResponsiveTable>
              <svelte:fragment slot="mobile">
                  {#each paginatedProducts as item}
