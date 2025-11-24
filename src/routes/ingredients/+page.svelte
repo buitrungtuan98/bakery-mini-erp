@@ -2,6 +2,8 @@
     import { db } from '$lib/firebase';
     import { collection, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
     import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
     import { ingredientStore, partnerStore, type Ingredient, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
 
@@ -70,14 +72,14 @@
 
     // --- Handlers ---
     function openAddModal() {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền.");
+        if (!checkPermission('edit_inventory')) return alert("Bạn không có quyền.");
         isEditing = false;
         formData = { id: '', code: '', name: '', baseUnit: 'g', minStock: 100, manufacturerId: '', manufacturerName: '' };
         isModalOpen = true;
     }
 
     function openEditModal(item: Ingredient) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền.");
+        if (!checkPermission('edit_inventory')) return alert("Bạn không có quyền.");
         isEditing = true;
         formData = {
             id: item.id, code: item.code, name: item.name, baseUnit: item.baseUnit, minStock: item.minStock, 
@@ -118,7 +120,7 @@
     }
 
     async function handleDelete(id: string) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền.");
+        if (!checkPermission('edit_inventory')) return alert("Bạn không có quyền.");
         if(!confirm("Xóa nguyên liệu này?")) return;
         
         try {
@@ -133,7 +135,7 @@
         title="Danh sách Nguyên liệu"
         actionLabel="+ Thêm Nguyên liệu"
         onAction={openAddModal}
-        showAction={['admin', 'manager'].includes($authStore.user?.role || '')}
+        showAction={$permissionStore.userPermissions.has('edit_inventory')}
     />
     
     <div class="bg-white rounded-lg p-4 mb-6 shadow-sm border border-slate-200">
@@ -177,7 +179,7 @@
                                      {item.currentStock?.toLocaleString() || 0}
                                  </span>
                              </div>
-                             {#if $authStore.user?.role === 'admin'}
+                             {#if $permissionStore.userPermissions.has('view_finance')}
                                 <div class="flex flex-col text-right">
                                     <span class="text-xs text-slate-400">Giá vốn</span>
                                     <span class="font-mono text-emerald-600">{item.avgCost?.toLocaleString() || 0} đ</span>
@@ -201,7 +203,7 @@
                         <th>Nhà Sản xuất</th>
                         <th>Đơn vị</th>
                         <th class="text-right">Tồn kho</th>
-                        {#if $authStore.user?.role === 'admin'}
+                        {#if $permissionStore.userPermissions.has('view_finance')}
                             <th class="text-right">Giá vốn TB</th>
                         {/if}
                         <th>Ngày tạo</th>
@@ -228,7 +230,7 @@
                                     {item.currentStock?.toLocaleString() || '0'}
                                 </td>
 
-                                {#if $authStore.user?.role === 'admin'}
+                                {#if $permissionStore.userPermissions.has('view_finance')}
                                     <td class="text-right font-mono text-emerald-600">
                                         {item.avgCost?.toLocaleString() || '0'} đ
                                     </td>

@@ -2,6 +2,8 @@
     import { db } from '$lib/firebase';
     import { collection, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
     import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
     import { partnerStore, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
     
@@ -32,14 +34,14 @@
 
     // Handlers
     function openAddModal() {
-        if (!['admin', 'manager', 'sales'].includes($authStore.user?.role || '')) return alert("Không có quyền.");
+        if (!checkPermission('manage_partners')) return alert("Không có quyền.");
         isEditing = false;
         formData = { id: '', name: '', type: 'customer', customerType: 'lẻ', phone: '', address: '', customPrices: [] };
         isModalOpen = true;
     }
 
     function openEditModal(item: Partner) {
-        if (!['admin', 'manager', 'sales'].includes($authStore.user?.role || '')) return alert("Không có quyền.");
+        if (!checkPermission('manage_partners')) return alert("Không có quyền.");
         isEditing = true;
         formData = { ...item };
         isModalOpen = true;
@@ -72,7 +74,7 @@
     }
 
     async function handleDelete(id: string) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Không có quyền.");
+        if (!checkPermission('manage_partners')) return alert("Không có quyền.");
         if (!confirm("Xóa đối tác này?")) return;
         await deleteDoc(doc(db, 'partners', id));
     }
@@ -83,7 +85,7 @@
         title="Quản lý Đối tác"
         actionLabel="+ Thêm Đối tác"
         onAction={openAddModal}
-        showAction={['admin', 'manager', 'sales'].includes($authStore.user?.role || '')}
+        showAction={$permissionStore.userPermissions.has('manage_partners')}
     />
 
     <div class="mb-6">

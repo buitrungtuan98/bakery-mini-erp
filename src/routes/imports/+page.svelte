@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { db } from '$lib/firebase'; 
 	import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, where, deleteDoc } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger'; // <--- IMPORT MỚI CHO LOGGING
@@ -183,7 +185,7 @@
     // --- Delete Logic (Admin Only) ---
     async function deleteReceipt(id: string) {
         // Chỉ admin hoặc manager mới được xóa
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) {
+        if (!checkPermission('manage_imports')) {
             return alert("Bạn không có quyền xóa phiếu nhập.");
         }
         if(!confirm("Xóa phiếu nhập có thể làm sai lệch tồn kho và giá vốn trung bình. Bạn có chắc chắn?")) return;
@@ -329,7 +331,7 @@
                             </td>
                             <td class="text-right font-mono text-success">{receipt.totalAmount.toLocaleString()} đ</td>
                             <td>
-                                {#if $authStore.user?.role === 'admin'}
+                                {#if $permissionStore.userPermissions.has('manage_imports')}
                                     <button 
                                         class="btn btn-xs btn-error text-white" 
                                         on:click={() => deleteReceipt(receipt.id)}

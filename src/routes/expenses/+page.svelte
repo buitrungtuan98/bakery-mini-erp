@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
 	import { collection, addDoc, getDocs, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, where } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -81,7 +83,7 @@
     // --- Handlers ---
     
     async function handleAddCategory() {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thêm danh mục.");
+        if (!checkPermission('manage_expenses')) return alert("Bạn không có quyền thêm danh mục.");
         if (!newCategoryName.trim()) return;
 
         try {
@@ -98,7 +100,7 @@
     }
 
     async function handleAddExpense() {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thêm chi phí.");
+        if (!checkPermission('manage_expenses')) return alert("Bạn không có quyền thêm chi phí.");
         if (!expenseData.categoryId) return (errorMsg = "Vui lòng chọn danh mục chi phí.");
         if (!expenseData.selectedSupplierId) return (errorMsg = "Vui lòng chọn Nhà cung cấp/Người bán.");
         if (expenseData.amount <= 0) return (errorMsg = "Số tiền phải lớn hơn 0.");

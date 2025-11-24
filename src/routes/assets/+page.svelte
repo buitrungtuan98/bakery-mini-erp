@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
 	import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, serverTimestamp } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -48,7 +50,7 @@
     }
 
 	async function handleSubmit() {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền thêm/sửa tài sản.");
+        if (!checkPermission('manage_assets')) return alert("Bạn không có quyền thêm/sửa tài sản.");
         
         // Tự động tính tổng
         formData.quantity.total = formData.quantity.good + formData.quantity.broken; 
@@ -66,7 +68,7 @@
 	}
 
     async function handleDelete(id: string) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền xóa tài sản.");
+        if (!checkPermission('manage_assets')) return alert("Bạn không có quyền xóa tài sản.");
         if(!confirm("Xóa tài sản này?")) return;
         await deleteDoc(doc(db, 'assets', id));
     }
@@ -75,7 +77,7 @@
 <div class="max-w-7xl mx-auto">
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
-		{#if ['admin', 'manager'].includes($authStore.user?.role || '')}
+		{#if $permissionStore.userPermissions.has('manage_assets')}
 			<button class="btn btn-primary" on:click={openAddModal}>+ Thêm Tài sản</button>
 		{/if}
 	</div>
