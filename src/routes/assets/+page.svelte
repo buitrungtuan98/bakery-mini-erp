@@ -1,0 +1,165 @@
+<script lang="ts">
+	import { db } from '$lib/firebase';
+	import { authStore } from '$lib/stores/authStore';
+	import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, serverTimestamp } from 'firebase/firestore';
+	import { onDestroy, onMount } from 'svelte';
+    import { logAction } from '$lib/logger';
+
+	interface Asset {
+		id: string; name: string;
+        category: string; // VD: Thiết bị điện, Dụng cụ cầm tay
+        status: 'Đang dùng' | 'Thanh lý';
+        quantity: { total: number; good: number; broken: number; lost: number; };
+        originalPrice: number; // Giá mua tham khảo
+	}
+
+	let assets: Asset[] = [];
+	let loading = true;
+	let isModalOpen = false;
+	let isEditing = false;
+
+	let formData = {
+		id: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0,
+        quantity: { total: 1, good: 1, broken: 0, lost: 0 }
+	};
+
+	let unsubscribe: () => void;
+
+	onMount(() => {
+		const q = query(collection(db, 'assets'), orderBy('name'));
+		unsubscribe = onSnapshot(q, (snapshot) => {
+			assets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Asset));
+			loading = false;
+		});
+	});
+
+	onDestroy(() => { if (unsubscribe) unsubscribe(); });
+
+	function openAddModal() {
+		isEditing = false;
+		formData = { id: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0, quantity: { total: 1, good: 1, broken: 0, lost: 0 } };
+		isModalOpen = true;
+	}
+
+    function openEditModal(item: Asset) {
+        isEditing = true;
+        formData = { ...item };
+        isModalOpen = true;
+    }
+
+	async function handleSubmit() {
+        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền.");
+        
+        // Tự động tính tổng
+        formData.quantity.total = formData.quantity.good + formData.quantity.broken; 
+
+		try {
+			if (isEditing) {
+				await updateDoc(doc(db, 'assets', formData.id), formData);
+                await logAction($authStore.user!, 'UPDATE', 'assets', `Cập nhật tài sản: ${formData.name}`);
+			} else {
+				await addDoc(collection(db, 'assets'), { ...formData, createdAt: serverTimestamp() });
+                await logAction($authStore.user!, 'CREATE', 'assets', `Thêm tài sản mới: ${formData.name}`);
+			}
+			isModalOpen = false;
+		} catch (error) { alert("Lỗi: " + error); }
+	}
+
+    async function handleDelete(id: string) {
+        if ($authStore.user?.role !== 'admin') return alert("Chỉ Admin mới có quyền.");
+        if(!confirm("Xóa tài sản này?")) return;
+        await deleteDoc(doc(db, 'assets', id));
+    }
+</script>
+
+<div class="max-w-7xl mx-auto">
+	<div class="flex justify-between items-center mb-6">
+		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
+		{#if $authStore.user?.role === 'admin'}
+			<button class="btn btn-primary" on:click={openAddModal}>+ Thêm Tài sản</button>
+		{/if}
+	</div>
+
+	<div class="overflow-x-auto bg-base-100 shadow-xl rounded-box">
+		<table class="table table-zebra w-full">
+			<thead>
+				<tr>
+					<th>Tên Tài sản</th>
+                    <th>Loại</th>
+					<th>Tổng SL</th>
+                    <th class="text-success">Tốt</th>
+                    <th class="text-warning">Hỏng</th>
+                    <th class="text-error">Mất</th>
+                    <th>Giá trị gốc</th>
+					<th class="text-center">Thao tác</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#if loading}
+					<tr><td colspan="8" class="text-center">Đang tải...</td></tr>
+				{:else if assets.length === 0}
+                    <tr><td colspan="8" class="text-center text-gray-500">Chưa có tài sản nào.</td></tr>
+                {:else}
+					{#each assets as item}
+						<tr>
+							<td class="font-bold">{item.name}</td>
+                            <td>{item.category}</td>
+                            <td class="font-bold">{item.quantity.total}</td>
+                            <td class="text-success">{item.quantity.good}</td>
+                            <td class="text-warning">{item.quantity.broken}</td>
+                            <td class="text-error">{item.quantity.lost}</td>
+                            <td>{item.originalPrice.toLocaleString()} đ</td>
+							<td class="text-center">
+								<button class="btn btn-xs btn-ghost text-info" on:click={() => openEditModal(item)}>Sửa</button>
+                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}>Xóa</button>
+							</td>
+						</tr>
+					{/each}
+				{/if}
+			</tbody>
+		</table>
+	</div>
+</div>
+
+<input type="checkbox" class="modal-toggle" bind:checked={isModalOpen} />
+<div class="modal" role="dialog">
+	<div class="modal-box">
+		<h3 class="font-bold text-lg mb-4">{isEditing ? 'Cập nhật' : 'Thêm mới'} Tài sản</h3>
+		<div class="form-control w-full mb-3">
+			<label class="label">Tên Tài sản</label>
+			<input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Lò nướng Sanaky" />
+		</div>
+        <div class="grid grid-cols-2 gap-4 mb-3">
+            <div class="form-control">
+                <label class="label">Loại</label>
+                <select bind:value={formData.category} class="select select-bordered">
+                    <option>Dụng cụ</option>
+                    <option>Thiết bị điện</option>
+                    <option>Nội thất</option>
+                </select>
+            </div>
+            <div class="form-control">
+                <label class="label">Giá mua (đ)</label>
+                <input type="number" bind:value={formData.originalPrice} class="input input-bordered" />
+            </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4 mb-3 bg-base-200 p-4 rounded-box">
+            <div class="form-control">
+                <label class="label text-success">Tốt</label>
+                <input type="number" bind:value={formData.quantity.good} class="input input-bordered input-sm" />
+            </div>
+            <div class="form-control">
+                <label class="label text-warning">Hỏng</label>
+                <input type="number" bind:value={formData.quantity.broken} class="input input-bordered input-sm" />
+            </div>
+            <div class="form-control">
+                <label class="label text-error">Mất</label>
+                <input type="number" bind:value={formData.quantity.lost} class="input input-bordered input-sm" />
+            </div>
+        </div>
+		<div class="modal-action">
+			<button class="btn" on:click={() => isModalOpen = false}>Hủy</button>
+			<button class="btn btn-primary" on:click={handleSubmit}>Lưu lại</button>
+		</div>
+	</div>
+</div>

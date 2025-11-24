@@ -1,0 +1,82 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function: Kiểm tra người dùng đã đăng nhập chưa
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper function: Kiểm tra người dùng có quyền 'admin' không
+    // Cần 1 lượt đọc từ collection 'users'
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // =================================================================
+    // 1. COLLECTION: users (Quản lý Xác thực & Phân quyền)
+    // =================================================================
+    match /users/{userId} {
+      // User chỉ được tạo document của chính mình (Khi đăng nhập lần đầu)
+      allow create: if request.auth.uid == userId; 
+      // User đã xác thực có thể đọc. Admin có thể đọc/sửa tất cả.
+      allow read: if isAuth(); 
+      // User có thể sửa thông tin của mình. Admin có thể sửa role/data của người khác.
+      allow update: if request.auth.uid == userId || isAdmin();
+    }
+
+    // =================================================================
+    // 2. MASTER DATA: (ingredients, products, partners)
+    // =================================================================
+    // Staff/Admin đều cần đọc để hiển thị danh sách, nhưng chỉ Admin mới được thay đổi.
+    
+    match /ingredients/{ingId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+    
+    match /partners/{partnerId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // =================================================================
+    // 3. TRANSACTION DATA: (imports, production_runs, orders)
+    // =================================================================
+    // Tất cả các giao dịch đều tác động đến kho/tiền, chỉ Admin mới có quyền tạo/sửa.
+
+    match /imports/{importId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    match /production_runs/{prodRunId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+    
+    match /orders/{orderId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // =================================================================
+    // 4. CATCH-ALL: Chặn mọi truy cập vào các collections không được định nghĩa
+    // =================================================================
+    match /{document=**} {
+      allow read, write: if false; 
+    }
+    
+    // Thêm quy tắc này vào Firebase Console -> Rules
+    match /audit_logs/{logId} {
+      allow write: if isAdmin(); 
+      allow read: if isAdmin(); // Chỉ Admin mới được xem log audit
+    }
+  }
+}
