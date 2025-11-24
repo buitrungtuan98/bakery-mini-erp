@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { auth, googleProvider, db } from '$lib/firebase';
-	import { signInWithPopup } from 'firebase/auth';
-	import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+	import { signInWithPopup, signOut } from 'firebase/auth';
+	import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/authStore';
 
@@ -27,16 +27,37 @@
 			const userSnap = await getDoc(userRef);
 
 			if (!userSnap.exists()) {
-				// 3. Nếu chưa tồn tại (Lần đầu login), tạo mới
-				// Mặc định role là 'staff' để an toàn. Bạn sẽ vào DB sửa thành 'admin' thủ công sau.
+				// --- KIỂM TRA LỜI MỜI (INVITATION CHECK) ---
+                const inviteQuery = query(collection(db, 'invited_emails'), where('email', '==', user.email));
+                const inviteSnap = await getDocs(inviteQuery);
+
+                if (inviteSnap.empty) {
+                    // Nếu không có lời mời -> Từ chối đăng nhập
+                    await signOut(auth); // Đăng xuất ngay lập tức
+                    errorMsg = `Email "${user.email}" chưa được mời tham gia hệ thống. Vui lòng liên hệ Admin.`;
+                    isLoading = false;
+                    return;
+                }
+
+                // Lấy role đã được assign trong lời mời
+                const inviteData = inviteSnap.docs[0].data();
+                const assignedRole = inviteData.role || 'staff';
+
+				// 3. Nếu có lời mời, tạo User mới với role đã định
 				await setDoc(userRef, {
 					email: user.email,
 					displayName: user.displayName,
 					photoURL: user.photoURL,
-					role: 'staff', 
+					role: assignedRole,
 					createdAt: serverTimestamp(),
 					lastLogin: serverTimestamp()
 				});
+
+                // (Tùy chọn) Xóa lời mời sau khi đăng ký thành công?
+                // Ở đây ta giữ lại hoặc xóa đều được. Xóa để tránh rác.
+                // Nhưng vì rules hiện tại chỉ cho Admin write, nên user không tự xóa được.
+                // Ta có thể bỏ qua bước xóa này, hoặc admin sẽ tự dọn dẹp.
+                // Để đơn giản, ta cứ để lời mời đó.
 			} else {
 				// 4. Nếu đã tồn tại, update thời gian login cuối
 				await setDoc(userRef, {
@@ -50,6 +71,7 @@
 		} catch (error: any) {
 			console.error("Login error:", error);
 			errorMsg = "Đăng nhập thất bại. Vui lòng thử lại.";
+            await signOut(auth); // Ensure clean state
 		} finally {
 			isLoading = false;
 		}
@@ -96,7 +118,7 @@
 					</button>
 				</div>
 				<div class="divider">Hoặc</div>
-				<p class="text-center text-sm text-gray-500">Vui lòng liên hệ Admin để được cấp quyền truy cập nếu bạn không đăng nhập được.</p>
+				<p class="text-center text-sm text-gray-500">Hệ thống yêu cầu lời mời từ Admin. Nếu bạn chưa có, vui lòng liên hệ Admin.</p>
 			</div>
 		</div>
 	</div>

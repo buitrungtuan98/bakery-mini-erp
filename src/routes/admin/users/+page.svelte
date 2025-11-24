@@ -1,7 +1,7 @@
 <script lang="ts">
     import { db } from '$lib/firebase';
     import { authStore } from '$lib/stores/authStore';
-    import { collection, getDocs, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+    import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
     import { onMount } from 'svelte';
     import { logAction } from '$lib/logger';
 
@@ -13,77 +13,196 @@
         createdAt?: any;
     }
 
+    interface Invite {
+        id: string;
+        email: string;
+        role: string;
+        createdAt?: any;
+    }
+
     let users: UserProfile[] = [];
+    let invites: Invite[] = [];
     let loading = true;
     let currentUserRole = '';
+
+    // Invite Form
+    let inviteEmail = '';
+    let inviteRole = 'staff';
+    let inviteLoading = false;
 
     // Subscribe store để lấy role hiện tại của người đang login
     $: currentUserRole = $authStore.user?.role || '';
 
     onMount(async () => {
         if (currentUserRole !== 'admin') {
-            // Nếu load trang mà chưa kịp có role admin (hoặc không phải admin), sẽ chặn ở UI
             loading = false;
             return;
         }
-        await fetchUsers();
+        await loadAllData();
     });
 
     // Fetch lại khi authStore update (trường hợp F5)
     $: if ($authStore.user?.role === 'admin' && users.length === 0) {
-         fetchUsers();
+         loadAllData();
+    }
+
+    async function loadAllData() {
+        loading = true;
+        await Promise.all([fetchUsers(), fetchInvites()]);
+        loading = false;
     }
 
     async function fetchUsers() {
-        loading = true;
         try {
             const q = query(collection(db, 'users'), orderBy('email'));
             const snapshot = await getDocs(q);
             users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
-        } catch (e) {
-            console.error(e);
-            alert("Lỗi tải danh sách users.");
-        } finally {
-            loading = false;
-        }
+        } catch (e) { console.error(e); }
+    }
+
+    async function fetchInvites() {
+        try {
+            const q = query(collection(db, 'invited_emails'), orderBy('createdAt', 'desc'));
+            const snapshot = await getDocs(q);
+            invites = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invite));
+        } catch (e) { console.error(e); }
     }
 
     async function updateUserRole(user: UserProfile, newRole: string) {
         if (user.role === newRole) return;
         if (!confirm(`Bạn có chắc muốn đổi quyền của ${user.email} sang "${newRole}"?`)) {
             // Reset lại UI select nếu cancel
-            user.role = user.role;
-            users = users;
+            // Trick: Force reactivity update
+            users = [...users];
             return;
         }
 
         try {
             const userRef = doc(db, 'users', user.id);
             await updateDoc(userRef, { role: newRole });
-
-            // Log hành động
             await logAction($authStore.user!, 'UPDATE', 'users', `Phân quyền ${user.email} -> ${newRole}`);
 
+            // Update local state
+            const index = users.findIndex(u => u.id === user.id);
+            if(index !== -1) users[index].role = newRole as any;
+
             alert(`Đã cập nhật quyền thành công!`);
-            user.role = newRole as any; // Update local state
         } catch (e) {
             alert("Lỗi cập nhật quyền: " + e);
-            console.error(e);
+            users = [...users]; // Reset UI on error
         }
+    }
+
+    async function handleDeleteUser(id: string, email: string) {
+        if (!confirm(`Xóa người dùng ${email}? Họ sẽ mất quyền truy cập ngay lập tức.`)) return;
+        try {
+            await deleteDoc(doc(db, 'users', id));
+            await logAction($authStore.user!, 'DELETE', 'users', `Xóa user: ${email}`);
+            users = users.filter(u => u.id !== id);
+        } catch (e) { alert("Lỗi xóa user: " + e); }
+    }
+
+    // --- Invite Logic ---
+    async function handleInvite() {
+        if(!inviteEmail) return alert("Vui lòng nhập Email.");
+        if (users.find(u => u.email === inviteEmail)) return alert("Email này đã là thành viên hệ thống.");
+        if (invites.find(i => i.email === inviteEmail)) return alert("Email này đã được mời trước đó.");
+
+        inviteLoading = true;
+        try {
+            await addDoc(collection(db, 'invited_emails'), {
+                email: inviteEmail,
+                role: inviteRole,
+                createdAt: serverTimestamp(),
+                createdBy: $authStore.user?.email
+            });
+            await logAction($authStore.user!, 'CREATE', 'invited_emails', `Mời ${inviteEmail} làm ${inviteRole}`);
+
+            alert(`Đã gửi lời mời cho ${inviteEmail}`);
+            inviteEmail = ''; // Reset form
+            await fetchInvites();
+        } catch (e) {
+            alert("Lỗi gửi lời mời: " + e);
+        } finally {
+            inviteLoading = false;
+        }
+    }
+
+    async function handleDeleteInvite(id: string) {
+        if(!confirm("Hủy lời mời này?")) return;
+        try {
+            await deleteDoc(doc(db, 'invited_emails', id));
+            invites = invites.filter(i => i.id !== id);
+        } catch (e) { alert("Lỗi: " + e); }
     }
 </script>
 
 <div class="max-w-6xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6">Quản trị Người dùng (User Management)</h1>
+    <h1 class="text-2xl font-bold mb-6">Quản trị Người dùng & Phân quyền</h1>
 
     {#if currentUserRole !== 'admin'}
         <div class="alert alert-error shadow-lg">
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span>Bạn không có quyền truy cập trang này. Chỉ Admin mới được phép.</span>
-            </div>
+            <span>Bạn không có quyền truy cập trang này. Chỉ Admin mới được phép.</span>
         </div>
     {:else}
+
+        <!-- SECTION 1: INVITE USER -->
+        <div class="card bg-base-100 shadow-xl mb-8">
+            <div class="card-body">
+                <h2 class="card-title text-lg">Mời thành viên mới</h2>
+                <div class="flex flex-col md:flex-row gap-4 items-end">
+                    <div class="form-control w-full md:w-1/3">
+                        <label class="label"><span class="label-text">Email Google</span></label>
+                        <input type="email" bind:value={inviteEmail} placeholder="user@gmail.com" class="input input-bordered w-full" />
+                    </div>
+                    <div class="form-control w-full md:w-1/4">
+                        <label class="label"><span class="label-text">Vai trò dự kiến</span></label>
+                        <select bind:value={inviteRole} class="select select-bordered w-full">
+                            <option value="staff">Staff (Xem)</option>
+                            <option value="sales">Sales (Bán hàng)</option>
+                            <option value="manager">Manager (Kho/SX)</option>
+                            <option value="admin">Admin (Toàn quyền)</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" on:click={handleInvite} disabled={inviteLoading}>
+                        {#if inviteLoading}<span class="loading loading-spinner"></span>{/if}
+                        Gửi lời mời
+                    </button>
+                </div>
+
+                {#if invites.length > 0}
+                    <div class="mt-4">
+                        <h3 class="font-bold text-sm text-gray-500 mb-2">Lời mời đang chờ (Pending)</h3>
+                        <div class="overflow-x-auto">
+                            <table class="table table-xs table-compact w-full bg-base-200 rounded-lg">
+                                <thead>
+                                    <tr>
+                                        <th>Email được mời</th>
+                                        <th>Vai trò</th>
+                                        <th>Ngày mời</th>
+                                        <th>Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {#each invites as inv}
+                                        <tr>
+                                            <td>{inv.email}</td>
+                                            <td><span class="badge badge-outline">{inv.role}</span></td>
+                                            <td>{inv.createdAt?.toDate().toLocaleDateString('vi-VN')}</td>
+                                            <td>
+                                                <button class="btn btn-ghost btn-xs text-error" on:click={() => handleDeleteInvite(inv.id)}>Hủy</button>
+                                            </td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {/if}
+            </div>
+        </div>
+
+        <!-- SECTION 2: USER LIST -->
         <div class="overflow-x-auto bg-base-100 shadow-xl rounded-box">
             <table class="table w-full">
                 <!-- head -->
@@ -92,7 +211,7 @@
                         <th>Email / Tên hiển thị</th>
                         <th>Ngày tham gia</th>
                         <th>Vai trò (Role)</th>
-                        <th>Mô tả quyền hạn</th>
+                        <th class="text-center">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -104,7 +223,6 @@
                                 <td>
                                     <div class="font-bold">{user.email}</div>
                                     <div class="text-sm opacity-50">{user.displayName || 'Chưa đặt tên'}</div>
-                                    <div class="text-xs text-gray-400">UID: {user.id}</div>
                                 </td>
                                 <td>
                                     {user.createdAt?.toDate ? user.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}
@@ -125,16 +243,15 @@
                                         <option value="manager">Manager (Kho/SX)</option>
                                         <option value="admin">Admin (Toàn quyền)</option>
                                     </select>
+                                    <div class="text-[10px] text-gray-400 mt-1">
+                                        {#if user.role === 'staff'}Chỉ xem dữ liệu{:else if user.role === 'sales'}Bán hàng, khách hàng{:else if user.role === 'manager'}Kho, SX, nhập hàng{:else}Toàn quyền hệ thống{/if}
+                                    </div>
                                 </td>
-                                <td class="text-sm text-gray-500">
-                                    {#if user.role === 'staff'}
-                                        Chỉ xem dữ liệu, không được chỉnh sửa.
-                                    {:else if user.role === 'sales'}
-                                        Tạo đơn bán hàng, quản lý khách hàng.
-                                    {:else if user.role === 'manager'}
-                                        Quản lý kho, nhập hàng, sản xuất, công thức.
-                                    {:else if user.role === 'admin'}
-                                        Quản trị hệ thống, user, xem báo cáo lãi lỗ.
+                                <td class="text-center">
+                                    {#if user.id !== $authStore.user?.uid}
+                                        <button class="btn btn-sm btn-ghost text-error" on:click={() => handleDeleteUser(user.id, user.email)}>Xóa User</button>
+                                    {:else}
+                                        <span class="text-xs text-gray-400">(Bạn)</span>
                                     {/if}
                                 </td>
                             </tr>
