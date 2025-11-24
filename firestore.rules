@@ -36,6 +36,16 @@ service cloud.firestore {
       allow update: if isAdmin() || (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
     }
 
+    // --- COLLECTION: invited_emails (Hệ thống mời) ---
+    match /invited_emails/{inviteId} {
+      // Admin tạo lời mời
+      allow read: if isAuth(); // Cho phép đọc để kiểm tra khi login
+      allow write: if isAdmin();
+      // Cho phép xóa khi user đã đăng ký thành công (logic này xử lý ở client hoặc cloud function,
+      // ở đây ta cho phép isAuth delete nếu email khớp với email của họ - hơi khó check, nên để Admin hoặc backend xử lý.
+      // Tạm thời để isAdmin write, client login check read)
+    }
+
     // --- 2. MASTER DATA (Ingredients, Products, Partners) ---
     
     // Manager & Admin được sửa NVL, Thành phẩm

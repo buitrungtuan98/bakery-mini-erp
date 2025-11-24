@@ -114,7 +114,7 @@
                                 <span class="badge badge-neutral text-xs">Nhà SX</span>
                             {:else}
                                 <span class="badge badge-info text-xs">Khách {item.customerType || 'lẻ'}</span>
-                            /if}
+                            {/if}
                         </td>
                         <td class="font-mono text-sm">{item.phone || '-'}</td>
                         <td class="text-sm truncate max-w-xs">{item.address || '-'}</td>
