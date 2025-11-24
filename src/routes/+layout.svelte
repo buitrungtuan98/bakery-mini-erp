@@ -2,21 +2,19 @@
 	import "../app.css";
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/authStore';
-    import { initMasterData } from '$lib/stores/masterDataStore'; // Cache Master Data
+    import { initMasterData } from '$lib/stores/masterDataStore';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import Navbar from '$lib/components/Navbar.svelte';
+    import BottomNav from '$lib/components/BottomNav.svelte';
 
 	onMount(() => {
 		authStore.init();
-        // Init Master Data (Lazy load but consistent)
-        // Chỉ cần gọi 1 lần, các store sẽ tự quản lý subscription
         if ($authStore.user) {
              initMasterData();
         }
 	});
 
-    // Reactive init khi user đăng nhập sau
     $: if ($authStore.user) {
         initMasterData();
     }
@@ -36,13 +34,17 @@
 		</div>
 	</div>
 {:else}
-	<div class="min-h-screen bg-base-100 text-base-content font-sans">
+	<div class="min-h-screen bg-base-100 text-base-content font-sans pb-16 lg:pb-0"> <!-- Added pb-16 for BottomNav -->
 		{#if $authStore.user}
 			<Navbar />
 		{/if}
 
-		<main class="p-4 max-w-7xl mx-auto">
+		<main class="p-2 md:p-4 max-w-7xl mx-auto">
 			<slot />
 		</main>
+
+        {#if $authStore.user}
+            <BottomNav />
+        {/if}
 	</div>
 {/if}
