@@ -49,6 +49,7 @@
     
     // Scale
     let batchScale = 1; 
+    let customScaleValue = 1;
     
     // UI State
     let isProductModalOpen = false;
@@ -108,6 +109,7 @@
 
         // Reset Scale
         batchScale = 1;
+        customScaleValue = 1;
         actualYield = prod.estimatedYieldQty || 0;
 
         productionInputs = prod.items.map(recipeItem => {
@@ -123,17 +125,23 @@
 
     
     function handleScaleChange() {
-        if (batchScale <= 0) return;
+        let effectiveScale = batchScale;
+
+        if (batchScale === -1) {
+            effectiveScale = customScaleValue;
+        }
+
+        if (effectiveScale <= 0) return;
         
         const prod = products.find(p => p.id === selectedProductId);
         if (!prod) return;
 
         if (prod.estimatedYieldQty) {
-            actualYield = Math.round(prod.estimatedYieldQty * batchScale);
+            actualYield = Math.round(prod.estimatedYieldQty * effectiveScale);
         }
 
         productionInputs = productionInputs.map(input => {
-            const newQty = input.theoreticalQuantity * batchScale;
+            const newQty = input.theoreticalQuantity * effectiveScale;
             return {
                 ...input,
                 actualQuantityUsed: Number(newQty.toFixed(2))
@@ -299,19 +307,34 @@
         <!-- 2. Scale & Yield -->
         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4 mx-2">
             <div class="grid grid-cols-2 gap-4">
-                 <div class="form-control">
+                 <div class="form-control col-span-2 sm:col-span-1">
                     <label class="label"><span class="label-text text-xs">Tỉ lệ (Scale)</span></label>
-                    <select bind:value={batchScale} on:change={handleScaleChange} class="select select-bordered select-sm w-full font-bold text-primary">
-                        <option value={0.5}>0.5x (1/2 mẻ)</option>
-                        <option value={1}>1x (Chuẩn)</option>
-                        <option value={1.5}>1.5x</option>
-                        <option value={2}>2x (Nhân đôi)</option>
-                        <option value={3}>3x</option>
-                        <option value={4}>4x</option>
-                        <option value={5}>5x</option>
-                    </select>
+                    <div class="flex gap-2">
+                        <select bind:value={batchScale} on:change={handleScaleChange} class="select select-bordered select-sm w-full font-bold text-primary">
+                            <option value={0.25}>0.25x (1/4 mẻ)</option>
+                            <option value={0.33333333}>0.33x (1/3 mẻ)</option>
+                            <option value={0.5}>0.5x (1/2 mẻ)</option>
+                            <option value={1}>1x (Chuẩn)</option>
+                            <option value={1.5}>1.5x</option>
+                            <option value={2}>2x (Nhân đôi)</option>
+                            <option value={3}>3x</option>
+                            <option value={4}>4x</option>
+                            <option value={5}>5x</option>
+                            <option value={-1}>Tùy chỉnh...</option>
+                        </select>
+                        {#if batchScale === -1}
+                            <input
+                                type="number"
+                                step="0.1"
+                                min="0.1"
+                                bind:value={customScaleValue}
+                                on:input={handleScaleChange}
+                                class="input input-bordered input-sm w-24 font-bold text-primary"
+                            />
+                        {/if}
+                    </div>
                 </div>
-                <div class="form-control">
+                <div class="form-control col-span-2 sm:col-span-1">
                     <label class="label"><span class="label-text text-xs">Thành phẩm (Yield)</span></label>
                     <input type="number" bind:value={actualYield} class="input input-bordered input-sm w-full font-bold text-center" />
                 </div>
