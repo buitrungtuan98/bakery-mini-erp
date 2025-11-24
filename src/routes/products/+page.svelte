@@ -34,7 +34,7 @@
 
     // Form
     let formData: any = {
-        id: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0 }]
+        id: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0, _searchTerm: '', _isOpen: false }]
     };
 
     $: theoreticalCost = calculateCost(formData.items);
@@ -70,7 +70,14 @@
     function openEditModal(item: Product) {
         if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
         isEditing = true;
-        formData = { ...item };
+        // Populate _searchTerm for existing items
+        const itemsWithUI = (item.items || []).map((i: any) => {
+             const ing = ingredients.find(x => x.id === i.ingredientId);
+             return { ...i, _searchTerm: ing ? ing.name : '', _isOpen: false };
+        });
+        if (itemsWithUI.length === 0) itemsWithUI.push({ ingredientId: '', quantity: 0, _searchTerm: '', _isOpen: false });
+
+        formData = { ...item, items: itemsWithUI };
         isModalOpen = true;
     }
     
@@ -82,6 +89,32 @@
         if (formData.items.length > 1) {
             formData.items = formData.items.filter((_: any, i: number) => i !== index);
         }
+    }
+
+    function selectIngredient(index: number, ing: Ingredient) {
+        formData.items[index].ingredientId = ing.id;
+        formData.items[index]._searchTerm = ing.name;
+        formData.items[index]._isOpen = false;
+        // Trigger reactivity
+        formData.items = [...formData.items];
+    }
+
+    function handleInputFocus(index: number) {
+        formData.items[index]._isOpen = true;
+        formData.items = [...formData.items];
+    }
+
+    function handleInputBlur(index: number) {
+        // Small delay to allow click event to fire
+        setTimeout(() => {
+            formData.items[index]._isOpen = false;
+            formData.items = [...formData.items];
+        }, 200);
+    }
+
+    function handleSearchInput(index: number) {
+        formData.items[index].ingredientId = ''; // Clear selection on type
+        formData.items[index]._isOpen = true;
     }
 
     async function handleSubmit() {
@@ -119,12 +152,10 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto pb-24">
     <PageHeader
         title="Quản lý Sản phẩm & Công thức"
-        actionLabel="+ Thêm Sản phẩm"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('edit_inventory')}
+        showAction={false}
     />
 
     {#if products.length === 0}
@@ -266,6 +297,15 @@
             </div>
         {/if}
     {/if}
+
+    {#if $permissionStore.userPermissions.has('edit_inventory')}
+        <button
+            class="btn btn-circle btn-primary btn-lg fixed bottom-6 right-6 shadow-xl z-30"
+            on:click={openAddModal}
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+        </button>
+    {/if}
 </div>
 
 <!-- Modal: View Recipe (Mobile Friendly) -->
@@ -335,23 +375,58 @@
 
     <div class="divider text-xs text-slate-400">CÔNG THỨC</div>
 
-    <div class="space-y-2 mb-4">
+    <div class="space-y-4 mb-4">
         {#each formData.items as item, i}
-            <div class="flex gap-2 items-end">
-                <div class="form-control flex-grow">
+            {@const selectedIng = ingredients.find(x => x.id === item.ingredientId)}
+            <div class="flex gap-2 items-start">
+                <div class="form-control flex-grow relative">
                     <label class="label py-0"><span class="label-text text-xs">Nguyên liệu</span></label>
-                    <select bind:value={item.ingredientId} class="select select-bordered select-sm w-full">
-                        <option value="" disabled selected>-- Chọn NVL --</option>
-                        {#each ingredients as ing}
-                            <option value={ing.id}>{ing.code} - {ing.name} ({ing.baseUnit})</option>
-                        {/each}
-                    </select>
+                    <input
+                        type="text"
+                        class="input input-bordered input-sm w-full"
+                        placeholder="Tìm NVL..."
+                        bind:value={item._searchTerm}
+                        on:focus={() => handleInputFocus(i)}
+                        on:blur={() => handleInputBlur(i)}
+                        on:input={() => handleSearchInput(i)}
+                    />
+
+                    <!-- Dropdown List -->
+                    {#if item._isOpen}
+                        {@const filtered = ingredients.filter(ing =>
+                            !item._searchTerm ||
+                            ing.name.toLowerCase().includes(item._searchTerm.toLowerCase()) ||
+                            ing.code.toLowerCase().includes(item._searchTerm.toLowerCase())
+                        )}
+                        <ul class="absolute top-full left-0 right-0 bg-white border border-slate-200 shadow-lg rounded-b-lg max-h-48 overflow-y-auto z-50 mt-1">
+                            {#each filtered as ing}
+                                <li>
+                                    <button
+                                        class="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-b border-slate-50 last:border-none"
+                                        on:mousedown|preventDefault={() => selectIngredient(i, ing)}
+                                    >
+                                        {ing.name}
+                                    </button>
+                                </li>
+                            {/each}
+
+                            {#if filtered.length === 0}
+                                <li class="px-3 py-2 text-xs text-slate-400 italic">Không tìm thấy</li>
+                            {/if}
+                        </ul>
+                    {/if}
                 </div>
+
                 <div class="form-control w-24">
-                    <label class="label py-0"><span class="label-text text-xs">Lượng</span></label>
+                    <label class="label py-0">
+                        <span class="label-text text-xs truncate">
+                            {selectedIng ? selectedIng.baseUnit : 'Lượng'}
+                        </span>
+                    </label>
                     <input type="number" bind:value={item.quantity} class="input input-bordered input-sm w-full text-right" />
                 </div>
-                <button class="btn btn-sm btn-ghost text-red-500" on:click={() => removeRecipeItem(i)}>X</button>
+
+                <button class="btn btn-sm btn-ghost text-red-500 mt-5" on:click={() => removeRecipeItem(i)}>X</button>
             </div>
         {/each}
     </div>
