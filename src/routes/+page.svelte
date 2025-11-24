@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
 	import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 	import { onMount } from 'svelte';
 
@@ -152,7 +153,7 @@
         <div class="hero-content text-center py-6">
             <div class="max-w-md">
                 <h1 class="text-3xl font-bold text-primary">Tổng quan Dòng tiền & Tồn kho</h1>
-                {#if $authStore.user?.role === 'admin'}
+                {#if $permissionStore.userPermissions.has('view_finance')}
                     <p class="text-sm text-gray-600">Dữ liệu từ: **{contextPeriodStart}** đến **{contextPeriodEnd}**</p>
                 {:else}
                     <p class="text-sm text-gray-600">Xin chào, {$authStore.user?.email}</p>
@@ -161,7 +162,7 @@
         </div>
     </div>
     
-    {#if $authStore.user?.role === 'admin'}
+    {#if $permissionStore.userPermissions.has('view_finance')}
         <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <h2 class="text-xl font-bold">Thống kê Tài chính</h2>
             <div class="flex flex-col md:flex-row gap-4 items-center">

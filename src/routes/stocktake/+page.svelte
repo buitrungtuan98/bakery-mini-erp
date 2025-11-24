@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, updateDoc, addDoc, onSnapshot, limit } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -97,7 +99,7 @@
 
     // --- LOGIC ---
     async function handleStocktakeIngredients() {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền cân bằng kho.");
+        if (!checkPermission('edit_inventory')) return alert("Bạn không có quyền cân bằng kho.");
         if (!confirm("Xác nhận cập nhật tồn kho theo số liệu thực tế này?")) return;
         processing = true;
         
@@ -138,7 +140,7 @@
     }
 
     async function handleStocktakeAssets(asset: Asset) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền cập nhật tài sản.");
+        if (!checkPermission('manage_assets')) return alert("Bạn không có quyền cập nhật tài sản.");
         if (!asset.id) return alert("Lỗi dữ liệu: Tài sản bị thiếu ID.");
         
         const newTotal = (asset.actualGood || 0) + (asset.actualBroken || 0) + (asset.actualLost || 0);

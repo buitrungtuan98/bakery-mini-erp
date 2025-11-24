@@ -1,17 +1,18 @@
 import { writable } from 'svelte/store';
 import { auth } from '$lib/firebase';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, getFirestore } from 'firebase/firestore';
+import { permissionStore } from './permissionStore';
 
 interface UserData {
     uid: string;
     email: string | null;
     photoURL: string | null;
-    role: 'admin' | 'manager' | 'sales' | 'staff' | null;
+    role: string | null; // Changed from strict union to string to support dynamic roles
 }
 
 function createAuthStore() {
-    const { subscribe, set, update } = writable<{
+    const { subscribe, set } = writable<{
         user: UserData | null;
         loading: boolean;
     }>({
@@ -24,19 +25,23 @@ function createAuthStore() {
         init: () => {
             const db = getFirestore();
 
+            // 1. Start by loading Roles definition
+            permissionStore.initRoles();
+
             onAuthStateChanged(auth, async (firebaseUser) => {
                 if (firebaseUser) {
                     try {
                         const userRef = doc(db, 'users', firebaseUser.uid);
                         const userDoc = await getDoc(userRef);
 
-                        let role: UserData['role'] = null;
+                        let role: string = 'staff';
 
                         if (userDoc.exists()) {
                             role = userDoc.data().role || 'staff';
                         }
-                        // REMOVED: Auto-create logic.
-                        // Creation is now handled exclusively in /login page after invite check.
+
+                        // 2. Set Permissions based on fetched role
+                        permissionStore.setUserRole(role);
 
                         set({
                             user: {

@@ -2,6 +2,8 @@
     import { db } from '$lib/firebase';
     import { collection, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
     import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
     import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
 
@@ -59,14 +61,14 @@
 
     // Handlers
     function openAddModal() {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Không có quyền.");
+        if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
         isEditing = false;
         formData = { id: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0 }] };
         isModalOpen = true;
     }
 
     function openEditModal(item: Product) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Không có quyền.");
+        if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
         isEditing = true;
         formData = { ...item };
         isModalOpen = true;
@@ -111,7 +113,7 @@
     }
 
     async function handleDelete(id: string) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) return alert("Không có quyền.");
+        if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
         if (!confirm("Xóa sản phẩm này?")) return;
         await deleteDoc(doc(db, 'products', id));
     }
@@ -122,7 +124,7 @@
         title="Quản lý Sản phẩm & Công thức"
         actionLabel="+ Thêm Sản phẩm"
         onAction={openAddModal}
-        showAction={['admin', 'manager'].includes($authStore.user?.role || '')}
+        showAction={$permissionStore.userPermissions.has('edit_inventory')}
     />
 
     {#if products.length === 0}
@@ -146,7 +148,7 @@
                              Items: <span class="font-mono text-slate-800">{item.items?.length || 0}</span>
                          </div>
 
-                         {#if $authStore.user?.role === 'admin'}
+                         {#if $permissionStore.userPermissions.has('view_finance')}
                             <div class="flex justify-between items-center text-xs text-slate-400 mt-1">
                                 <span>Giá vốn LT: {item.theoreticalCost?.toLocaleString()} đ</span>
                                 {#if item.sellingPrice > 0}
@@ -173,7 +175,7 @@
                         <th>Tên Sản phẩm</th>
                         <th>Yield (Ước tính)</th>
                         <th>Giá bán</th>
-                        {#if $authStore.user?.role === 'admin'}
+                        {#if $permissionStore.userPermissions.has('view_finance')}
                             <th class="hidden sm:table-cell">Giá vốn (LT)</th>
                             <th class="hidden sm:table-cell">Lợi nhuận %</th>
                         {/if}
@@ -192,7 +194,7 @@
                             <td>{item.estimatedYieldQty?.toLocaleString() || 1}</td>
                             <td class="font-mono text-sky-600">{item.sellingPrice?.toLocaleString()} đ</td>
 
-                            {#if $authStore.user?.role === 'admin'}
+                            {#if $permissionStore.userPermissions.has('view_finance')}
                                 <td class="font-mono text-slate-500 hidden sm:table-cell">{item.theoreticalCost?.toLocaleString()} đ</td>
                                 <td class="hidden sm:table-cell">
                                     {#if item.sellingPrice > 0}

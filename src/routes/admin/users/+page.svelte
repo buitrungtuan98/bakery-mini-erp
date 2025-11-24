@@ -1,6 +1,7 @@
 <script lang="ts">
     import { db } from '$lib/firebase';
     import { authStore } from '$lib/stores/authStore';
+    import { permissionStore, userPermissions } from '$lib/stores/permissionStore';
     import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
     import { onMount } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -9,7 +10,7 @@
         id: string;
         email: string;
         displayName?: string;
-        role: 'admin' | 'manager' | 'sales' | 'staff';
+        role: string; // Dynamic Role ID
         createdAt?: any;
     }
 
@@ -30,19 +31,23 @@
     let inviteRole = 'staff';
     let inviteLoading = false;
 
-    // Subscribe store để lấy role hiện tại của người đang login
+    // Subscribe store
     $: currentUserRole = $authStore.user?.role || '';
+    // Dynamic Roles from Store
+    $: availableRoles = $permissionStore.roles;
 
     onMount(async () => {
-        if (currentUserRole !== 'admin') {
+        // Init permissions to ensure we have roles list
+        await permissionStore.initRoles();
+
+        if (!$userPermissions.has('view_users')) {
             loading = false;
             return;
         }
         await loadAllData();
     });
 
-    // Fetch lại khi authStore update (trường hợp F5)
-    $: if ($authStore.user?.role === 'admin' && users.length === 0) {
+    $: if ($userPermissions.has('view_users') && users.length === 0) {
          loadAllData();
     }
 
@@ -70,9 +75,9 @@
 
     async function updateUserRole(user: UserProfile, newRole: string) {
         if (user.role === newRole) return;
-        if (!confirm(`Bạn có chắc muốn đổi quyền của ${user.email} sang "${newRole}"?`)) {
-            // Reset lại UI select nếu cancel
-            // Trick: Force reactivity update
+        const roleName = availableRoles.find(r => r.id === newRole)?.name || newRole;
+
+        if (!confirm(`Bạn có chắc muốn đổi quyền của ${user.email} sang "${roleName}"?`)) {
             users = [...users];
             return;
         }
@@ -80,16 +85,15 @@
         try {
             const userRef = doc(db, 'users', user.id);
             await updateDoc(userRef, { role: newRole });
-            await logAction($authStore.user!, 'UPDATE', 'users', `Phân quyền ${user.email} -> ${newRole}`);
+            await logAction($authStore.user!, 'UPDATE', 'users', `Phân quyền ${user.email} -> ${roleName}`);
 
-            // Update local state
             const index = users.findIndex(u => u.id === user.id);
-            if(index !== -1) users[index].role = newRole as any;
+            if(index !== -1) users[index].role = newRole;
 
             alert(`Đã cập nhật quyền thành công!`);
         } catch (e) {
             alert("Lỗi cập nhật quyền: " + e);
-            users = [...users]; // Reset UI on error
+            users = [...users];
         }
     }
 
@@ -119,7 +123,7 @@
             await logAction($authStore.user!, 'CREATE', 'invited_emails', `Mời ${inviteEmail} làm ${inviteRole}`);
 
             alert(`Đã gửi lời mời cho ${inviteEmail}`);
-            inviteEmail = ''; // Reset form
+            inviteEmail = '';
             await fetchInvites();
         } catch (e) {
             alert("Lỗi gửi lời mời: " + e);
@@ -137,10 +141,16 @@
     }
 </script>
 
-<div class="max-w-6xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6">Quản trị Người dùng & Phân quyền</h1>
+<div class="max-w-6xl mx-auto pb-20">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">Quản trị Người dùng</h1>
+        <a href="/admin/roles" class="btn btn-outline btn-sm gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            Cấu hình Phân quyền
+        </a>
+    </div>
 
-    {#if currentUserRole !== 'admin'}
+    {#if !$userPermissions.has('view_users')}
         <div class="alert alert-error shadow-lg">
             <span>Bạn không có quyền truy cập trang này. Chỉ Admin mới được phép.</span>
         </div>
@@ -158,10 +168,9 @@
                     <div class="form-control w-full md:w-1/4">
                         <label class="label"><span class="label-text">Vai trò dự kiến</span></label>
                         <select bind:value={inviteRole} class="select select-bordered w-full">
-                            <option value="staff">Staff (Xem)</option>
-                            <option value="sales">Sales (Bán hàng)</option>
-                            <option value="manager">Manager (Kho/SX)</option>
-                            <option value="admin">Admin (Toàn quyền)</option>
+                            {#each availableRoles as r}
+                                <option value={r.id}>{r.name}</option>
+                            {/each}
                         </select>
                     </div>
                     <button class="btn btn-primary" on:click={handleInvite} disabled={inviteLoading}>
@@ -185,9 +194,10 @@
                                 </thead>
                                 <tbody>
                                     {#each invites as inv}
+                                        {@const roleName = availableRoles.find(r => r.id === inv.role)?.name || inv.role}
                                         <tr>
                                             <td>{inv.email}</td>
-                                            <td><span class="badge badge-outline">{inv.role}</span></td>
+                                            <td><span class="badge badge-outline">{roleName}</span></td>
                                             <td>{inv.createdAt?.toDate().toLocaleDateString('vi-VN')}</td>
                                             <td>
                                                 <button class="btn btn-ghost btn-xs text-error" on:click={() => handleDeleteInvite(inv.id)}>Hủy</button>
@@ -238,14 +248,10 @@
                                         on:change={(e) => updateUserRole(user, e.currentTarget.value)}
                                         disabled={user.id === $authStore.user?.uid}
                                     >
-                                        <option value="staff">Staff (Xem)</option>
-                                        <option value="sales">Sales (Bán hàng)</option>
-                                        <option value="manager">Manager (Kho/SX)</option>
-                                        <option value="admin">Admin (Toàn quyền)</option>
+                                        {#each availableRoles as r}
+                                            <option value={r.id}>{r.name}</option>
+                                        {/each}
                                     </select>
-                                    <div class="text-[10px] text-gray-400 mt-1">
-                                        {#if user.role === 'staff'}Chỉ xem dữ liệu{:else if user.role === 'sales'}Bán hàng, khách hàng{:else if user.role === 'manager'}Kho, SX, nhập hàng{:else}Toàn quyền hệ thống{/if}
-                                    </div>
                                 </td>
                                 <td class="text-center">
                                     {#if user.id !== $authStore.user?.uid}

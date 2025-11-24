@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { db } from '$lib/firebase'; 
 	import { authStore } from '$lib/stores/authStore';
+    import { permissionStore, checkPermission } from '$lib/stores/permissionStore';
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, where, onSnapshot, limit } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
 	import { logAction } from '$lib/logger'; 
@@ -217,7 +218,10 @@
 
 	// --- CANCEL/REVERSE LOGIC ---
     async function handleCancelOrder(order: Order) {
-        if (!['admin', 'sales'].includes($authStore.user?.role || '')) return alert("Bạn không có quyền hủy đơn.");
+        // Permission check
+        const canCancel = checkPermission('manage_orders') || checkPermission('create_order');
+        if (!canCancel) return alert("Bạn không có quyền hủy đơn.");
+
         const orderDate = order.createdAt.toDate().toDateString();
         const todayDate = new Date().toDateString();
         if (orderDate !== todayDate) return alert("LỖI: Chỉ có thể hủy đơn hàng trong ngày đã tạo.");

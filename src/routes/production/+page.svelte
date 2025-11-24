@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
+    import { checkPermission } from '$lib/stores/permissionStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, Timestamp, onSnapshot, limit, deleteDoc } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
@@ -148,9 +150,10 @@
     
     // --- Delete/Reverse Logic ---
     async function handleDeleteRun(run: ProductionRun) {
-        if (!['admin', 'manager'].includes($authStore.user?.role || '')) {
-            return alert("Bạn không có quyền xóa lịch sử sản xuất.");
+        if (!checkPermission('manage_roles')) {
+             if (!checkPermission('create_production')) return alert("Bạn không có quyền xóa lệnh sản xuất.");
         }
+
         if (!confirm(`Xác nhận xóa lệnh sản xuất "${run.productName}" ngày ${run.productionDate.toDate().toLocaleDateString()}? Hành động này sẽ đảo ngược tồn kho.`)) return;
 
         try {

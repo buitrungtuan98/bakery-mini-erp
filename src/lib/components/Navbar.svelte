@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/authStore';
+    import { permissionStore } from '$lib/stores/permissionStore';
 	import { auth } from '$lib/firebase';
 	import { signOut } from 'firebase/auth';
     import { page } from '$app/stores';
@@ -8,11 +9,9 @@
 	$: activeRoute = $page.url.pathname;
 
     // Check permission
-    $: role = $authStore.user?.role || 'staff';
-
-    // Helper check quyền cho UI
-    $: canManage = role === 'admin' || role === 'manager';
-    $: canSell = role === 'admin' || role === 'sales';
+    $: canManage = $permissionStore.userPermissions.has('view_inventory') || $permissionStore.userPermissions.has('manage_imports');
+    $: canSell = $permissionStore.userPermissions.has('view_sales');
+    $: isAdmin = $permissionStore.userPermissions.has('view_users');
 
 	async function handleLogout() {
 		await signOut(auth);
@@ -44,9 +43,10 @@
                     <li><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''}">Báo cáo</a></li>
                 {/if}
 
-                {#if role === 'admin'}
+                {#if isAdmin}
                      <li class="menu-title">Admin</li>
                      <li><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} text-secondary">Quản lý User</a></li>
+                     <li><a href="/admin/roles" class="{activeRoute.startsWith('/admin/roles') ? 'active' : ''} text-secondary">Phân quyền</a></li>
                      <li><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''}">Lịch sử HT</a></li>
                 {/if}
 			</ul>
@@ -89,7 +89,7 @@
                 <li class="relative"><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''} py-1">Báo cáo</a></li>
             {/if}
 
-            {#if role === 'admin'}
+            {#if isAdmin}
                  <li class="relative"><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} py-1 text-secondary font-bold">Quản lý User</a></li>
                  <li class="relative"><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''} py-1">Lịch sử HT</a></li>
             {/if}
