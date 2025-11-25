@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Toast } from 'svelte-easy-toast';
 	import "../app.css";
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/authStore';
@@ -47,4 +48,5 @@
             <BottomNav />
         {/if}
 	</div>
+	<Toast />
 {/if}

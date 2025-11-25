@@ -7,6 +7,8 @@
     import { ingredientStore, partnerStore, type Ingredient, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
+    import { showToast } from '$lib/utils/toast';
+    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
 
     // Components
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -73,14 +75,14 @@
 
     // --- Handlers ---
     function openAddModal() {
-        if (!checkPermission('edit_inventory')) return alert("Bạn không có quyền.");
+        if (!checkPermission('edit_inventory')) return showToast("Bạn không có quyền.", 'error');
         isEditing = false;
         formData = { id: '', code: '', name: '', baseUnit: 'g', minStock: 100, manufacturerId: '', manufacturerName: '' };
         isModalOpen = true;
     }
 
     function openEditModal(item: Ingredient) {
-        if (!checkPermission('edit_inventory')) return alert("Bạn không có quyền.");
+        if (!checkPermission('edit_inventory')) return showToast("Bạn không có quyền.", 'error');
         isEditing = true;
         formData = {
             id: item.id, code: item.code, name: item.name, baseUnit: item.baseUnit, minStock: item.minStock, 
@@ -119,30 +121,34 @@
                     createdAt: serverTimestamp() 
                 });
                 await logAction($authStore.user!, 'CREATE', 'ingredients', `Thêm mới NVL: ${formData.name} (${code})`);
+                showToast("Thêm nguyên liệu thành công!", 'success');
             }
             isModalOpen = false;
-        } catch (error) { alert("Lỗi lưu: " + error); }
+        } catch (error) { showToast("Lỗi lưu: " + error, 'error'); }
         finally { processing = false; }
     }
 
     async function handleDelete(id: string) {
-        if (!checkPermission('edit_inventory')) return alert("Bạn không có quyền.");
+        if (!checkPermission('edit_inventory')) return showToast("Bạn không có quyền.", 'error');
         if(!confirm("Xóa nguyên liệu này?")) return;
         
         try {
             await deleteDoc(doc(db, 'ingredients', id));
             await logAction($authStore.user!, 'DELETE', 'ingredients', `Xóa NVL ID: ${id}`);
-        } catch (error) { alert("Lỗi xóa: " + error); }
+            showToast("Đã xóa nguyên liệu.", 'success');
+        } catch (error) { showToast("Lỗi xóa: " + error, 'error'); }
     }
 </script>
 
 <div class="max-w-7xl mx-auto">
     <PageHeader
         title="Danh sách Nguyên liệu"
-        actionLabel="+ Thêm Nguyên liệu"
+        actionLabel="Thêm Nguyên liệu"
         onAction={openAddModal}
         showAction={$permissionStore.userPermissions.has('edit_inventory')}
-    />
+    >
+        <Plus class="h-4 w-4" />
+    </PageHeader>
     
     <div class="bg-white rounded-lg p-4 mb-6 shadow-sm border border-slate-200">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
@@ -194,8 +200,8 @@
                         </div>
                         <div class="divider my-1"></div>
                         <div class="flex justify-end gap-2">
-                            <button class="btn btn-xs btn-outline" on:click={() => openEditModal(item)}>Sửa</button>
-                            <button class="btn btn-xs btn-outline btn-error" on:click={() => handleDelete(item.id)}>Xóa</button>
+                            <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                            <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                         </div>
                     </div>
                  {/each}
@@ -243,8 +249,8 @@
                                 {/if}
                                 <td class="text-xs text-gray-500">{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}</td>
                                 <td class="text-center">
-                                    <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}>Sửa</button>
-                                    <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}>Xóa</button>
+                                    <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                    <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                                 </td>
                             </tr>
                         {/each}

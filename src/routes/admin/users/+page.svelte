@@ -6,6 +6,8 @@
     import { onMount } from 'svelte';
     import { logAction } from '$lib/logger';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import { showToast } from '$lib/utils/toast';
+    import { Settings, Send, Trash2 } from 'lucide-svelte';
 
     interface UserProfile {
         id: string;
@@ -87,9 +89,9 @@
             const index = users.findIndex(u => u.id === user.id);
             if(index !== -1) users[index].role = newRole;
 
-            alert(`Đã cập nhật quyền thành công!`);
+            showToast(`Đã cập nhật quyền thành công!`, 'success');
         } catch (e) {
-            alert("Lỗi cập nhật quyền: " + e);
+            showToast("Lỗi cập nhật quyền: " + e, 'error');
             users = [...users];
         }
     }
@@ -100,13 +102,14 @@
             await deleteDoc(doc(db, 'users', id));
             await logAction($authStore.user!, 'DELETE', 'users', `Xóa user: ${email}`);
             users = users.filter(u => u.id !== id);
-        } catch (e) { alert("Lỗi xóa user: " + e); }
+            showToast(`Đã xóa người dùng ${email}`, 'success');
+        } catch (e) { showToast("Lỗi xóa user: " + e, 'error'); }
     }
 
     async function handleInvite() {
-        if(!inviteEmail) return alert("Vui lòng nhập Email.");
-        if (users.find(u => u.email === inviteEmail)) return alert("Email này đã là thành viên hệ thống.");
-        if (invites.find(i => i.email === inviteEmail)) return alert("Email này đã được mời trước đó.");
+        if(!inviteEmail) return showToast("Vui lòng nhập Email.", 'warning');
+        if (users.find(u => u.email === inviteEmail)) return showToast("Email này đã là thành viên hệ thống.", 'warning');
+        if (invites.find(i => i.email === inviteEmail)) return showToast("Email này đã được mời trước đó.", 'warning');
 
         inviteLoading = true;
         try {
@@ -118,11 +121,11 @@
             });
             await logAction($authStore.user!, 'CREATE', 'invited_emails', `Mời ${inviteEmail} làm ${inviteRole}`);
 
-            alert(`Đã gửi lời mời cho ${inviteEmail}`);
+            showToast(`Đã gửi lời mời cho ${inviteEmail}`, 'success');
             inviteEmail = '';
             await fetchInvites();
         } catch (e) {
-            alert("Lỗi gửi lời mời: " + e);
+            showToast("Lỗi gửi lời mời: " + e, 'error');
         } finally {
             inviteLoading = false;
         }
@@ -133,7 +136,8 @@
         try {
             await deleteDoc(doc(db, 'invited_emails', id));
             invites = invites.filter(i => i.id !== id);
-        } catch (e) { alert("Lỗi: " + e); }
+            showToast("Đã hủy lời mời.", 'success');
+        } catch (e) { showToast("Lỗi: " + e, 'error'); }
     }
 </script>
 
@@ -141,8 +145,8 @@
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl font-bold">Quản trị Người dùng</h1>
         <a href="/admin/roles" class="btn btn-outline btn-sm gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            Cấu hình Phân quyền
+            <Settings class="h-4 w-4" />
+            Phân quyền
         </a>
     </div>
 
@@ -170,6 +174,7 @@
                         </select>
                     </div>
                     <button class="btn btn-primary w-full md:w-auto" on:click={handleInvite} disabled={inviteLoading}>
+                        <Send class="h-4 w-4 mr-2" />
                         {#if inviteLoading}<span class="loading loading-spinner"></span>{/if}
                         Gửi lời mời
                     </button>
@@ -196,7 +201,9 @@
                                             <td><span class="badge badge-ghost badge-sm">{roleName}</span></td>
                                             <td>{inv.createdAt?.toDate().toLocaleDateString('vi-VN')}</td>
                                             <td class="text-right">
-                                                <button class="btn btn-ghost btn-xs text-error" on:click={() => handleDeleteInvite(inv.id)}>Hủy</button>
+                                                <button class="btn btn-ghost btn-xs text-error" on:click={() => handleDeleteInvite(inv.id)}>
+                                                    <Trash2 class="h-4 w-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     {/each}
@@ -220,7 +227,9 @@
                                 <div class="flex justify-between items-start mb-2">
                                     <div class="font-bold text-lg">{user.email}</div>
                                     {#if user.id !== $authStore.user?.uid}
-                                        <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDeleteUser(user.id, user.email)}>Xóa</button>
+                                        <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDeleteUser(user.id, user.email)}>
+                                            <Trash2 class="h-4 w-4" />
+                                        </button>
                                     {/if}
                                 </div>
                                 <div class="text-sm text-slate-500 mb-3">
@@ -282,7 +291,9 @@
                                 </td>
                                 <td class="text-center">
                                     {#if user.id !== $authStore.user?.uid}
-                                        <button class="btn btn-sm btn-ghost text-error" on:click={() => handleDeleteUser(user.id, user.email)}>Xóa User</button>
+                                        <button class="btn btn-sm btn-ghost text-error" on:click={() => handleDeleteUser(user.id, user.email)}>
+                                            <Trash2 class="h-4 w-4" />
+                                        </button>
                                     {:else}
                                         <span class="text-xs text-gray-400">(Bạn)</span>
                                     {/if}
