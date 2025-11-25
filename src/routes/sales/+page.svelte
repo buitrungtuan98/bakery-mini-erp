@@ -13,7 +13,7 @@
     import html2canvas from 'html2canvas-pro';
     import type { Order } from '$lib/types/order';
     import { tick } from 'svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
 
 	// --- Types ---
 	interface OrderItem {
@@ -263,7 +263,7 @@
 	// --- Mobile UI Handlers ---
     
     function openProductSelector() {
-        if (!selectedCustomerId) return showToast("Vui lòng chọn Khách hàng trước!", 'warning');
+        if (!selectedCustomerId) return showErrorToast("Vui lòng chọn Khách hàng trước!");
         productSearchTerm = '';
         isProductModalOpen = true;
     }
@@ -320,12 +320,12 @@
     async function handleCancelOrder(order: Order) {
         // Permission check
         const canCancel = checkPermission('manage_orders') || checkPermission('create_order');
-        if (!canCancel) return showToast("Bạn không có quyền hủy đơn.", 'error');
+        if (!canCancel) return showErrorToast("Bạn không có quyền hủy đơn.");
 
         const orderDate = order.createdAt.toDate().toDateString();
         const todayDate = new Date().toDateString();
-        if (orderDate !== todayDate) return showToast("LỖI: Chỉ có thể hủy đơn hàng trong ngày đã tạo.", 'error');
-        if (order.status === 'canceled') return showToast("Đơn hàng này đã bị hủy.", 'warning');
+        if (orderDate !== todayDate) return showErrorToast("LỖI: Chỉ có thể hủy đơn hàng trong ngày đã tạo.");
+        if (order.status === 'canceled') return showErrorToast("Đơn hàng này đã bị hủy.");
         const displayId = order.code || order.id.substring(0, 8);
         if (!confirm(`Xác nhận hủy đơn hàng ${displayId}? Kho sẽ được cộng lại.`)) return;
         
@@ -348,10 +348,10 @@
                 });
             });
             await logAction($authStore.user!, 'UPDATE', 'orders', `Hủy đơn hàng: ${displayId}`);
-            showToast("Hủy đơn hàng thành công!", 'success');
+            showSuccessToast("Hủy đơn hàng thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
-            showToast("LỖI: " + e.message, 'error');
+            showErrorToast("LỖI: " + e.message);
         } finally {
             processing = false;
         }
@@ -366,10 +366,10 @@
                 transaction.update(orderRef, { status: newStatus });
             });
             await logAction($authStore.user!, 'UPDATE', 'orders', `Cập nhật trạng thái ${order.code} -> ${newStatus}`);
-            showToast("Cập nhật trạng thái thành công!", 'success');
+            showSuccessToast("Cập nhật trạng thái thành công!");
         } catch (e: any) {
             console.error(e);
-            showToast("Lỗi: " + e.message, 'error');
+            showErrorToast("Lỗi: " + e.message);
         }
     }
 
@@ -438,7 +438,7 @@
 				await logAction($authStore.user!, 'TRANSACTION', 'orders', `Tạo đơn hàng ${code}`);
 			});
 
-			showToast(`Tạo đơn hàng ${code} thành công!`, 'success');
+			showSuccessToast(`Tạo đơn hàng ${code} thành công!`);
 			selectedCustomerId = '';
 			orderItems = [];
 			shippingFee = 0;
@@ -451,7 +451,7 @@
 		} catch (error: any) {
 			console.error(error);
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			showToast('Lỗi: ' + errorMessage, 'error');
+			showErrorToast('Lỗi: ' + errorMessage);
 		} finally {
 			processing = false;
 		}
@@ -471,7 +471,7 @@
 
         const billElement = document.getElementById('bill-to-print');
         if (!billElement) {
-            showToast('Lỗi: Không tìm thấy element hóa đơn để in.', 'error');
+            showErrorToast('Lỗi: Không tìm thấy element hóa đơn để in.');
             isPrinting = false;
             orderToPrint = null;
             return;
@@ -500,7 +500,7 @@
 
         } catch (error) {
             console.error("Lỗi khi tạo PDF:", error);
-            showToast("Đã có lỗi xảy ra khi tạo file PDF.", 'error');
+            showErrorToast("Đã có lỗi xảy ra khi tạo file PDF.");
         } finally {
             // Clean up
             orderToPrint = null;

@@ -7,7 +7,7 @@
     import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-svelte';
 
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -64,14 +64,14 @@
 
     // Handlers
     function openAddModal() {
-        if (!checkPermission('edit_inventory')) return showToast("Không có quyền.", "error");
+        if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         isEditing = false;
         formData = { id: '', code: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0 }] };
         isModalOpen = true;
     }
 
     function openEditModal(item: Product) {
-        if (!checkPermission('edit_inventory')) return showToast("Không có quyền.", "error");
+        if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         isEditing = true;
         // Populate _searchTerm for existing items
         const itemsWithUI = (item.items || []).map((i: any) => {
@@ -121,7 +121,7 @@
     }
 
     async function handleSubmit() {
-        if (!formData.name) return showToast("Thiếu tên sản phẩm", "warning");
+        if (!formData.name) return showErrorToast("Thiếu tên sản phẩm");
         processing = true;
         try {
             const dataToSave = {
@@ -139,27 +139,30 @@
             if (isEditing) {
                 await updateDoc(doc(db, 'products', formData.id), dataToSave);
                 await logAction($authStore.user!, 'UPDATE', 'products', `Cập nhật SP: ${formData.name}`);
+                showSuccessToast("Cập nhật sản phẩm thành công!");
             } else {
                 const code = await generateNextCode('products', 'SP');
                 dataToSave.code = code;
 
                 await addDoc(collection(db, 'products'), { ...dataToSave, createdAt: serverTimestamp() });
                 await logAction($authStore.user!, 'CREATE', 'products', `Thêm mới SP: ${formData.name} (${code})`);
-                showToast("Thêm sản phẩm thành công!", "success");
+                showSuccessToast("Thêm sản phẩm thành công!");
             }
             isModalOpen = false;
-        } catch (e) { showToast("Lỗi: " + e, "error"); }
+        } catch (e) {
+            showErrorToast("Lỗi: " + e.message);
+        }
         finally { processing = false; }
     }
 
     async function handleDelete(id: string) {
-        if (!checkPermission('edit_inventory')) return showToast("Không có quyền.", "error");
+        if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         if (!confirm("Xóa sản phẩm này?")) return;
         try {
             await deleteDoc(doc(db, 'products', id));
-            showToast("Đã xóa sản phẩm.", "success");
+            showSuccessToast("Đã xóa sản phẩm.");
         } catch (error) {
-            showToast("Lỗi xóa sản phẩm: " + error, "error");
+            showErrorToast("Lỗi xóa sản phẩm: " + error.message);
         }
     }
 </script>
