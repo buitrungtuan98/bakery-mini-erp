@@ -10,9 +10,16 @@
 
 	// --- Types ---
 	interface OrderItem {
-		productId: string; productName?: string; quantity: number; unitPrice: number; lineTotal: number;
-		lineCOGS: number;  initialPrice: number; 
+		productId: string;
+        productName?: string;
+        quantity: number;
+        unitPrice: number;
+        lineTotal: number;
+		lineCOGS: number;
+        initialPrice: number;
         originalBasePrice?: number;
+        discountAmount?: number; // Added
+        discountReason?: string; // Added
 	}
     
     interface Order {
@@ -25,6 +32,8 @@
         status: 'completed' | 'canceled';
         shippingAddress: string;
         items: OrderItem[];
+        orderDiscount?: number; // Added
+        orderDiscountReason?: string; // Added
     }
 
 	// --- State ---
@@ -42,8 +51,10 @@
     let isProductModalOpen = false;
     let isCustomerModalOpen = false;
     let isEditItemModalOpen = false;
+    let isOrderSettingsModalOpen = false; // Added
+
     let selectedItemIndex = -1;
-    let editingItem: OrderItem = { productId: '', quantity: 0, unitPrice: 0, lineTotal: 0, lineCOGS: 0, initialPrice: 0 };
+    let editingItem: OrderItem = { productId: '', quantity: 0, unitPrice: 0, lineTotal: 0, lineCOGS: 0, initialPrice: 0, discountAmount: 0, discountReason: '' };
     let productSearchTerm = '';
     let customerSearchTerm = '';
 
@@ -58,6 +69,10 @@
 	let shippingFee = 0;
 	let shippingAddress = '';
     let shippingPhone = '';
+
+    // Global Order Discount
+    let orderDiscount = 0; // Added
+    let orderDiscountReason = ''; // Added
 
     // --- Data Binding ---
     $: products = $productStore;
@@ -88,7 +103,8 @@
 		}
 
 		const quantity = item.quantity || 0;
-		const lineTotal = finalUnitPrice * quantity;
+        const discountAmount = item.discountAmount || 0;
+		const lineTotal = (finalUnitPrice * quantity) - discountAmount;
 		const lineCOGS = product.theoreticalCost * quantity;
 
 		return { 
@@ -97,11 +113,12 @@
             lineTotal: lineTotal, 
             lineCOGS: lineCOGS, 
             initialPrice: basePrice,
-            originalBasePrice: product.sellingPrice
+            originalBasePrice: product.sellingPrice,
+            discountAmount: discountAmount
         };
 	}
 	
-	$: totalRevenue = orderItems.reduce((sum, item) => sum + (item.lineTotal || 0), 0) + (shippingFee || 0);
+	$: totalRevenue = orderItems.reduce((sum, item) => sum + (item.lineTotal || 0), 0) + (shippingFee || 0) - (orderDiscount || 0);
 	$: totalCOGS = orderItems.reduce((sum, item) => sum + (item.lineCOGS || 0), 0);
 	$: totalProfit = totalRevenue - totalCOGS;
 
@@ -167,7 +184,9 @@
                 lineTotal: 0,
                 lineCOGS: 0,
                 initialPrice: product.sellingPrice,
-                originalBasePrice: product.sellingPrice
+                originalBasePrice: product.sellingPrice,
+                discountAmount: 0,
+                discountReason: ''
             };
             orderItems = [...orderItems, updatePricing(newItem, products, customer, false)];
         }
@@ -195,6 +214,16 @@
 		orderItems = orderItems.filter((_, i) => i !== index);
         isEditItemModalOpen = false;
 	}
+
+    // --- ORDER SETTINGS ---
+    function openOrderSettings() {
+        isOrderSettingsModalOpen = true;
+    }
+
+    function saveOrderSettings() {
+        // Just close, data is bound
+        isOrderSettingsModalOpen = false;
+    }
 
 	// --- CANCEL/REVERSE LOGIC ---
     async function handleCancelOrder(order: Order) {
@@ -283,12 +312,16 @@
 						quantity: i.quantity,
 						unitPrice: i.unitPrice,
 						lineTotal: i.lineTotal,
-						lineCOGS: i.lineCOGS
+						lineCOGS: i.lineCOGS,
+                        discountAmount: i.discountAmount || 0,
+                        discountReason: i.discountReason || ''
 					})),
 					totalRevenue: totalRevenue, 
                     totalCOGS: totalCOGS, 
                     totalProfit: totalProfit,
 					shippingFee: shippingFee,
+                    orderDiscount: orderDiscount, // Added
+                    orderDiscountReason: orderDiscountReason, // Added
 					createdBy: $authStore.user?.email,
 					createdAt: serverTimestamp()
 				});
@@ -300,6 +333,8 @@
 			selectedCustomerId = '';
 			orderItems = [];
 			shippingFee = 0;
+            orderDiscount = 0;
+            orderDiscountReason = '';
 			shippingAddress = '';
             shippingPhone = '';
             customer = undefined;
@@ -363,8 +398,14 @@
                         </div>
                     </div>
                     <div class="text-right">
+                        {#if item.discountAmount && item.discountAmount > 0}
+                             <div class="text-xs text-slate-400 line-through">{(item.unitPrice * item.quantity).toLocaleString()} đ</div>
+                        {/if}
                         <div class="font-bold text-slate-800 text-sm">{item.lineTotal.toLocaleString()} đ</div>
-                        {#if item.unitPrice !== item.originalBasePrice}
+
+                        {#if item.discountAmount && item.discountAmount > 0}
+                             <div class="text-[9px] text-red-500 font-bold">GIẢM: -{item.discountAmount.toLocaleString()}</div>
+                        {:else if item.unitPrice !== item.originalBasePrice}
                             <div class="text-[9px] text-orange-500 font-bold">GIÁ RIÊNG</div>
                         {/if}
                     </div>
@@ -388,17 +429,27 @@
 
         <!-- 4. Sticky Footer Checkout -->
         <div class="fixed bottom-[60px] left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
-            <div class="max-w-7xl mx-auto flex justify-between items-center">
-                <div class="flex flex-col">
-                    <span class="text-xs text-slate-500">Tổng tiền ({orderItems.length} món)</span>
+            <div class="max-w-7xl mx-auto flex justify-between items-center gap-2">
+                 <!-- Discount/Settings Button -->
+                <button class="btn btn-sm btn-circle btn-ghost border border-slate-200" on:click={openOrderSettings}>
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                </button>
+
+                <div class="flex flex-col flex-1">
+                    <span class="text-xs text-slate-500 flex items-center gap-1">
+                        Tổng tiền
+                         {#if orderDiscount > 0}
+                            <span class="text-[9px] text-red-500 font-bold bg-red-50 px-1 rounded">- {orderDiscount.toLocaleString()}</span>
+                         {/if}
+                    </span>
                     <span class="text-xl font-bold text-primary">{totalRevenue.toLocaleString()} đ</span>
                 </div>
                 <button
-                    class="btn btn-primary px-8"
+                    class="btn btn-primary px-6"
                     disabled={processing || orderItems.length === 0}
                     on:click={handleSale}
                 >
-                    {processing ? 'Đang xử lý...' : 'THANH TOÁN'}
+                    {processing ? '...' : 'THANH TOÁN'}
                 </button>
             </div>
         </div>
@@ -522,6 +573,7 @@
             <label class="label">Sản phẩm</label>
             <input type="text" value={editingItem.productName} disabled class="input input-bordered w-full bg-slate-100" />
         </div>
+
         <div class="flex gap-4 mb-4">
             <div class="form-control w-1/2">
                 <label class="label">Số lượng</label>
@@ -532,11 +584,63 @@
                 <input type="number" bind:value={editingItem.unitPrice} class="input input-bordered w-full text-right" />
             </div>
         </div>
-        <div class="text-right font-bold text-xl text-primary mb-6">
-            = {(editingItem.quantity * editingItem.unitPrice).toLocaleString()} đ
+
+        <div class="collapse collapse-arrow border border-slate-200 bg-base-100 rounded-box mb-4">
+            <input type="checkbox" />
+            <div class="collapse-title text-sm font-medium">
+                 Giảm giá / Chiết khấu
+            </div>
+            <div class="collapse-content">
+                <div class="form-control mb-2">
+                    <label class="label"><span class="label-text-alt">Số tiền giảm (VND)</span></label>
+                    <input type="number" bind:value={editingItem.discountAmount} class="input input-sm input-bordered w-full" placeholder="0" />
+                </div>
+                 <div class="form-control">
+                    <label class="label"><span class="label-text-alt">Lý do giảm</span></label>
+                    <input type="text" bind:value={editingItem.discountReason} class="input input-sm input-bordered w-full" placeholder="VD: Hàng trưng bày..." />
+                </div>
+            </div>
         </div>
+
+        <div class="text-right mb-6">
+             <div class="text-sm text-slate-500">{(editingItem.quantity * editingItem.unitPrice).toLocaleString()} - {(editingItem.discountAmount || 0).toLocaleString()}</div>
+             <div class="font-bold text-xl text-primary">
+                = {((editingItem.quantity * editingItem.unitPrice) - (editingItem.discountAmount || 0)).toLocaleString()} đ
+            </div>
+        </div>
+
         <button class="btn btn-outline btn-error w-full" on:click={() => removeItem(selectedItemIndex)}>
             Xóa dòng này
         </button>
     {/if}
+</Modal>
+
+<!-- MODAL: Order Settings -->
+<Modal
+    title="Cài đặt đơn hàng"
+    isOpen={isOrderSettingsModalOpen}
+    onClose={() => isOrderSettingsModalOpen = false}
+    onConfirm={saveOrderSettings}
+>
+    <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Phí vận chuyển (Ship)</span></label>
+        <input type="number" bind:value={shippingFee} class="input input-bordered w-full" placeholder="0" />
+    </div>
+
+    <div class="divider my-1"></div>
+
+     <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Giảm giá Tổng đơn (VND)</span></label>
+        <input type="number" bind:value={orderDiscount} class="input input-bordered w-full font-bold text-red-500" placeholder="0" />
+    </div>
+
+    <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Lý do giảm</span></label>
+        <input type="text" bind:value={orderDiscountReason} class="input input-bordered w-full" placeholder="VD: Khách quen, Voucher..." />
+    </div>
+
+    <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Địa chỉ giao hàng</span></label>
+        <input type="text" bind:value={shippingAddress} class="input input-bordered w-full" />
+    </div>
 </Modal>

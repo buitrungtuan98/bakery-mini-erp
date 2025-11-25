@@ -21,7 +21,7 @@
     let processing = false;
 
     let formData: any = {
-        id: '', name: '', type: 'customer', customerType: 'lẻ',
+        id: '', code: '', name: '', type: 'customer', customerType: 'lẻ',
         phone: '', address: '', defaultAddress: '', customPrices: []
     };
 
@@ -29,14 +29,55 @@
     let searchTerm = '';
     $: filteredPartners = partners.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.phone?.includes(searchTerm)
+        p.phone?.includes(searchTerm) ||
+        p.code?.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Helpers
+    function generatePartnerCode(type: string): string {
+        let prefix = 'KH';
+        if (type === 'supplier') prefix = 'NCC';
+        if (type === 'manufacturer') prefix = 'NSX';
+
+        // Filter partners with the same prefix
+        const relevantPartners = partners.filter(p => p.code?.startsWith(prefix));
+
+        let maxNum = 0;
+        relevantPartners.forEach(p => {
+            const parts = p.code?.split('-');
+            if (parts && parts.length === 2) {
+                const num = parseInt(parts[1], 10);
+                if (!isNaN(num) && num > maxNum) {
+                    maxNum = num;
+                }
+            }
+        });
+
+        const nextNum = maxNum + 1;
+        return `${prefix}-${String(nextNum).padStart(5, '0')}`;
+    }
+
+    function onTypeChange() {
+        if (!isEditing) {
+            formData.code = generatePartnerCode(formData.type);
+        }
+    }
 
     // Handlers
     function openAddModal() {
         if (!checkPermission('manage_partners')) return alert("Không có quyền.");
         isEditing = false;
-        formData = { id: '', name: '', type: 'customer', customerType: 'lẻ', phone: '', address: '', customPrices: [] };
+        const initialType = 'customer';
+        formData = {
+            id: '',
+            code: generatePartnerCode(initialType),
+            name: '',
+            type: initialType,
+            customerType: 'lẻ',
+            phone: '',
+            address: '',
+            customPrices: []
+        };
         isModalOpen = true;
     }
 
@@ -53,6 +94,7 @@
         
         try {
             const dataToSave = {
+                code: formData.code,
                 name: formData.name,
                 type: formData.type,
                 customerType: formData.type === 'customer' ? formData.customerType : null,
@@ -89,7 +131,7 @@
     />
 
     <div class="mb-6">
-        <input type="text" bind:value={searchTerm} class="input input-bordered w-full max-w-md" placeholder="Tìm kiếm tên, số điện thoại..." />
+        <input type="text" bind:value={searchTerm} class="input input-bordered w-full max-w-md" placeholder="Tìm kiếm tên, mã, số điện thoại..." />
     </div>
 
     {#if partners.length === 0}
@@ -100,7 +142,10 @@
                  {#each filteredPartners as item}
                     <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col gap-2 relative">
                          <div class="flex justify-between items-start pr-8">
-                            <h3 class="font-bold text-slate-800">{item.name}</h3>
+                            <h3 class="font-bold text-slate-800">
+                                <span class="text-primary mr-1">[{item.code || '---'}]</span>
+                                {item.name}
+                            </h3>
                          </div>
                          <div class="absolute top-4 right-4">
                              {#if item.type === 'supplier'}
@@ -135,6 +180,7 @@
              <svelte:fragment slot="desktop">
                 <thead>
                     <tr class="bg-slate-50 text-slate-600">
+                        <th>Mã</th>
                         <th>Tên Đối tác</th>
                         <th>Loại</th>
                         <th>SĐT</th>
@@ -145,6 +191,7 @@
                 <tbody>
                     {#each filteredPartners as item}
                         <tr class="hover">
+                            <td class="font-mono text-sm text-primary font-bold">{item.code || '-'}</td>
                             <td class="font-bold text-slate-700">{item.name}</td>
                             <td>
                                 {#if item.type === 'supplier'}
@@ -177,6 +224,11 @@
     loading={processing}
 >
     <div class="form-control mb-3">
+        <label class="label"><span class="label-text">Mã Đối tác</span></label>
+        <input type="text" bind:value={formData.code} class="input input-bordered w-full bg-slate-100" readonly />
+    </div>
+
+    <div class="form-control mb-3">
         <label class="label"><span class="label-text">Tên Đối tác</span></label>
         <input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Cửa hàng A" />
     </div>
@@ -184,7 +236,7 @@
     <div class="flex gap-4 mb-3">
         <div class="form-control w-1/2">
             <label class="label"><span class="label-text">Loại hình</span></label>
-            <select bind:value={formData.type} class="select select-bordered w-full">
+            <select bind:value={formData.type} on:change={onTypeChange} class="select select-bordered w-full">
                 <option value="customer">Khách hàng</option>
                 <option value="supplier">Nhà cung cấp (Bán hàng cho mình)</option>
                 <option value="manufacturer">Nhà sản xuất (Chỉ làm thương hiệu)</option>

@@ -29,6 +29,7 @@ export interface Product {
 
 export interface Partner {
     id: string;
+    code?: string; // Add code field
     name: string;
     type: 'supplier' | 'customer' | 'manufacturer';
     phone?: string;
