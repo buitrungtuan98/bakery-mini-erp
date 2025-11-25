@@ -5,6 +5,8 @@
     import { onMount } from 'svelte';
     import * as XLSX from 'xlsx/xlsx.mjs';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import { showToast } from '$lib/utils/toast';
+    import { Search, FileDown } from 'lucide-svelte';
 
     let loading = true;
     let transactions: any[] = []; 
@@ -65,7 +67,7 @@
 
         } catch (error) {
             console.error("Lỗi tải báo cáo:", error);
-            alert("Lỗi tải dữ liệu báo cáo (có thể do thiếu Index).");
+            showToast("Lỗi tải dữ liệu báo cáo (có thể do thiếu Index).", "error");
         } finally {
             loading = false;
         }
@@ -122,7 +124,7 @@
 
     function exportToExcel() {
         const ledgerData = createFlatLedger(transactions);
-        if (!ledgerData.length) return alert("Không có dữ liệu!");
+        if (!ledgerData.length) return showToast("Không có dữ liệu!", "warning");
         
         const worksheet = XLSX.utils.json_to_sheet(ledgerData.map(i => ({
             "Ngày": i.date, "Số CT": i.docId, "Loại": i.type,
@@ -150,12 +152,14 @@
                 <input type="date" bind:value={endDate} class="input input-bordered w-full" />
             </div>
             <button class="btn btn-primary w-full" on:click={fetchReportData} disabled={loading}>
+                <Search class="h-4 w-4 mr-2" />
                 {#if loading} <span class="loading loading-spinner loading-xs"></span> {/if}
                 Xem Báo cáo
             </button>
         </div>
         <div class="mt-4 flex justify-end">
              <button class="btn btn-sm btn-success text-white" on:click={exportToExcel} disabled={loading || transactions.length === 0}>
+                <FileDown class="h-4 w-4 mr-2" />
                 Xuất Excel
             </button>
         </div>

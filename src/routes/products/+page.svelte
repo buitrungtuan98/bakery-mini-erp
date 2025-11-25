@@ -7,6 +7,8 @@
     import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
+    import { showToast } from '$lib/utils/toast';
+    import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-svelte';
 
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -62,14 +64,14 @@
 
     // Handlers
     function openAddModal() {
-        if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
+        if (!checkPermission('edit_inventory')) return showToast("Không có quyền.", "error");
         isEditing = false;
         formData = { id: '', code: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0 }] };
         isModalOpen = true;
     }
 
     function openEditModal(item: Product) {
-        if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
+        if (!checkPermission('edit_inventory')) return showToast("Không có quyền.", "error");
         isEditing = true;
         // Populate _searchTerm for existing items
         const itemsWithUI = (item.items || []).map((i: any) => {
@@ -119,7 +121,7 @@
     }
 
     async function handleSubmit() {
-        if (!formData.name) return alert("Thiếu tên sản phẩm");
+        if (!formData.name) return showToast("Thiếu tên sản phẩm", "warning");
         processing = true;
         try {
             const dataToSave = {
@@ -143,16 +145,22 @@
 
                 await addDoc(collection(db, 'products'), { ...dataToSave, createdAt: serverTimestamp() });
                 await logAction($authStore.user!, 'CREATE', 'products', `Thêm mới SP: ${formData.name} (${code})`);
+                showToast("Thêm sản phẩm thành công!", "success");
             }
             isModalOpen = false;
-        } catch (e) { alert("Lỗi: " + e); }
+        } catch (e) { showToast("Lỗi: " + e, "error"); }
         finally { processing = false; }
     }
 
     async function handleDelete(id: string) {
-        if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
+        if (!checkPermission('edit_inventory')) return showToast("Không có quyền.", "error");
         if (!confirm("Xóa sản phẩm này?")) return;
-        await deleteDoc(doc(db, 'products', id));
+        try {
+            await deleteDoc(doc(db, 'products', id));
+            showToast("Đã xóa sản phẩm.", "success");
+        } catch (error) {
+            showToast("Lỗi xóa sản phẩm: " + error, "error");
+        }
     }
 </script>
 
@@ -207,8 +215,8 @@
 
                          <div class="divider my-1"></div>
                          <div class="flex justify-end gap-2">
-                            <button class="btn btn-xs btn-outline" on:click|stopPropagation={() => openEditModal(item)}>Sửa</button>
-                            <button class="btn btn-xs btn-outline btn-error" on:click|stopPropagation={() => handleDelete(item.id)}>Xóa</button>
+                            <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                            <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                          </div>
                     </div>
                  {/each}
@@ -234,7 +242,7 @@
                         <tr class="hover cursor-pointer" on:click={() => toggleRecipeDetail(item.id)}>
                             <td>
                                 <button class="btn btn-xs btn-ghost btn-circle text-slate-400">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform transition-transform {openRecipeId === item.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                                    <ChevronRight class="h-4 w-4 transform transition-transform {openRecipeId === item.id ? 'rotate-90' : ''}" />
                                 </button>
                             </td>
                             <td class="font-mono text-sm text-slate-500">{item.code || '-'}</td>
@@ -254,8 +262,8 @@
                             {/if}
 
                             <td class="text-center">
-                                <button class="btn btn-xs btn-ghost text-sky-600" on:click|stopPropagation={() => openEditModal(item)}>Sửa</button>
-                                <button class="btn btn-xs btn-ghost text-red-500" on:click|stopPropagation={() => handleDelete(item.id)}>Xóa</button>
+                                <button class="btn btn-xs btn-ghost text-sky-600" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost text-red-500" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                             </td>
                         </tr>
 
@@ -312,7 +320,7 @@
             class="btn btn-circle btn-primary btn-lg fixed bottom-24 right-6 shadow-xl z-50"
             on:click={openAddModal}
         >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            <Plus class="h-8 w-8" />
         </button>
     {/if}
 </div>
@@ -447,13 +455,17 @@
                     <input type="number" bind:value={item.quantity} class="input input-bordered input-sm w-full text-right" />
                 </div>
 
-                <button class="btn btn-sm btn-ghost text-red-500 mt-5" on:click={() => removeRecipeItem(i)}>X</button>
+                <button class="btn btn-sm btn-ghost text-red-500 mt-5" on:click={() => removeRecipeItem(i)}>
+                    <Trash2 class="h-4 w-4" />
+                </button>
             </div>
         {/each}
     </div>
 
     <div class="flex justify-between items-center">
-        <button class="btn btn-xs btn-outline btn-primary" on:click={addRecipeItem}>+ Thêm dòng</button>
+        <button class="btn btn-xs btn-outline btn-primary" on:click={addRecipeItem}>
+            <Plus class="h-4 w-4 mr-2" /> Thêm dòng
+        </button>
         <div class="text-sm font-bold text-slate-600">
             Giá vốn LT: {theoreticalCost.toLocaleString()} đ/sp
         </div>

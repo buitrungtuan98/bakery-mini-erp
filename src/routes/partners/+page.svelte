@@ -7,6 +7,8 @@
     import { partnerStore, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
+    import { showToast } from '$lib/utils/toast';
+    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
     
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -35,21 +37,21 @@
 
     // Handlers
     function openAddModal() {
-        if (!checkPermission('manage_partners')) return alert("Không có quyền.");
+        if (!checkPermission('manage_partners')) return showToast("Không có quyền.", "error");
         isEditing = false;
         formData = { id: '', code: '', name: '', type: 'customer', customerType: 'lẻ', phone: '', address: '', customPrices: [] };
         isModalOpen = true;
     }
 
     function openEditModal(item: Partner) {
-        if (!checkPermission('manage_partners')) return alert("Không có quyền.");
+        if (!checkPermission('manage_partners')) return showToast("Không có quyền.", "error");
         isEditing = true;
         formData = { ...item };
         isModalOpen = true;
     }
 
     async function handleSubmit() {
-        if (!formData.name) return alert("Thiếu tên đối tác");
+        if (!formData.name) return showToast("Thiếu tên đối tác", "warning");
         processing = true;
         
         try {
@@ -76,26 +78,34 @@
 
                 await addDoc(collection(db, 'partners'), { ...dataToSave, createdAt: serverTimestamp() });
                 await logAction($authStore.user!, 'CREATE', 'partners', `Thêm mới đối tác: ${formData.name} (${code})`);
+                showToast("Thêm đối tác thành công!", "success");
             }
             isModalOpen = false;
-        } catch (e) { alert("Lỗi: " + e); }
+        } catch (e) { showToast("Lỗi: " + e, "error"); }
         finally { processing = false; }
     }
 
     async function handleDelete(id: string) {
-        if (!checkPermission('manage_partners')) return alert("Không có quyền.");
+        if (!checkPermission('manage_partners')) return showToast("Không có quyền.", "error");
         if (!confirm("Xóa đối tác này?")) return;
-        await deleteDoc(doc(db, 'partners', id));
+        try {
+            await deleteDoc(doc(db, 'partners', id));
+            showToast("Đã xóa đối tác.", "success");
+        } catch (error) {
+            showToast("Lỗi xóa đối tác: " + error, "error");
+        }
     }
 </script>
 
 <div class="max-w-7xl mx-auto">
     <PageHeader
         title="Quản lý Đối tác"
-        actionLabel="+ Thêm Đối tác"
+        actionLabel="Thêm Đối tác"
         onAction={openAddModal}
         showAction={$permissionStore.userPermissions.has('manage_partners')}
-    />
+    >
+        <Plus class="h-4 w-4" />
+    </PageHeader>
 
     <div class="mb-6">
         <input type="text" bind:value={searchTerm} class="input input-bordered w-full max-w-md" placeholder="Tìm kiếm tên, số điện thoại..." />
@@ -134,8 +144,8 @@
 
                          <div class="divider my-1"></div>
                          <div class="flex justify-end gap-2">
-                            <button class="btn btn-xs btn-outline" on:click={() => openEditModal(item)}>Sửa</button>
-                            <button class="btn btn-xs btn-outline btn-error" on:click={() => handleDelete(item.id)}>Xóa</button>
+                            <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                            <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                          </div>
                     </div>
                  {/each}
@@ -169,8 +179,8 @@
                             <td class="font-mono text-sm">{item.phone || '-'}</td>
                             <td class="text-sm truncate max-w-xs">{item.address || '-'}</td>
                             <td class="text-center">
-                                <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}>Sửa</button>
-                                <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}>Xóa</button>
+                                <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                             </td>
                         </tr>
                     {/each}

@@ -5,6 +5,8 @@
     import { onMount } from 'svelte';
     import { authStore } from '$lib/stores/authStore';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
+    import { showToast } from '$lib/utils/toast';
+    import { Save } from 'lucide-svelte';
 
     let roles: RoleDef[] = [];
     let loading = true;
@@ -64,11 +66,11 @@
             for (const role of roles) {
                 await setDoc(doc(db, 'roles', role.id), role);
             }
-            alert("Đã lưu cấu hình thành công!");
+            showToast("Đã lưu cấu hình thành công!", 'success');
             permissionStore.initRoles();
             if ($authStore.user?.role) permissionStore.setUserRole($authStore.user.role);
         } catch (e) {
-            alert("Lỗi lưu: " + e);
+            showToast("Lỗi lưu: " + e, 'error');
         } finally {
             processing = false;
         }
@@ -93,9 +95,11 @@
     <PageHeader
         title="Cấu hình Phân quyền (Roles)"
         showAction={true}
-        actionLabel={processing ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+        actionLabel={processing ? 'Đang lưu...' : 'Lưu'}
         onAction={saveRoles}
-    />
+    >
+        <Save class="h-4 w-4" />
+    </PageHeader>
 
     {#if loading}
         <div class="p-8 text-center">Đang tải cấu hình...</div>

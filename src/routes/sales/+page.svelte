@@ -13,6 +13,7 @@
     import html2canvas from 'html2canvas-pro';
     import type { Order } from '$lib/types/order';
     import { tick } from 'svelte';
+    import { showToast } from '$lib/utils/toast';
 
 	// --- Types ---
 	interface OrderItem {
@@ -262,7 +263,7 @@
 	// --- Mobile UI Handlers ---
     
     function openProductSelector() {
-        if (!selectedCustomerId) return alert("Vui lòng chọn Khách hàng trước!");
+        if (!selectedCustomerId) return showToast("Vui lòng chọn Khách hàng trước!", 'warning');
         productSearchTerm = '';
         isProductModalOpen = true;
     }
@@ -319,12 +320,12 @@
     async function handleCancelOrder(order: Order) {
         // Permission check
         const canCancel = checkPermission('manage_orders') || checkPermission('create_order');
-        if (!canCancel) return alert("Bạn không có quyền hủy đơn.");
+        if (!canCancel) return showToast("Bạn không có quyền hủy đơn.", 'error');
 
         const orderDate = order.createdAt.toDate().toDateString();
         const todayDate = new Date().toDateString();
-        if (orderDate !== todayDate) return alert("LỖI: Chỉ có thể hủy đơn hàng trong ngày đã tạo.");
-        if (order.status === 'canceled') return alert("Đơn hàng này đã bị hủy.");
+        if (orderDate !== todayDate) return showToast("LỖI: Chỉ có thể hủy đơn hàng trong ngày đã tạo.", 'error');
+        if (order.status === 'canceled') return showToast("Đơn hàng này đã bị hủy.", 'warning');
         const displayId = order.code || order.id.substring(0, 8);
         if (!confirm(`Xác nhận hủy đơn hàng ${displayId}? Kho sẽ được cộng lại.`)) return;
         
@@ -347,10 +348,10 @@
                 });
             });
             await logAction($authStore.user!, 'UPDATE', 'orders', `Hủy đơn hàng: ${displayId}`);
-            alert("Hủy đơn hàng thành công!");
+            showToast("Hủy đơn hàng thành công!", 'success');
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
-            alert("LỖI: " + e.message);
+            showToast("LỖI: " + e.message, 'error');
         } finally {
             processing = false;
         }
@@ -365,9 +366,10 @@
                 transaction.update(orderRef, { status: newStatus });
             });
             await logAction($authStore.user!, 'UPDATE', 'orders', `Cập nhật trạng thái ${order.code} -> ${newStatus}`);
+            showToast("Cập nhật trạng thái thành công!", 'success');
         } catch (e: any) {
             console.error(e);
-            alert("Lỗi: " + e.message);
+            showToast("Lỗi: " + e.message, 'error');
         }
     }
 
@@ -436,7 +438,7 @@
 				await logAction($authStore.user!, 'TRANSACTION', 'orders', `Tạo đơn hàng ${code}`);
 			});
 
-			alert(`Tạo đơn hàng ${code} thành công!`);
+			showToast(`Tạo đơn hàng ${code} thành công!`, 'success');
 			selectedCustomerId = '';
 			orderItems = [];
 			shippingFee = 0;
@@ -449,7 +451,7 @@
 		} catch (error: any) {
 			console.error(error);
 			const errorMessage = error instanceof Error ? error.message : String(error);
-			alert('Lỗi: ' + errorMessage);
+			showToast('Lỗi: ' + errorMessage, 'error');
 		} finally {
 			processing = false;
 		}
@@ -469,7 +471,7 @@
 
         const billElement = document.getElementById('bill-to-print');
         if (!billElement) {
-            alert('Lỗi: Không tìm thấy element hóa đơn để in.');
+            showToast('Lỗi: Không tìm thấy element hóa đơn để in.', 'error');
             isPrinting = false;
             orderToPrint = null;
             return;
@@ -498,7 +500,7 @@
 
         } catch (error) {
             console.error("Lỗi khi tạo PDF:", error);
-            alert("Đã có lỗi xảy ra khi tạo file PDF.");
+            showToast("Đã có lỗi xảy ra khi tạo file PDF.", 'error');
         } finally {
             // Clean up
             orderToPrint = null;

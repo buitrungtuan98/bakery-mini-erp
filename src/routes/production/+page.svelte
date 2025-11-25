@@ -9,6 +9,8 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import { showToast } from '$lib/utils/toast';
+    import { Save, Trash2 } from 'lucide-svelte';
 
 	// --- Types ---
 	interface RecipeItem {
@@ -155,7 +157,7 @@
     // --- Delete/Reverse Logic ---
     async function handleDeleteRun(run: ProductionRun) {
         if (!checkPermission('manage_roles')) {
-             if (!checkPermission('create_production')) return alert("Bạn không có quyền xóa lệnh sản xuất.");
+             if (!checkPermission('create_production')) return showToast("Bạn không có quyền xóa lệnh sản xuất.", 'error');
         }
 
         if (!confirm(`Xác nhận xóa lệnh sản xuất "${run.productName}" ngày ${run.productionDate.toDate().toLocaleDateString()}? Hành động này sẽ đảo ngược tồn kho.`)) return;
@@ -185,10 +187,10 @@
 
             const displayId = run.code || run.id.substring(0, 8).toUpperCase();
             await logAction($authStore.user!, 'DELETE', 'production_runs', `Đảo ngược và xóa lệnh SX: ${displayId}, Yield: ${run.actualYield}`);
-            alert("Đảo ngược lệnh sản xuất thành công!");
+            showToast("Đảo ngược lệnh sản xuất thành công!", 'success');
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
-            alert("LỖI KHÔNG THỂ ĐẢO NGƯỢC: " + e.message);
+            showToast("LỖI KHÔNG THỂ ĐẢO NGƯỢC: " + e.message, 'error');
         }
     }
     
@@ -267,7 +269,7 @@
                 await logAction($authStore.user!, 'TRANSACTION', 'production_runs', `SX ${prod.name}, Yield: ${actualYield} (${code})`);
             });
 
-            alert(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm! Mã: ${code}`);
+            showToast(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm! Mã: ${code}`, 'success');
             // selectedProductId = '';
             // actualYield = 0;
             // productionInputs = [];
@@ -275,7 +277,7 @@
 
 		} catch (error) {
 			console.error(error);
-			alert('Lỗi khi chạy lệnh sản xuất: ' + error);
+			showToast('Lỗi khi chạy lệnh sản xuất: ' + error, 'error');
 		} finally {
 			processing = false;
 		}
@@ -399,6 +401,7 @@
                     on:click={handleProduction}
                     disabled={processing || actualYield <= 0}
                 >
+                    <Save class="h-4 w-4 mr-2" />
                     {processing ? 'Đang xử lý...' : 'HOÀN TẤT & TRỪ KHO'}
                 </button>
             </div>
@@ -436,7 +439,7 @@
                          <button
                             class="btn btn-xs btn-ghost text-red-400"
                             on:click={() => handleDeleteRun(run)}
-                        >Xóa</button>
+                        ><Trash2 class="h-4 w-4" /></button>
                      </div>
                 {/each}
             </div>

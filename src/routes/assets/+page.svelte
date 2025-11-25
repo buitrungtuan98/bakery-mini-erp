@@ -7,6 +7,8 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import { showToast } from '$lib/utils/toast';
+    import { Plus, Pencil, Trash2, Save } from 'lucide-svelte';
 
 	interface Asset {
 		id: string;
@@ -53,7 +55,7 @@
     }
 
 	async function handleSubmit() {
-        if (!checkPermission('manage_assets')) return alert("Bạn không có quyền thêm/sửa tài sản.");
+        if (!checkPermission('manage_assets')) return showToast("Bạn không có quyền thêm/sửa tài sản.", "error");
         
         // Tự động tính tổng
         formData.quantity.total = formData.quantity.good + formData.quantity.broken; 
@@ -76,15 +78,21 @@
 
 				await addDoc(collection(db, 'assets'), { ...dataToSave, createdAt: serverTimestamp() });
                 await logAction($authStore.user!, 'CREATE', 'assets', `Thêm tài sản mới: ${formData.name} (${code})`);
+                showToast("Thêm tài sản mới thành công!", "success");
 			}
 			isModalOpen = false;
-		} catch (error) { alert("Lỗi: " + error); }
+		} catch (error) { showToast("Lỗi: " + error, "error"); }
 	}
 
     async function handleDelete(id: string) {
-        if (!checkPermission('manage_assets')) return alert("Bạn không có quyền xóa tài sản.");
+        if (!checkPermission('manage_assets')) return showToast("Bạn không có quyền xóa tài sản.", "error");
         if(!confirm("Xóa tài sản này?")) return;
-        await deleteDoc(doc(db, 'assets', id));
+        try {
+            await deleteDoc(doc(db, 'assets', id));
+            showToast("Đã xóa tài sản.", "success");
+        } catch (error) {
+            showToast("Lỗi xóa tài sản: " + error, "error");
+        }
     }
 </script>
 
@@ -92,7 +100,9 @@
 	<div class="flex justify-between items-center mb-6">
 		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
 		{#if $userPermissions.has('manage_assets')}
-			<button class="btn btn-primary" on:click={openAddModal}>+ Thêm Tài sản</button>
+			<button class="btn btn-primary" on:click={openAddModal}>
+                <Plus class="h-4 w-4 mr-2" /> Thêm Tài sản
+            </button>
 		{/if}
 	</div>
 
@@ -134,8 +144,8 @@
                         </div>
 
                         <div class="flex justify-end gap-2 border-t pt-2">
-                            <button class="btn btn-xs btn-outline" on:click={() => openEditModal(item)}>Sửa</button>
-                            <button class="btn btn-xs btn-outline btn-error" on:click={() => handleDelete(item.id)}>Xóa</button>
+                            <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                            <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                         </div>
                     </div>
                 {/each}
@@ -167,8 +177,8 @@
                             <td class="text-error">{item.quantity.lost}</td>
                             <td>{item.originalPrice.toLocaleString()} đ</td>
                             <td class="text-center">
-                                <button class="btn btn-xs btn-ghost text-info" on:click={() => openEditModal(item)}>Sửa</button>
-                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}>Xóa</button>
+                                <button class="btn btn-xs btn-ghost text-info" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                             </td>
                         </tr>
                     {/each}
@@ -229,7 +239,9 @@
         </div>
 		<div class="modal-action">
 			<button class="btn" on:click={() => isModalOpen = false}>Hủy</button>
-			<button class="btn btn-primary" on:click={handleSubmit}>Lưu lại</button>
+			<button class="btn btn-primary" on:click={handleSubmit}>
+                <Save class="h-4 w-4 mr-2" /> Lưu lại
+            </button>
 		</div>
 	</div>
 </div>

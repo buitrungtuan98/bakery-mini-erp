@@ -8,6 +8,8 @@
     import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import { showToast } from '$lib/utils/toast';
+    import { Plus, Save } from 'lucide-svelte';
 
 	// --- Types ---
     interface Category {
@@ -82,7 +84,7 @@
 	});
     
     async function handleAddCategory() {
-        if (!checkPermission('manage_expenses')) return alert("Bạn không có quyền thêm danh mục.");
+        if (!checkPermission('manage_expenses')) return showToast("Bạn không có quyền thêm danh mục.", 'error');
         if (!newCategoryName.trim()) return;
 
         try {
@@ -91,15 +93,16 @@
                 createdAt: serverTimestamp()
             });
             await logAction($authStore.user!, 'CREATE', 'expense_categories', `Thêm mới danh mục: ${newCategoryName}`);
+            showToast("Thêm danh mục thành công!", 'success');
             newCategoryName = '';
             // Don't close modal automatically, maybe they want to add more
         } catch (e) {
-            alert("Lỗi thêm danh mục.");
+            showToast("Lỗi thêm danh mục.", 'error');
         }
     }
 
     async function handleAddExpense() {
-        if (!checkPermission('manage_expenses')) return alert("Bạn không có quyền thêm chi phí.");
+        if (!checkPermission('manage_expenses')) return showToast("Bạn không có quyền thêm chi phí.", 'error');
         if (!expenseData.categoryId) return (errorMsg = "Vui lòng chọn danh mục chi phí.");
         if (!expenseData.selectedSupplierId) return (errorMsg = "Vui lòng chọn Nhà cung cấp/Người bán.");
         if (expenseData.amount <= 0) return (errorMsg = "Số tiền phải lớn hơn 0.");
@@ -147,7 +150,7 @@
                 `Chi tiền: ${category?.name}, ${expenseData.amount.toLocaleString()} đ từ NCC ${supplier?.name || 'N/A'} (${code})`
             );
 
-            alert(`Ghi nhận chi phí ${code} thành công!`);
+            showToast(`Ghi nhận chi phí ${code} thành công!`, 'success');
             expenseData.amount = 0;
             expenseData.description = '';
             isAssetPurchase = false;
@@ -177,7 +180,7 @@
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
                      <h2 class="card-title text-lg">Ghi nhận Chi phí Mới</h2>
                      <button class="btn btn-sm btn-ghost text-primary" on:click={() => isCategoryModalOpen = true}>
-                        + Quản lý Danh mục
+                        <Plus class="h-4 w-4 mr-1" /> Quản lý Danh mục
                      </button>
                 </div>
 
@@ -235,6 +238,7 @@
                     </div>
 
                     <button class="btn btn-primary w-full mt-2" on:click={handleAddExpense} disabled={processing}>
+                        <Save class="h-4 w-4 mr-2" />
                         {#if processing}<span class="loading loading-spinner"></span>{/if}
                         Ghi nhận Chi phí
                     </button>
@@ -306,7 +310,9 @@
         <label class="label"><span class="label-text">Thêm danh mục mới</span></label>
         <div class="flex gap-2">
             <input type="text" bind:value={newCategoryName} class="input input-bordered w-full" placeholder="Tên danh mục..." />
-            <button class="btn btn-primary" on:click={handleAddCategory}>Thêm</button>
+            <button class="btn btn-primary" on:click={handleAddCategory}>
+                <Plus class="h-4 w-4 mr-2" /> Thêm
+            </button>
         </div>
     </div>
 

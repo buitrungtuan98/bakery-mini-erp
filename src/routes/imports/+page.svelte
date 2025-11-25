@@ -9,6 +9,8 @@
     import { Timestamp } from 'firebase/firestore';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import { showToast } from '$lib/utils/toast';
+    import { Plus, Save, Trash2 } from 'lucide-svelte';
 
 	// --- Types ---
     interface Partner { id: string; name: string; taxId?: string; }
@@ -120,13 +122,13 @@
 
 	// --- Submit Logic ---
 	async function handleImport() {
-		if (!selectedSupplierId) return alert('Chưa chọn Nhà cung cấp');
+		if (!selectedSupplierId) return showToast('Chưa chọn Nhà cung cấp', 'warning');
         const validItems = importItems.filter(i => i.ingredientId && i.quantity > 0);
-		if (validItems.length === 0) return alert('Chưa có dòng hàng nào hợp lệ');
+		if (validItems.length === 0) return showToast('Chưa có dòng hàng nào hợp lệ', 'warning');
         if (!confirm(`Xác nhận nhập kho với tổng tiền: ${totalAmount.toLocaleString()} đ?`)) return;
 
         const selectedDate = new Date(importDate);
-        if (isNaN(selectedDate.getTime())) return alert('Ngày nhập không hợp lệ!');
+        if (isNaN(selectedDate.getTime())) return showToast('Ngày nhập không hợp lệ!', 'error');
 
 		processing = true;
 
@@ -180,25 +182,26 @@
                 await logAction($authStore.user!, 'TRANSACTION', 'imports', `Tạo phiếu nhập ${code}`);
             });
 
-            alert(`Nhập kho thành công! Mã: ${code}`);
+            showToast(`Nhập kho thành công! Mã: ${code}`, 'success');
             selectedSupplierId = '';
             importItems = [];
 
 		} catch (error: any) {
 			console.error(error);
-			alert('Lỗi: ' + error.message || error);
+			showToast('Lỗi: ' + error.message || error, 'error');
 		} finally {
 			processing = false;
 		}
 	}
     
     async function deleteReceipt(id: string) {
-        if (!checkPermission('manage_imports')) return alert("Không có quyền xóa.");
+        if (!checkPermission('manage_imports')) return showToast("Không có quyền xóa.", 'error');
         if(!confirm("Xóa phiếu nhập có thể làm sai lệch tồn kho. Chắc chắn?")) return;
         try {
             await deleteDoc(doc(db, 'imports', id));
             await logAction($authStore.user!, 'DELETE', 'imports', `Xóa phiếu nhập ID: ${id}`);
-        } catch (error) { alert("Lỗi xóa: " + error); }
+            showToast("Đã xóa phiếu nhập.", 'success');
+        } catch (error) { showToast("Lỗi xóa: " + error, 'error'); }
     }
 </script>
 
@@ -263,13 +266,16 @@
             </div>
 
             <div class="flex justify-between items-center mt-4 border-t pt-4">
-                <button class="btn btn-sm btn-outline" on:click={openAddItem}>+ Thêm Dòng</button>
+                <button class="btn btn-sm btn-outline" on:click={openAddItem}>
+                    <Plus class="h-4 w-4 mr-2" /> Thêm Dòng
+                </button>
                 <div class="text-lg font-bold text-success">
                     {totalAmount.toLocaleString()} đ
                 </div>
             </div>
 
             <button class="btn btn-primary w-full mt-6" on:click={handleImport} disabled={processing}>
+                <Save class="h-4 w-4 mr-2" />
                 {#if processing}<span class="loading loading-spinner"></span>{/if}
                 Lưu Phiếu & Nhập Kho
             </button>
@@ -303,7 +309,9 @@
                             </div>
                             {#if $userPermissions.has('manage_imports')}
                                 <div class="text-right">
-                                    <button class="btn btn-xs btn-outline btn-error" on:click={() => deleteReceipt(receipt.id)}>Xóa</button>
+                                    <button class="btn btn-xs btn-ghost text-error" on:click={() => deleteReceipt(receipt.id)}>
+                                        <Trash2 class="h-4 w-4" />
+                                    </button>
                                 </div>
                             {/if}
                         </div>
@@ -336,10 +344,10 @@
                                 <td>
                                     {#if $userPermissions.has('manage_imports')}
                                         <button
-                                            class="btn btn-xs btn-error text-white"
+                                            class="btn btn-xs btn-ghost text-error"
                                             on:click={() => deleteReceipt(receipt.id)}
                                         >
-                                            Xóa
+                                            <Trash2 class="h-4 w-4" />
                                         </button>
                                     {/if}
                                 </td>
@@ -376,6 +384,8 @@
     </div>
 
     {#if editingIndex !== -1}
-        <button class="btn btn-outline btn-error btn-sm w-full mt-6" on:click={() => removeItem(editingIndex)}>Xóa dòng này</button>
+        <button class="btn btn-outline btn-error btn-sm w-full mt-6" on:click={() => removeItem(editingIndex)}>
+            <Trash2 class="h-4 w-4 mr-2" /> Xóa dòng này
+        </button>
     {/if}
 </Modal>
