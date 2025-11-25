@@ -5,6 +5,7 @@
 	import { collection, addDoc, getDocs, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, where } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
 
@@ -19,6 +20,7 @@
     }
     interface ExpenseLog {
         id: string;
+        code?: string;
         date: { toDate: () => Date };
         categoryName: string;
         amount: number;
@@ -109,8 +111,10 @@
         try {
             const category = categories.find(c => c.id === expenseData.categoryId);
             const supplier = suppliers.find(s => s.id === expenseData.selectedSupplierId);
+            const code = await generateNextCode('expenses_log', 'CP');
             
             const expenseRef = await addDoc(collection(db, 'expenses_log'), {
+                code: code,
                 date: Timestamp.fromDate(selectedDate),
                 categoryId: expenseData.categoryId,
                 categoryName: category?.name || 'N/A',
@@ -123,7 +127,10 @@
             });
             
             if (isAssetPurchase) {
+                 // Also generate asset code
+                 const assetCode = await generateNextCode('assets', 'TS');
                  await addDoc(collection(db, 'assets'), {
+                    code: assetCode,
                     name: expenseData.description, 
                     category: category?.name || 'Tài sản chung',
                     status: 'Đang dùng',
@@ -133,14 +140,14 @@
                     createdBy: $authStore.user?.email,
                     createdAt: serverTimestamp()
                 });
-                await logAction($authStore.user!, 'CREATE', 'assets', `Tự động tạo tài sản từ chi phí: ${expenseData.description}`);
+                await logAction($authStore.user!, 'CREATE', 'assets', `Tự động tạo tài sản từ chi phí: ${expenseData.description} (${assetCode})`);
             }
 
             await logAction($authStore.user!, 'TRANSACTION', 'expenses_log', 
-                `Chi tiền: ${category?.name}, ${expenseData.amount.toLocaleString()} đ từ NCC ${supplier?.name || 'N/A'}`
+                `Chi tiền: ${category?.name}, ${expenseData.amount.toLocaleString()} đ từ NCC ${supplier?.name || 'N/A'} (${code})`
             );
 
-            alert("Ghi nhận chi phí thành công!");
+            alert(`Ghi nhận chi phí ${code} thành công!`);
             expenseData.amount = 0;
             expenseData.description = '';
             isAssetPurchase = false;
@@ -248,7 +255,12 @@
                         {#each expensesLog as log}
                             <div class="bg-white p-3 rounded-lg shadow-sm border border-slate-100">
                                 <div class="flex justify-between items-start mb-2">
-                                    <div class="text-xs text-gray-500">{log.date?.toDate().toLocaleDateString('vi-VN')}</div>
+                                    <div class="flex items-center gap-2">
+                                        {#if log.code}
+                                            <span class="badge badge-xs badge-ghost font-mono">{log.code}</span>
+                                        {/if}
+                                        <div class="text-xs text-gray-500">{log.date?.toDate().toLocaleDateString('vi-VN')}</div>
+                                    </div>
                                     <div class="font-bold text-error">-{log.amount.toLocaleString()} đ</div>
                                 </div>
                                 <div class="mb-1 font-medium">{log.description}</div>

@@ -5,7 +5,8 @@
     import { productStore, partnerStore, type Product, type Partner } from '$lib/stores/masterDataStore';
 	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, limit } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
-	import { logAction } from '$lib/logger'; 
+	import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
 
 	// --- Types ---
@@ -17,6 +18,7 @@
     
     interface Order {
         id: string;
+        code?: string;
         createdAt: { toDate: () => Date };
         customerId: string;
         customerInfo: { name: string, type?: 'sỉ'|'lẻ', phone?: string };
@@ -206,7 +208,8 @@
         const todayDate = new Date().toDateString();
         if (orderDate !== todayDate) return alert("LỖI: Chỉ có thể hủy đơn hàng trong ngày đã tạo.");
         if (order.status === 'canceled') return alert("Đơn hàng này đã bị hủy.");
-        if (!confirm(`Xác nhận hủy đơn hàng ${order.id.substring(0, 8)}? Kho sẽ được cộng lại.`)) return;
+        const displayId = order.code || order.id.substring(0, 8);
+        if (!confirm(`Xác nhận hủy đơn hàng ${displayId}? Kho sẽ được cộng lại.`)) return;
         
         processing = true;
         try {
@@ -226,7 +229,7 @@
                     canceledAt: serverTimestamp()
                 });
             });
-            await logAction($authStore.user!, 'UPDATE', 'orders', `Hủy đơn hàng ID: ${order.id.substring(0, 8)}`);
+            await logAction($authStore.user!, 'UPDATE', 'orders', `Hủy đơn hàng: ${displayId}`);
             alert("Hủy đơn hàng thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
@@ -246,6 +249,9 @@
 		processing = true;
 
 		try {
+            // Generate Code first (outside transaction, acceptable risk for small team)
+            const code = await generateNextCode('orders', 'DH');
+
 			await runTransaction(db, async (transaction) => {
 				const productRefs = validItems.map(item => doc(db, 'products', item.productId));
 				const productSnaps = await Promise.all(productRefs.map(ref => transaction.get(ref)));
@@ -269,6 +275,7 @@
 				const customerSnapshot = customers.find(c => c.id === selectedCustomerId);
 				
 				transaction.set(orderRef, {
+                    code: code,
 					customerId: selectedCustomerId,
 					customerInfo: {
 						name: customerSnapshot?.name,
@@ -293,10 +300,10 @@
 					createdAt: serverTimestamp()
 				});
 				
-				await logAction($authStore.user!, 'TRANSACTION', 'orders', `Tạo đơn hàng ${orderRef.id.substring(0, 8).toUpperCase()}`);
+				await logAction($authStore.user!, 'TRANSACTION', 'orders', `Tạo đơn hàng ${code}`);
 			});
 
-			alert(`Tạo đơn hàng thành công!`);
+			alert(`Tạo đơn hàng ${code} thành công!`);
 			selectedCustomerId = '';
 			orderItems = [];
 			shippingFee = 0;
@@ -420,7 +427,12 @@
                 {#each ordersHistory as order}
                     <div class="flex justify-between items-center p-3 bg-white rounded border border-slate-100 shadow-sm {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
                         <div class="flex flex-col">
-                            <span class="font-bold text-xs text-slate-800">{order.customerInfo.name}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-xs text-slate-800">{order.customerInfo.name}</span>
+                                {#if order.code}
+                                    <span class="badge badge-xs badge-ghost font-mono">{order.code}</span>
+                                {/if}
+                            </div>
                             <span class="text-[10px] text-slate-400">
                                 {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ''}
                             </span>

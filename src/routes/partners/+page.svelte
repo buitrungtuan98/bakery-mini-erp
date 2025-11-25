@@ -6,6 +6,7 @@
     import { permissionStore } from '$lib/stores/permissionStore';
     import { partnerStore, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
     
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -21,7 +22,7 @@
     let processing = false;
 
     let formData: any = {
-        id: '', name: '', type: 'customer', customerType: 'lẻ',
+        id: '', code: '', name: '', type: 'customer', customerType: 'lẻ',
         phone: '', address: '', defaultAddress: '', customPrices: []
     };
 
@@ -36,7 +37,7 @@
     function openAddModal() {
         if (!checkPermission('manage_partners')) return alert("Không có quyền.");
         isEditing = false;
-        formData = { id: '', name: '', type: 'customer', customerType: 'lẻ', phone: '', address: '', customPrices: [] };
+        formData = { id: '', code: '', name: '', type: 'customer', customerType: 'lẻ', phone: '', address: '', customPrices: [] };
         isModalOpen = true;
     }
 
@@ -65,8 +66,16 @@
                 await updateDoc(doc(db, 'partners', formData.id), dataToSave);
                 await logAction($authStore.user!, 'UPDATE', 'partners', `Cập nhật đối tác: ${formData.name}`);
             } else {
+                // Generate Code
+                let prefix = 'KH';
+                if (formData.type === 'supplier') prefix = 'NCC';
+                if (formData.type === 'manufacturer') prefix = 'NSX';
+
+                const code = await generateNextCode('partners', prefix);
+                dataToSave.code = code;
+
                 await addDoc(collection(db, 'partners'), { ...dataToSave, createdAt: serverTimestamp() });
-                await logAction($authStore.user!, 'CREATE', 'partners', `Thêm mới đối tác: ${formData.name}`);
+                await logAction($authStore.user!, 'CREATE', 'partners', `Thêm mới đối tác: ${formData.name} (${code})`);
             }
             isModalOpen = false;
         } catch (e) { alert("Lỗi: " + e); }
@@ -135,6 +144,7 @@
              <svelte:fragment slot="desktop">
                 <thead>
                     <tr class="bg-slate-50 text-slate-600">
+                        <th>Mã</th>
                         <th>Tên Đối tác</th>
                         <th>Loại</th>
                         <th>SĐT</th>
@@ -145,6 +155,7 @@
                 <tbody>
                     {#each filteredPartners as item}
                         <tr class="hover">
+                            <td class="font-mono text-sm font-bold text-slate-500">{item.code || '-'}</td>
                             <td class="font-bold text-slate-700">{item.name}</td>
                             <td>
                                 {#if item.type === 'supplier'}
@@ -176,6 +187,18 @@
     onConfirm={handleSubmit}
     loading={processing}
 >
+    {#if !isEditing}
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Mã Đối tác</span></label>
+            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+        </div>
+    {:else if formData.code}
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Mã Đối tác</span></label>
+            <input type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+        </div>
+    {/if}
+
     <div class="form-control mb-3">
         <label class="label"><span class="label-text">Tên Đối tác</span></label>
         <input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Cửa hàng A" />

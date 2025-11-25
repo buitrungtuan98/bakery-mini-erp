@@ -6,6 +6,7 @@
     import { permissionStore } from '$lib/stores/permissionStore';
     import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
 
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -34,7 +35,7 @@
 
     // Form
     let formData: any = {
-        id: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0, _searchTerm: '', _isOpen: false }]
+        id: '', code: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0, _searchTerm: '', _isOpen: false }]
     };
 
     $: theoreticalCost = calculateCost(formData.items);
@@ -63,7 +64,7 @@
     function openAddModal() {
         if (!checkPermission('edit_inventory')) return alert("Không có quyền.");
         isEditing = false;
-        formData = { id: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0 }] };
+        formData = { id: '', code: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0 }] };
         isModalOpen = true;
     }
 
@@ -137,8 +138,11 @@
                 await updateDoc(doc(db, 'products', formData.id), dataToSave);
                 await logAction($authStore.user!, 'UPDATE', 'products', `Cập nhật SP: ${formData.name}`);
             } else {
+                const code = await generateNextCode('products', 'SP');
+                dataToSave.code = code;
+
                 await addDoc(collection(db, 'products'), { ...dataToSave, createdAt: serverTimestamp() });
-                await logAction($authStore.user!, 'CREATE', 'products', `Thêm mới SP: ${formData.name}`);
+                await logAction($authStore.user!, 'CREATE', 'products', `Thêm mới SP: ${formData.name} (${code})`);
             }
             isModalOpen = false;
         } catch (e) { alert("Lỗi: " + e); }
@@ -177,7 +181,10 @@
                         on:click={() => openRecipeViewMobile(item)}
                     >
                          <div class="flex justify-between items-start">
-                             <h3 class="font-bold text-slate-800 text-lg">{item.name}</h3>
+                             <div>
+                                 <h3 class="font-bold text-slate-800 text-lg">{item.name}</h3>
+                                 <span class="text-xs text-slate-400 font-mono">{item.code || '-'}</span>
+                             </div>
                              <span class="badge badge-lg badge-primary badge-outline">{item.sellingPrice?.toLocaleString()} đ</span>
                          </div>
 
@@ -211,6 +218,7 @@
                 <thead>
                     <tr class="bg-slate-50 text-slate-600">
                         <th class="w-10"></th>
+                        <th>Mã</th>
                         <th>Tên Sản phẩm</th>
                         <th>Yield (Ước tính)</th>
                         <th>Giá bán</th>
@@ -229,6 +237,7 @@
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform transition-transform {openRecipeId === item.id ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </td>
+                            <td class="font-mono text-sm text-slate-500">{item.code || '-'}</td>
                             <td class="font-bold text-slate-700">{item.name}</td>
                             <td>{item.estimatedYieldQty?.toLocaleString() || 1}</td>
                             <td class="font-mono text-sky-600">{item.sellingPrice?.toLocaleString()} đ</td>
@@ -344,7 +353,7 @@
         </div>
 
         <div class="mt-6 text-center text-xs text-slate-400">
-            Mã SP: {selectedProductForRecipe.id}
+            ID: {selectedProductForRecipe.id} | Mã: {selectedProductForRecipe.code || 'N/A'}
         </div>
     {/if}
 </Modal>
@@ -358,6 +367,18 @@
     onConfirm={handleSubmit}
     loading={processing}
 >
+    {#if !isEditing}
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Mã Sản phẩm</span></label>
+            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+        </div>
+    {:else if formData.code}
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Mã Sản phẩm</span></label>
+            <input type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+        </div>
+    {/if}
+
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div class="form-control">
             <label class="label"><span class="label-text">Tên Sản phẩm</span></label>

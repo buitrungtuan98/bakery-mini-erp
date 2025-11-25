@@ -7,6 +7,7 @@
 	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, Timestamp, onSnapshot, limit, deleteDoc } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
 
 	// --- Types ---
@@ -20,6 +21,7 @@
 	}
     interface ProductionRun {
         id: string;
+        code?: string;
         productId: string;
         productName: string;
         productionDate: { toDate: () => Date };
@@ -181,7 +183,8 @@
                 transaction.delete(doc(db, 'production_runs', run.id)); 
             });
 
-            await logAction($authStore.user!, 'DELETE', 'production_runs', `Đảo ngược và xóa lệnh SX ID: ${run.id.substring(0, 8).toUpperCase()}, Yield: ${run.actualYield}`);
+            const displayId = run.code || run.id.substring(0, 8).toUpperCase();
+            await logAction($authStore.user!, 'DELETE', 'production_runs', `Đảo ngược và xóa lệnh SX: ${displayId}, Yield: ${run.actualYield}`);
             alert("Đảo ngược lệnh sản xuất thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
@@ -214,6 +217,9 @@
 		processing = true;
 
 		try {
+            // Generate Code
+            const code = await generateNextCode('production_runs', 'SX');
+
 			await runTransaction(db, async (transaction) => {
                 if (!prod) throw new Error("Sản phẩm không hợp lệ.");
 
@@ -238,6 +244,7 @@
 
                 const productionLogRef = doc(collection(db, 'production_runs'));
                 transaction.set(productionLogRef, {
+                    code: code,
                     productId: selectedProductId,
                     productName: prod.name,
                     theoreticalCostSnapshot: prod.theoreticalCost,
@@ -257,10 +264,10 @@
                     createdAt: serverTimestamp()
                 });
                 
-                await logAction($authStore.user!, 'TRANSACTION', 'production_runs', `SX ${prod.name}, Yield: ${actualYield}, COGS: ${totalActualCost.toLocaleString()} đ`);
+                await logAction($authStore.user!, 'TRANSACTION', 'production_runs', `SX ${prod.name}, Yield: ${actualYield} (${code})`);
             });
 
-            alert(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm!`);
+            alert(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm! Mã: ${code}`);
             // selectedProductId = '';
             // actualYield = 0;
             // productionInputs = [];
@@ -414,7 +421,12 @@
                 {#each productionHistory as run}
                      <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
                          <div>
-                             <div class="font-bold text-sm text-slate-800">{run.productName}</div>
+                             <div class="flex items-center gap-2">
+                                 <div class="font-bold text-sm text-slate-800">{run.productName}</div>
+                                 {#if run.code}
+                                     <span class="badge badge-xs badge-ghost font-mono">{run.code}</span>
+                                 {/if}
+                             </div>
                              <div class="text-xs text-slate-400 mt-1">
                                  {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
                                  <span class="mx-1">•</span>

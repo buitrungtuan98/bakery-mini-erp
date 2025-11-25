@@ -6,6 +6,7 @@
     import { permissionStore } from '$lib/stores/permissionStore';
     import { ingredientStore, partnerStore, type Ingredient, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
 
     // Components
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -93,8 +94,13 @@
         const manufacturerSnapshot = manufacturers.find(m => m.id === formData.manufacturerId);
         
         try {
+            let code = formData.code;
+            if (!isEditing) {
+                code = await generateNextCode('ingredients', 'NVL');
+            }
+
             const baseData = {
-                code: formData.code.toUpperCase(),
+                code: code,
                 name: formData.name,
                 baseUnit: formData.baseUnit,
                 minStock: Number(formData.minStock),
@@ -112,7 +118,7 @@
                     avgCost: 0,
                     createdAt: serverTimestamp() 
                 });
-                await logAction($authStore.user!, 'CREATE', 'ingredients', `Thêm mới NVL: ${formData.name}`);
+                await logAction($authStore.user!, 'CREATE', 'ingredients', `Thêm mới NVL: ${formData.name} (${code})`);
             }
             isModalOpen = false;
         } catch (error) { alert("Lỗi lưu: " + error); }
@@ -266,10 +272,17 @@
     onConfirm={handleSubmit}
     loading={processing}
 >
-    <div class="form-control w-full mb-3">
-        <label class="label"><span class="label-text">Mã hiển thị</span></label>
-        <input type="text" bind:value={formData.code} class="input input-bordered w-full" placeholder="VD: TRUNG-GA" />
-    </div>
+    {#if !isEditing}
+        <div class="form-control w-full mb-3">
+            <label class="label"><span class="label-text">Mã hiển thị</span></label>
+            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+        </div>
+    {:else}
+        <div class="form-control w-full mb-3">
+            <label class="label"><span class="label-text">Mã hiển thị</span></label>
+            <input type="text" bind:value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+        </div>
+    {/if}
 
     <div class="form-control w-full mb-3">
         <label class="label"><span class="label-text">Tên Nguyên liệu</span></label>
