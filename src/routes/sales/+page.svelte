@@ -8,6 +8,11 @@
 	import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import Bill from '$lib/components/ui/Bill.svelte';
+    import jsPDF from 'jspdf';
+    import html2canvas from 'html2canvas';
+    import type { Order } from '$lib/types/order';
+    import { tick } from 'svelte';
 
 	// --- Types ---
 	interface OrderItem {
@@ -449,6 +454,57 @@
 			processing = false;
 		}
 	}
+
+    // --- PDF Printing Logic ---
+    let orderToPrint: Order | null = null;
+    let isPrinting = false;
+
+    async function handlePrint(order: Order) {
+        if (isPrinting) return;
+        orderToPrint = order;
+        isPrinting = true;
+
+        // Wait for Svelte to render the component in the DOM
+        await tick();
+
+        const billElement = document.getElementById('bill-to-print');
+        if (!billElement) {
+            alert('Lỗi: Không tìm thấy element hóa đơn để in.');
+            isPrinting = false;
+            orderToPrint = null;
+            return;
+        }
+
+        try {
+            const canvas = await html2canvas(billElement, {
+                scale: 2, // Higher scale for better quality
+                useCORS: true
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+
+            // Using a standard 80mm thermal receipt width.
+            const pdfWidth = 80;
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: [pdfWidth, pdfHeight]
+            });
+
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`hoadon-${order.code || order.id.slice(0,6)}.pdf`);
+
+        } catch (error) {
+            console.error("Lỗi khi tạo PDF:", error);
+            alert("Đã có lỗi xảy ra khi tạo file PDF.");
+        } finally {
+            // Clean up
+            orderToPrint = null;
+            isPrinting = false;
+        }
+    }
 </script>
 
 <div class="pb-32"> <!-- Padding for Footer -->
@@ -684,7 +740,8 @@
                                     {/if}
                                 {/if}
 
-                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleCancelOrder(order)}>
+                                <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => handlePrint(order)}>In Hóa Đơn</button>
+                                <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleCancelOrder(order)}>
                                     {#if order.status === 'canceled'}
                                         Đã hủy
                                     {:else}
@@ -795,3 +852,10 @@
         </button>
     {/if}
 </Modal>
+
+<!-- Hidden container for printing the bill -->
+{#if orderToPrint}
+    <div class="absolute -left-[9999px] top-0">
+        <Bill order={orderToPrint} />
+    </div>
+{/if}
