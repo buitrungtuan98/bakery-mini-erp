@@ -5,10 +5,13 @@
 	import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, serverTimestamp } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
 
 	interface Asset {
-		id: string; name: string;
+		id: string;
+        code?: string;
+        name: string;
         category: string; // VD: Thiết bị điện, Dụng cụ cầm tay
         status: 'Đang dùng' | 'Thanh lý';
         quantity: { total: number; good: number; broken: number; lost: number; };
@@ -21,7 +24,7 @@
 	let isEditing = false;
 
 	let formData = {
-		id: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0,
+		id: '', code: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0,
         quantity: { total: 1, good: 1, broken: 0, lost: 0 }
 	};
 
@@ -39,7 +42,7 @@
 
 	function openAddModal() {
 		isEditing = false;
-		formData = { id: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0, quantity: { total: 1, good: 1, broken: 0, lost: 0 } };
+		formData = { id: '', code: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0, quantity: { total: 1, good: 1, broken: 0, lost: 0 } };
 		isModalOpen = true;
 	}
 
@@ -56,12 +59,23 @@
         formData.quantity.total = formData.quantity.good + formData.quantity.broken; 
 
 		try {
+            const dataToSave: any = {
+                name: formData.name,
+                category: formData.category,
+                status: formData.status,
+                originalPrice: formData.originalPrice,
+                quantity: formData.quantity
+            };
+
 			if (isEditing) {
-				await updateDoc(doc(db, 'assets', formData.id), formData);
+				await updateDoc(doc(db, 'assets', formData.id), dataToSave);
                 await logAction($authStore.user!, 'UPDATE', 'assets', `Cập nhật tài sản: ${formData.name}`);
 			} else {
-				await addDoc(collection(db, 'assets'), { ...formData, createdAt: serverTimestamp() });
-                await logAction($authStore.user!, 'CREATE', 'assets', `Thêm tài sản mới: ${formData.name}`);
+                const code = await generateNextCode('assets', 'TS');
+                dataToSave.code = code;
+
+				await addDoc(collection(db, 'assets'), { ...dataToSave, createdAt: serverTimestamp() });
+                await logAction($authStore.user!, 'CREATE', 'assets', `Thêm tài sản mới: ${formData.name} (${code})`);
 			}
 			isModalOpen = false;
 		} catch (error) { alert("Lỗi: " + error); }
@@ -94,7 +108,12 @@
                         <div class="flex justify-between items-start mb-2">
                             <div>
                                 <h3 class="font-bold text-slate-800">{item.name}</h3>
-                                <span class="badge badge-sm badge-ghost">{item.category}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="badge badge-sm badge-ghost">{item.category}</span>
+                                    {#if item.code}
+                                        <span class="text-xs font-mono text-slate-400">{item.code}</span>
+                                    {/if}
+                                </div>
                             </div>
                             <span class="font-bold text-primary">{item.originalPrice.toLocaleString()} đ</span>
                         </div>
@@ -125,6 +144,7 @@
             <svelte:fragment slot="desktop">
                 <thead>
                     <tr>
+                        <th>Mã</th>
                         <th>Tên Tài sản</th>
                         <th>Loại</th>
                         <th>Tổng SL</th>
@@ -138,6 +158,7 @@
                 <tbody>
                     {#each assets as item}
                         <tr>
+                            <td class="font-mono text-sm text-slate-500">{item.code || '-'}</td>
                             <td class="font-bold">{item.name}</td>
                             <td>{item.category}</td>
                             <td class="font-bold">{item.quantity.total}</td>
@@ -161,6 +182,19 @@
 <div class="modal" role="dialog">
 	<div class="modal-box">
 		<h3 class="font-bold text-lg mb-4">{isEditing ? 'Cập nhật' : 'Thêm mới'} Tài sản</h3>
+
+        {#if !isEditing}
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Mã Tài sản</span></label>
+                <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+            </div>
+        {:else if formData.code}
+            <div class="form-control mb-3">
+                <label class="label"><span class="label-text">Mã Tài sản</span></label>
+                <input type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+            </div>
+        {/if}
+
 		<div class="form-control w-full mb-3">
 			<label class="label">Tên Tài sản</label>
 			<input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Lò nướng Sanaky" />

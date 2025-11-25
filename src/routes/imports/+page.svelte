@@ -5,6 +5,7 @@
 	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, where, deleteDoc } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger';
+    import { generateNextCode } from '$lib/utils';
     import { Timestamp } from 'firebase/firestore';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -15,6 +16,7 @@
 	interface ImportItem { ingredientId: string; quantity: number; price: number; tempIngredient?: Ingredient; }
     interface ImportReceipt {
         id: string;
+        code?: string;
         supplierName: string;
         totalAmount: number;
         createdAt: { toDate: () => Date }; 
@@ -129,6 +131,9 @@
 		processing = true;
 
 		try {
+            // Generate Code
+            const code = await generateNextCode('imports', 'NK');
+
 			await runTransaction(db, async (transaction) => {
                 const supplierSnapshot = suppliers.find(s => s.id === selectedSupplierId);
                 const ingRefs = validItems.map(item => ({
@@ -156,6 +161,7 @@
 
                 const importRef = doc(collection(db, 'imports'));
                 transaction.set(importRef, {
+                    code: code,
                     supplierId: selectedSupplierId,
                     supplierName: supplierSnapshot?.name || 'N/A',
                     importDate: Timestamp.fromDate(selectedDate),
@@ -171,10 +177,10 @@
                     createdAt: serverTimestamp()
                 });
                 
-                await logAction($authStore.user!, 'TRANSACTION', 'imports', `Tạo phiếu nhập ${importRef.id.substring(0, 8).toUpperCase()}`);
+                await logAction($authStore.user!, 'TRANSACTION', 'imports', `Tạo phiếu nhập ${code}`);
             });
 
-            alert('Nhập kho thành công!');
+            alert(`Nhập kho thành công! Mã: ${code}`);
             selectedSupplierId = '';
             importItems = [];
 
@@ -281,7 +287,12 @@
                             <div class="flex justify-between items-start mb-2">
                                 <div>
                                     <div class="font-bold">{receipt.supplierName}</div>
-                                    <div class="text-xs text-gray-400">{receipt.importDate?.toDate().toLocaleDateString('vi-VN')}</div>
+                                    <div class="flex gap-2 items-center">
+                                        {#if receipt.code}
+                                            <span class="badge badge-xs badge-ghost font-mono">{receipt.code}</span>
+                                        {/if}
+                                        <div class="text-xs text-gray-400">{receipt.importDate?.toDate().toLocaleDateString('vi-VN')}</div>
+                                    </div>
                                 </div>
                                 <div class="font-bold text-success">{receipt.totalAmount.toLocaleString()} đ</div>
                             </div>
