@@ -26,6 +26,12 @@
 			<span>Khách hàng:</span>
 			<span>{order.customerInfo.name}</span>
 		</div>
+        {#if order.shippingAddress}
+        <div class="flex justify-between">
+            <span>Địa chỉ:</span>
+            <span class="text-right max-w-[70%] truncate">{order.shippingAddress}</span>
+        </div>
+        {/if}
 		<div class="flex justify-between">
 			<span>Ngày tạo:</span>
 			<span>{order.createdAt?.toDate().toLocaleString('vi-VN') || 'N/A'}</span>
@@ -44,11 +50,17 @@
 			<span class="flex-1 text-right">Total</span>
 		</div>
 		{#each order.items as item}
+            {@const priceToShow = item.originalBasePrice || item.initialPrice}
 			<div class="flex justify-between mb-1">
 				<div class="flex-[2]">
 					<p>{item.productName}</p>
+                    <!-- Pricing detail -->
 					<p class="text-[10px]">
-						({item.quantity.toLocaleString('vi-VN')} @ {item.unitPrice.toLocaleString('vi-VN')})
+                        ({item.quantity.toLocaleString('vi-VN')} @
+                        {#if item.unitPrice < priceToShow}
+                            <span class="line-through">{priceToShow.toLocaleString('vi-VN')}</span>
+                        {/if}
+                        {item.unitPrice.toLocaleString('vi-VN')})
 					</p>
 				</div>
 				<span class="flex-1 text-center">{item.quantity}</span>

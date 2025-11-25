@@ -10,6 +10,7 @@ export default {
   },
   plugins: [require('daisyui')],
   daisyui: {
+    logs: false, // Disables OKLCH color function
     themes: [
         {
             light: {
