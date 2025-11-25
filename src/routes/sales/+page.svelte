@@ -3,7 +3,7 @@
 	import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
     import { productStore, partnerStore, type Product, type Partner } from '$lib/stores/masterDataStore';
-	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, limit } from 'firebase/firestore';
+	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, limit, Timestamp, where } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
 	import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
@@ -20,11 +20,12 @@
         id: string;
         code?: string;
         createdAt: { toDate: () => Date };
+        deliveryDate?: { toDate: () => Date };
         customerId: string;
         customerInfo: { name: string, type?: 'sỉ'|'lẻ', phone?: string };
         totalRevenue: number;
         totalProfit: number;
-        status: 'completed' | 'canceled';
+        status: 'open' | 'cooking' | 'delivering' | 'delivered' | 'completed' | 'canceled'; // 'completed' is legacy
         shippingAddress: string;
         items: OrderItem[];
     }
@@ -38,7 +39,7 @@
 	let errorMsg = '';
     
     // UI State
-    let activeTab: 'create' | 'history' = 'create';
+    let activeTab: 'create' | 'history' | 'plan' = 'create';
 
     // UI State for Mobile
     let isProductModalOpen = false;
@@ -53,6 +54,12 @@
     let historyLimit = 10;
     let unsubscribeOrders: () => void;
 
+    // Daily Plan State
+    let planDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10); // Default Tomorrow
+    let dailyPlanItems: { productId: string; name: string; ordered: number; stock: number; missing: number }[] = [];
+    let planStatusFilter: string = 'all_active'; // 'all_active', 'open', 'cooking', 'delivering'
+    let unsubscribePlan: () => void;
+
 	// Dữ liệu Phiếu bán hàng
 	let selectedCustomerId = '';
 	let customer: Partner | undefined;
@@ -60,6 +67,10 @@
 	let shippingFee = 0;
 	let shippingAddress = '';
     let shippingPhone = '';
+    let selectedStatus: 'open' | 'cooking' | 'delivering' | 'delivered' = 'open';
+
+    // Delivery Date Logic
+    let deliveryDateInput = new Date().toISOString().slice(0, 16); // Default to now for input
 
     // --- Data Binding ---
     $: products = $productStore;
@@ -138,8 +149,109 @@
 		fetchHistory(historyLimit);
 	}
     
+    // Watch Plan Date or Active Tab to fetch plan
+    $: if (activeTab === 'plan' && planDate && planStatusFilter && $authStore.user) {
+        fetchDailyPlan(planDate, planStatusFilter);
+    }
+
+    function fetchDailyPlan(dateStr: string, statusFilter: string) {
+        if (unsubscribePlan) unsubscribePlan();
+
+        const start = new Date(dateStr);
+        start.setHours(0,0,0,0);
+        const end = new Date(dateStr);
+        end.setHours(23,59,59,999);
+
+        const q = query(
+            collection(db, 'orders'),
+            where('deliveryDate', '>=', Timestamp.fromDate(start)),
+            where('deliveryDate', '<=', Timestamp.fromDate(end))
+        );
+
+        unsubscribePlan = onSnapshot(q, (snapshot) => {
+            const tempMap = new Map<string, number>();
+
+            snapshot.docs.forEach(doc => {
+                const data = doc.data() as Order;
+                if (data.status === 'canceled') return;
+
+                // Filter Logic
+                if (statusFilter === 'all_active') {
+                    // Include everything except canceled (and maybe completed/delivered if we want only pending?)
+                    // Usually plan includes everything scheduled for that day.
+                } else if (data.status !== statusFilter) {
+                    return;
+                }
+
+                data.items.forEach(item => {
+                    const curr = tempMap.get(item.productId) || 0;
+                    tempMap.set(item.productId, curr + item.quantity);
+                });
+            });
+
+            // Convert to array and join with current stock
+            const result = [];
+            for (const [pid, qty] of tempMap.entries()) {
+                const prod = products.find(p => p.id === pid);
+                const stock = prod?.currentStock || 0;
+                // Definition of Missing: If we have negative stock, that debt is already there.
+                // But the user asked: "Show how many missing stock of each product have to production".
+                // If Stock is 10, Needed 5 -> Missing 0.
+                // If Stock is -5, Needed 5 -> Missing 5 (for this order) + 5 (old debt)?
+                // Let's stick to "Net Missing" = Max(0, Ordered - Stock) ?
+                // No, "Stock" is a live variable.
+                // If I have 10 orders for tomorrow. And Current Stock is 100. I need to make 0.
+                // If I have 10 orders for tomorrow. And Current Stock is -10. I need to make 20? (10 for tomorrow + 10 backfill).
+                // Or just show the raw numbers?
+                // I will show: Ordered (Demand) | Stock (Available) | Diff (Stock - Ordered).
+                // If Diff < 0, that is the shortage.
+
+                // However, "Stock" in Firestore *already includes* the deduction from these orders if they were created!
+                // Wait. When I create an order for tomorrow, `handleSale` immediately deducts stock.
+                // So `currentStock` ALREADY reflects the demand.
+                // Example: Start Stock = 100.
+                // Create Order for Tomorrow: Qty 10.
+                // New Stock = 90.
+                // Plan View: Ordered = 10. Stock = 90.
+                // Do I need to produce? No. Stock is positive.
+
+                // Example 2: Start Stock = 5.
+                // Create Order for Tomorrow: Qty 10.
+                // New Stock = -5.
+                // Plan View: Ordered = 10. Stock = -5.
+                // Missing = 5? No, missing is 5.
+                // Actually, if stock is -5, it means I am short 5 total.
+                // Is it just for tomorrow?
+                // If I have another order for *Today* that caused -5. And tomorrow needs 0.
+                // Plan View Tomorrow: Ordered = 0. Stock = -5.
+                // Do I need to produce for *Tomorrow*? No.
+
+                // So the "Production Plan" is usually: "How much do I need to bake to fulfill these orders?"
+                // It's `Ordered Qty`.
+                // The "Stock Warning" is separate.
+
+                // Let's display: Name | Ordered (Qty) | Stock (Live)
+                // And highlight if Stock is negative.
+
+                result.push({
+                    productId: pid,
+                    name: prod?.name || 'Unknown',
+                    ordered: qty,
+                    stock: stock,
+                    missing: stock < 0 ? Math.abs(stock) : 0 // Just purely stock status
+                });
+            }
+            // Add items that have negative stock but NO orders for tomorrow?
+            // The user asked "Show how many missing stock... due to stock missing and filtered calculation by date".
+            // If I filter by date, I probably only care about items involved in that date.
+
+            dailyPlanItems = result.sort((a,b) => a.name.localeCompare(b.name));
+        });
+    }
+
     onDestroy(() => {
         if (unsubscribeOrders) unsubscribeOrders();
+        if (unsubscribePlan) unsubscribePlan();
     });
 
 	// --- Mobile UI Handlers ---
@@ -239,6 +351,21 @@
         }
     }
 
+    async function updateStatus(order: Order, newStatus: 'open'|'cooking'|'delivering'|'delivered') {
+        if (!confirm(`Cập nhật trạng thái đơn hàng ${order.code} thành '${newStatus}'?`)) return;
+
+        try {
+            await runTransaction(db, async (transaction) => {
+                const orderRef = doc(db, 'orders', order.id);
+                transaction.update(orderRef, { status: newStatus });
+            });
+            await logAction($authStore.user!, 'UPDATE', 'orders', `Cập nhật trạng thái ${order.code} -> ${newStatus}`);
+        } catch (e: any) {
+            console.error(e);
+            alert("Lỗi: " + e.message);
+        }
+    }
+
 	// --- Submit Logic (BÁN HÀNG) ---
 	async function handleSale() {
 		errorMsg = '';
@@ -249,7 +376,7 @@
 		processing = true;
 
 		try {
-            // Generate Code first (outside transaction, acceptable risk for small team)
+            // Generate Code first
             const code = await generateNextCode('orders', 'DH');
 
 			await runTransaction(db, async (transaction) => {
@@ -264,16 +391,16 @@
 					const currentStock = Number(snap.data()?.currentStock || 0);
 					const newStock = currentStock - item.quantity;
 
-					if (newStock < 0) {
-						const prodName = products.find(p => p.id === item.productId)?.name;
-						throw new Error(`Lỗi: Tồn kho (${prodName}) không đủ!`);
-					}
+                    // NEGATIVE STOCK ALLOWED: Removed check < 0
 					transaction.update(productRef, { currentStock: newStock });
 				});
 
 				const orderRef = doc(collection(db, 'orders'));
 				const customerSnapshot = customers.find(c => c.id === selectedCustomerId);
 				
+                // Parse delivery date
+                const deliveryTimestamp = deliveryDateInput ? Timestamp.fromDate(new Date(deliveryDateInput)) : serverTimestamp();
+
 				transaction.set(orderRef, {
                     code: code,
 					customerId: selectedCustomerId,
@@ -283,7 +410,8 @@
 						phone: shippingPhone
 					},
 					shippingAddress: shippingAddress,
-					status: 'completed',
+					status: selectedStatus, // Dynamic Status
+                    deliveryDate: deliveryTimestamp,
 					items: validItems.map(i => ({
 						productId: i.productId,
 						productName: products.find(p => p.id === i.productId)?.name,
@@ -310,6 +438,8 @@
 			shippingAddress = '';
             shippingPhone = '';
             customer = undefined;
+            selectedStatus = 'open'; // Reset default
+            deliveryDateInput = new Date().toISOString().slice(0, 16);
 
 		} catch (error: any) {
 			console.error(error);
@@ -327,6 +457,7 @@
     <!-- TABS -->
     <div role="tablist" class="tabs tabs-boxed mx-2 mb-4 bg-base-200">
         <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Tạo Đơn</a>
+        <a role="tab" class="tab {activeTab === 'plan' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'plan'}>Kế hoạch</a>
         <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
@@ -356,9 +487,28 @@
             </div>
         </div>
 
+        <!-- Delivery Info & Status -->
+        <div class="grid grid-cols-2 gap-2 mx-2 mb-4">
+             <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs">Ngày giao</span></label>
+                <input type="datetime-local" bind:value={deliveryDateInput} class="input input-sm input-bordered w-full" />
+            </div>
+            <div class="form-control">
+                <label class="label py-0"><span class="label-text text-xs">Trạng thái</span></label>
+                <select bind:value={selectedStatus} class="select select-sm select-bordered w-full">
+                    <option value="open">Mới (Open)</option>
+                    <option value="cooking">Đang làm</option>
+                    <option value="delivering">Đang giao</option>
+                    <option value="delivered">Đã giao</option>
+                </select>
+            </div>
+        </div>
+
         <!-- 2. Cart Items List (Simplified) -->
         <div class="flex flex-col mx-2 bg-white rounded-xl border border-slate-100 overflow-hidden">
             {#each orderItems as item, i}
+                {@const prodStock = products.find(p => p.id === item.productId)?.currentStock || 0}
+                {@const isMissing = item.quantity > prodStock}
                 <div
                     class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50"
                     on:click={() => openEditItem(i)}
@@ -368,6 +518,11 @@
                         <div class="text-xs text-slate-400 mt-1">
                             <span class="font-bold text-slate-600">{item.quantity}</span> x {item.unitPrice.toLocaleString()}
                         </div>
+                        {#if isMissing}
+                            <div class="text-[10px] text-red-500 font-bold mt-1">
+                                ⚠️ Thiếu: {item.quantity - prodStock} (Kho: {prodStock})
+                            </div>
+                        {/if}
                     </div>
                     <div class="text-right">
                         <div class="font-bold text-slate-800 text-sm">{item.lineTotal.toLocaleString()} đ</div>
@@ -411,6 +566,63 @@
         </div>
     {/if} <!-- End Create Tab -->
 
+    {#if activeTab === 'plan'}
+        <div class="px-2">
+            <div class="flex flex-col gap-2 mb-4">
+                 <h3 class="font-bold text-slate-700">Kế hoạch sản xuất</h3>
+                 <div class="flex gap-2">
+                     <input type="date" bind:value={planDate} class="input input-sm input-bordered flex-1" />
+                     <select bind:value={planStatusFilter} class="select select-sm select-bordered flex-1">
+                         <option value="all_active">Tất cả (Trừ hủy)</option>
+                         <option value="open">Mới (Open)</option>
+                         <option value="cooking">Đang làm</option>
+                         <option value="delivering">Đang giao</option>
+                         <option value="delivered">Đã giao</option>
+                     </select>
+                 </div>
+            </div>
+
+            <div class="overflow-x-auto bg-white rounded-lg shadow border border-slate-100">
+                <table class="table table-sm w-full">
+                    <thead>
+                        <tr class="bg-slate-50">
+                            <th>Sản phẩm</th>
+                            <th class="text-center">Đã đặt</th>
+                            <th class="text-center">Tồn kho</th>
+                            <th class="text-center">Cần làm</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {#each dailyPlanItems as item}
+                            <tr>
+                                <td class="font-medium text-xs">{item.name}</td>
+                                <td class="text-center font-bold text-primary">{item.ordered}</td>
+                                <td class="text-center {item.stock < 0 ? 'text-red-500 font-bold' : 'text-slate-500'}">
+                                    {item.stock}
+                                </td>
+                                <td class="text-center">
+                                    {#if item.stock < 0}
+                                        <span class="badge badge-error badge-sm text-white">{Math.abs(item.stock)}</span>
+                                    {:else}
+                                        <span class="text-slate-300">-</span>
+                                    {/if}
+                                </td>
+                            </tr>
+                        {/each}
+                        {#if dailyPlanItems.length === 0}
+                            <tr>
+                                <td colspan="4" class="text-center text-slate-400 py-4 italic">Không có đơn hàng cho ngày này</td>
+                            </tr>
+                        {/if}
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-4 text-xs text-slate-400 italic">
+                * Cột "Cần làm" hiển thị số lượng thiếu hụt trong kho (nếu kho bị âm).
+            </div>
+        </div>
+    {/if}
+
     {#if activeTab === 'history'}
         <!-- History Section (Bottom with Pagination) -->
         <div class="mt-4 px-2 pb-10">
@@ -425,31 +637,62 @@
 
             <div class="space-y-2">
                 {#each ordersHistory as order}
-                    <div class="flex justify-between items-center p-3 bg-white rounded border border-slate-100 shadow-sm {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
-                        <div class="flex flex-col">
+                    <div class="flex flex-col p-3 bg-white rounded border border-slate-100 shadow-sm {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                        <div class="flex justify-between items-start mb-2">
                             <div class="flex items-center gap-2">
                                 <span class="font-bold text-xs text-slate-800">{order.customerInfo.name}</span>
                                 {#if order.code}
                                     <span class="badge badge-xs badge-ghost font-mono">{order.code}</span>
                                 {/if}
                             </div>
-                            <span class="text-[10px] text-slate-400">
-                                {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString('vi-VN') : ''}
-                            </span>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-bold text-sm text-primary">{order.totalRevenue.toLocaleString()}</div>
-                            <div class="text-[10px] uppercase font-bold {order.status === 'canceled' ? 'text-red-500' : 'text-emerald-500'}">
-                                {order.status === 'canceled' ? 'Đã Hủy' : 'Thành công'}
+                            <div class="text-right">
+                                <div class="font-bold text-sm text-primary">{order.totalRevenue.toLocaleString()}</div>
                             </div>
                         </div>
-                         <button class="btn btn-xs btn-ghost text-error" on:click={() => handleCancelOrder(order)}>
-                            {#if order.status === 'canceled'}
-                                Đã hủy
-                            {:else}
-                                Hủy
-                            {/if}
-                        </button>
+
+                        <div class="flex justify-between items-end">
+                            <div class="flex flex-col gap-1">
+                                <span class="text-[10px] text-slate-400 flex items-center gap-1">
+                                    📅 Giao:
+                                    <span class="font-bold text-slate-600">
+                                        {order.deliveryDate?.toDate ? order.deliveryDate.toDate().toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
+                                    </span>
+                                </span>
+
+                                <!-- Status Badge -->
+                                <span class="badge badge-sm
+                                    {order.status === 'open' ? 'badge-info' :
+                                     order.status === 'cooking' ? 'badge-warning' :
+                                     order.status === 'delivering' ? 'badge-primary' :
+                                     order.status === 'delivered' || order.status === 'completed' ? 'badge-success' : 'badge-ghost'}">
+                                    {order.status === 'open' ? 'Mới' :
+                                     order.status === 'cooking' ? 'Đang làm' :
+                                     order.status === 'delivering' ? 'Đang giao' :
+                                     order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
+                                </span>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <!-- Status Update Actions (Quick) -->
+                                {#if order.status !== 'canceled' && order.status !== 'delivered' && order.status !== 'completed'}
+                                    {#if order.status === 'open'}
+                                        <button class="btn btn-xs btn-outline btn-warning" on:click={() => updateStatus(order, 'cooking')}>Bếp</button>
+                                    {:else if order.status === 'cooking'}
+                                        <button class="btn btn-xs btn-outline btn-primary" on:click={() => updateStatus(order, 'delivering')}>Giao</button>
+                                    {:else if order.status === 'delivering'}
+                                        <button class="btn btn-xs btn-outline btn-success" on:click={() => updateStatus(order, 'delivered')}>Xong</button>
+                                    {/if}
+                                {/if}
+
+                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleCancelOrder(order)}>
+                                    {#if order.status === 'canceled'}
+                                        Đã hủy
+                                    {:else}
+                                        Hủy
+                                    {/if}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 {/each}
             </div>
