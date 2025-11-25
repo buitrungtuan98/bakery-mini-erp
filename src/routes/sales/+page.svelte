@@ -10,7 +10,7 @@
     import Modal from '$lib/components/ui/Modal.svelte';
     import Bill from '$lib/components/ui/Bill.svelte';
     import jsPDF from 'jspdf';
-    import html2canvas from 'html2canvas';
+    import html2canvas from 'html2canvas-pro';
     import type { Order } from '$lib/types/order';
     import { tick } from 'svelte';
 
