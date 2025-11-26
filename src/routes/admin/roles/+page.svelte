@@ -91,14 +91,15 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto pb-20">
-    <PageHeader
-        title="Cấu hình Phân quyền (Roles)"
-        showAction={true}
-        actionLabel={processing ? 'Đang lưu...' : 'Lưu'}
-        onAction={saveRoles}
-    >
-        <Save class="h-4 w-4" />
+<div class="max-w-7xl mx-auto">
+    <PageHeader>
+        <div slot="title">Cấu hình Phân quyền</div>
+        <div slot="actions">
+            <button class="btn btn-primary btn-sm" on:click={saveRoles} disabled={processing}>
+                <Save class="h-4 w-4 mr-2" />
+                {processing ? 'Đang lưu...' : 'Lưu'}
+            </button>
+        </div>
     </PageHeader>
 
     {#if loading}

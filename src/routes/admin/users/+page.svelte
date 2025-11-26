@@ -6,6 +6,7 @@
     import { onMount } from 'svelte';
     import { logAction } from '$lib/logger';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Settings, Send, Trash2 } from 'lucide-svelte';
 
@@ -141,14 +142,16 @@
     }
 </script>
 
-<div class="max-w-6xl mx-auto pb-20">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold">Quản trị Người dùng</h1>
-        <a href="/admin/roles" class="btn btn-outline btn-sm gap-2">
-            <Settings class="h-4 w-4" />
-            Phân quyền
-        </a>
-    </div>
+<div class="max-w-6xl mx-auto">
+    <PageHeader>
+        <div slot="title">Quản trị Người dùng</div>
+        <div slot="actions">
+            <a href="/admin/roles" class="btn btn-outline btn-sm gap-2">
+                <Settings class="h-4 w-4" />
+                Phân quyền
+            </a>
+        </div>
+    </PageHeader>
 
     {#if !$userPermissions.has('view_users')}
         <div class="alert alert-error shadow-lg">

@@ -9,6 +9,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Save, Trash2 } from 'lucide-svelte';
 
@@ -284,13 +285,15 @@
 	}
 </script>
 
-<div class="max-w-4xl mx-auto pb-24">
-    <h1 class="text-2xl font-bold text-primary mb-4 px-2">Sản xuất (Production)</h1>
+<div class="max-w-4xl mx-auto">
+    <PageHeader>
+        <div slot="title">Sản xuất</div>
+    </PageHeader>
 
     <!-- TABS -->
     <div role="tablist" class="tabs tabs-boxed mx-2 mb-4 bg-base-200">
-        <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Lệnh Sản xuất</a>
-        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
+        <a role="tab" class="tab {activeTab === 'create' ? 'tab-active' : ''}" on:click={() => activeTab = 'create'}>Lệnh Sản xuất</a>
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
     {#if activeTab === 'create'}

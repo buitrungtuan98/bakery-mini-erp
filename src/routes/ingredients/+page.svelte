@@ -142,29 +142,26 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <PageHeader
-        title="Danh sách Nguyên liệu"
-        actionLabel="Thêm Nguyên liệu"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('edit_inventory')}
-    >
-        <Plus class="h-4 w-4" />
+    <PageHeader>
+        <div slot="title">Nguyên liệu</div>
+        <div slot="actions">
+            {#if $permissionStore.userPermissions.has('edit_inventory')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <Plus class="h-4 w-4 mr-1" />
+                    Thêm mới
+                </button>
+            {/if}
+        </div>
     </PageHeader>
     
-    <div class="bg-white rounded-lg p-4 mb-6 shadow-sm border border-slate-200">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div class="form-control md:col-span-2">
-                <label class="label"><span class="label-text font-medium">Tìm kiếm</span></label>
-                <input type="text" bind:value={searchTerm} class="input input-bordered w-full input-sm" placeholder="Mã, tên, nhà SX..." />
-            </div>
-            <div class="form-control">
-                <label class="label"><span class="label-text font-medium">Ngày tạo (Từ)</span></label>
-                <input type="date" bind:value={startDate} class="input input-bordered w-full input-sm" />
-            </div>
-            <div class="form-control">
-                <label class="label"><span class="label-text font-medium">Ngày tạo (Đến)</span></label>
-                <input type="date" bind:value={endDate} class="input input-bordered w-full input-sm" />
-            </div>
+    <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+        <div class="form-control md:col-span-2">
+            <label class="label py-1"><span class="label-text text-xs">Tìm kiếm</span></label>
+            <input type="text" bind:value={searchTerm} class="input input-bordered w-full input-sm" placeholder="Mã, tên, nhà SX..." />
+        </div>
+        <div class="form-control">
+            <label class="label py-1"><span class="label-text text-xs">Ngày tạo</span></label>
+            <input type="date" bind:value={startDate} class="input input-bordered w-full input-sm" />
         </div>
     </div>
 
@@ -174,35 +171,42 @@
         <ResponsiveTable>
              <svelte:fragment slot="mobile">
                  {#each paginatedIngredients as item}
-                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col gap-2">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <h3 class="font-bold text-slate-800">{item.name}</h3>
-                                <p class="text-xs text-slate-500">Mã: {item.code}</p>
-                            </div>
-                            <span class="badge badge-sm badge-ghost">{item.baseUnit}</span>
-                        </div>
-                        <div class="text-sm text-slate-600">
-                            NSX: {item.manufacturerName || 'N/A'}
-                        </div>
-                        <div class="flex justify-between items-end mt-2">
-                             <div class="flex flex-col">
-                                 <span class="text-xs text-slate-400">Tồn kho</span>
-                                 <span class="font-mono font-bold {item.currentStock < item.minStock ? 'text-red-500' : 'text-slate-700'}">
-                                     {item.currentStock?.toLocaleString() || 0}
-                                 </span>
-                             </div>
-                             {#if $permissionStore.userPermissions.has('view_finance')}
-                                <div class="flex flex-col text-right">
-                                    <span class="text-xs text-slate-400">Giá vốn</span>
-                                    <span class="font-mono text-emerald-600">{item.avgCost?.toLocaleString() || 0} đ</span>
+                    <div class="card bg-base-100 shadow-sm border border-base-200">
+                        <div class="card-body p-4">
+                            <!-- Header -->
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h2 class="card-title text-base">{item.name}</h2>
+                                    <p class="text-xs text-base-content/60 font-mono">{item.code}</p>
                                 </div>
-                             {/if}
-                        </div>
-                        <div class="divider my-1"></div>
-                        <div class="flex justify-end gap-2">
-                            <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                            <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                <div class="badge badge-ghost badge-sm">{item.baseUnit}</div>
+                            </div>
+
+                            <div class="divider my-1"></div>
+
+                            <!-- Body -->
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                <div class="text-base-content/60">Tồn kho</div>
+                                <div class="font-mono font-medium text-right {item.currentStock < item.minStock ? 'text-error' : ''}">
+                                    {item.currentStock?.toLocaleString() || 0}
+                                </div>
+
+                                {#if $permissionStore.userPermissions.has('view_finance')}
+                                    <div class="text-base-content/60">Giá vốn</div>
+                                    <div class="font-mono text-right">{item.avgCost?.toLocaleString() || 0} đ</div>
+                                {/if}
+
+                                <div class="text-base-content/60">Nhà SX</div>
+                                <div class="text-right truncate">{item.manufacturerName || 'N/A'}</div>
+                            </div>
+
+                            <div class="divider my-1"></div>
+
+                            <!-- Footer Actions -->
+                            <div class="card-actions justify-end">
+                                <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                            </div>
                         </div>
                     </div>
                  {/each}
@@ -210,11 +214,11 @@
 
              <svelte:fragment slot="desktop">
                 <thead>
-                    <tr class="bg-slate-50 text-slate-600">
+                    <tr>
                         <th>Mã NVL</th>
                         <th>Tên Nguyên liệu</th>
                         <th>Nhà Sản xuất</th>
-                        <th>Đơn vị</th>
+                        <th class="text-center">Đơn vị</th>
                         <th class="text-right">Tồn kho</th>
                         {#if $permissionStore.userPermissions.has('view_finance')}
                             <th class="text-right">Giá vốn TB</th>
@@ -225,33 +229,33 @@
                 </thead>
                 <tbody>
                     {#if paginatedIngredients.length === 0}
-                        <tr><td colspan="8" class="text-center text-gray-500 py-4">Không tìm thấy dữ liệu.</td></tr>
+                        <tr><td colspan="8" class="text-center text-base-content/40 py-4">Không tìm thấy dữ liệu.</td></tr>
                     {:else}
                         {#each paginatedIngredients as item}
                             <tr class="hover">
-                                <td class="font-bold text-slate-700">{item.code}</td>
+                                <td class="font-mono text-sm">{item.code}</td>
                                 <td>
                                     <div class="font-medium">{item.name}</div>
                                     {#if item.currentStock < item.minStock}
                                         <span class="badge badge-error badge-xs text-white mt-1">Sắp hết</span>
                                     {/if}
                                 </td>
-                                <td class="text-sm">{item.manufacturerName}</td>
-                                <td><span class="badge badge-ghost badge-sm">{item.baseUnit}</span></td>
+                                <td>{item.manufacturerName}</td>
+                                <td class="text-center"><span class="badge badge-ghost badge-sm">{item.baseUnit}</span></td>
 
-                                <td class="text-right font-mono {item.currentStock < item.minStock ? 'text-red-600 font-bold' : ''}">
+                                <td class="text-right font-mono {item.currentStock < item.minStock ? 'text-error font-bold' : ''}">
                                     {item.currentStock?.toLocaleString() || '0'}
                                 </td>
 
                                 {#if $permissionStore.userPermissions.has('view_finance')}
-                                    <td class="text-right font-mono text-emerald-600">
+                                    <td class="text-right font-mono text-primary">
                                         {item.avgCost?.toLocaleString() || '0'} đ
                                     </td>
                                 {/if}
-                                <td class="text-xs text-gray-500">{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}</td>
+                                <td class="text-xs text-base-content/60">{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}</td>
                                 <td class="text-center">
-                                    <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                    <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                    <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                    <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                                 </td>
                             </tr>
                         {/each}

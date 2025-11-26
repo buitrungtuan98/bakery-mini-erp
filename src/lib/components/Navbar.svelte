@@ -18,57 +18,19 @@
 	}
 </script>
 
-<div class="navbar bg-white/95 backdrop-blur-sm shadow-sm sticky top-0 z-40 py-0 min-h-12">
-	<div class="navbar-start w-full lg:w-1/2 justify-between lg:justify-start">
-
-        <!-- Mobile: Drawer / Menu Trigger (Keep for accessing less used items) -->
-		<div class="dropdown lg:hidden">
-			<div role="button" tabindex="0" class="btn btn-ghost btn-sm">
-				<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16" /></svg>
-			</div>
-			<ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-				<li><a href="/" class="{activeRoute === '/' ? 'active' : ''}">Dashboard</a></li>
-
-                <li class="menu-title">Quản lý</li>
-                {#if canManage}
-                    <li><a href="/ingredients" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''}">Nguyên liệu</a></li>
-                    <li><a href="/imports" class="{activeRoute.startsWith('/imports') ? 'active' : ''}">Nhập hàng</a></li>
-                {/if}
-
-                {#if canSell}
-                    <li><a href="/partners" class="{activeRoute.startsWith('/partners') ? 'active' : ''}">Đối tác</a></li>
-                {/if}
-
-                {#if canManage || canSell}
-                    <li><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''}">Báo cáo</a></li>
-                {/if}
-
-                {#if isAdmin}
-                     <li class="menu-title">Admin</li>
-                     <li><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} text-secondary">Quản lý User</a></li>
-                     <li><a href="/admin/roles" class="{activeRoute.startsWith('/admin/roles') ? 'active' : ''} text-secondary">Phân quyền</a></li>
-                     <li><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''}">Lịch sử HT</a></li>
-                {/if}
-			</ul>
-		</div>
-
+<!--
+    REFACTOR NOTES:
+    - This Navbar is now ONLY for Desktop.
+    - Removed all mobile-specific logic (hamburger menu, mobile avatar).
+    - Simplified styling to be cleaner (no blur, no heavy shadow).
+    - The entire component is hidden on mobile (`hidden lg:flex`).
+-->
+<div class="navbar bg-base-100 border-b border-base-200 sticky top-0 z-40 py-0 min-h-12 hidden lg:flex">
+	<div class="navbar-start">
 		<a href="/" class="btn btn-ghost normal-case text-lg text-primary font-bold">Bánh Mì Boss</a>
-
-        <!-- Mobile: Profile Avatar (Right aligned on mobile) -->
-         <div class="dropdown dropdown-end lg:hidden">
-            <div role="button" tabindex="0" class="btn btn-ghost btn-circle avatar btn-sm">
-                <div class="w-8 rounded-full">
-                    <img src={$authStore.user?.photoURL || "https://ui-avatars.com/api/?name=User"} alt="avatar" />
-                </div>
-            </div>
-            <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-                <li class="menu-title">{$authStore.user?.email}</li>
-                <li><button on:click={handleLogout}>Đăng xuất</button></li>
-            </ul>
-        </div>
 	</div>
 	
-	<div class="navbar-center hidden lg:flex">
+	<div class="navbar-center">
 		<ul class="menu menu-horizontal px-0 text-sm"> 
 			<li class="relative"><a href="/" class="{activeRoute === '/' ? 'active' : ''} py-1">Dashboard</a></li>
 
