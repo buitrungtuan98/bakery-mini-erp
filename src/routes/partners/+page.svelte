@@ -99,13 +99,16 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <PageHeader
-        title="Quản lý Đối tác"
-        actionLabel="Thêm Đối tác"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('manage_partners')}
-    >
-        <Plus class="h-4 w-4" />
+    <PageHeader>
+        <div slot="title">Đối tác</div>
+        <div slot="actions">
+            {#if $permissionStore.userPermissions.has('manage_partners')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <Plus class="h-4 w-4 mr-1" />
+                    Thêm mới
+                </button>
+            {/if}
+        </div>
     </PageHeader>
 
     <div class="mb-6">

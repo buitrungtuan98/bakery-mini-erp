@@ -8,6 +8,8 @@
 	import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import { Plus } from 'lucide-svelte';
     import Bill from '$lib/components/ui/Bill.svelte';
     import jsPDF from 'jspdf';
     import html2canvas from 'html2canvas-pro';
@@ -461,6 +463,18 @@
     let orderToPrint: Order | null = null;
     let isPrinting = false;
 
+    function resetOrderForm() {
+        selectedCustomerId = '';
+        orderItems = [];
+        shippingFee = 0;
+        shippingAddress = '';
+        shippingPhone = '';
+        customer = undefined;
+        selectedStatus = 'open';
+        deliveryDateInput = new Date().toISOString().slice(0, 16);
+        activeTab = 'create';
+    }
+
     async function handlePrint(order: Order) {
         if (isPrinting) return;
         orderToPrint = order;
@@ -509,14 +523,24 @@
     }
 </script>
 
-<div class="pb-32"> <!-- Padding for Footer -->
-    <h1 class="text-xl font-bold text-primary mb-2 px-2">Bán hàng (POS)</h1>
+<div>
+    <PageHeader>
+        <div slot="title">Bán hàng (POS)</div>
+        <div slot="actions">
+             {#if activeTab === 'create'}
+                <button class="btn btn-primary btn-sm" on:click={openProductSelector}>
+                    <Plus class="h-4 w-4 mr-1" />
+                    Thêm món
+                </button>
+             {/if}
+        </div>
+    </PageHeader>
 
     <!-- TABS -->
     <div role="tablist" class="tabs tabs-boxed mx-2 mb-4 bg-base-200">
-        <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Tạo Đơn</a>
-        <a role="tab" class="tab {activeTab === 'plan' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'plan'}>Kế hoạch</a>
-        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
+        <a role="tab" class="tab {activeTab === 'create' ? 'tab-active' : ''}" on:click={() => activeTab = 'create'}>Tạo Đơn</a>
+        <a role="tab" class="tab {activeTab === 'plan' ? 'tab-active' : ''}" on:click={() => activeTab = 'plan'}>Kế hoạch</a>
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
     {#if activeTab === 'create'}
@@ -598,19 +622,14 @@
             {/if}
         </div>
 
-        <!-- 3. Add Item Button (FAB) -->
-        <button
-        class="btn btn-circle btn-primary btn-lg fixed bottom-44 right-4 shadow-xl z-30"
-            on:click={openProductSelector}
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-        </button>
+        <!-- 3. Add Item Button is now in the PageHeader -->
 
         <!-- 4. Sticky Footer Checkout -->
-        <div class="fixed bottom-[60px] left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
+        <!-- REFACTOR: Changed bottom-[60px] to bottom-[var(--btm-nav-height)] to respect BottomNav -->
+        <div class="fixed bottom-[var(--btm-nav-height)] left-0 right-0 bg-base-100 border-t border-base-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
             <div class="max-w-7xl mx-auto flex justify-between items-center">
                 <div class="flex flex-col">
-                    <span class="text-xs text-slate-500">Tổng tiền ({orderItems.length} món)</span>
+                    <span class="text-xs text-base-content/60">Tổng tiền ({orderItems.length} món)</span>
                     <span class="text-xl font-bold text-primary">{totalRevenue.toLocaleString()} đ</span>
                 </div>
                 <button

@@ -167,11 +167,18 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto pb-24">
-    <PageHeader
-        title="Quản lý Sản phẩm & Công thức"
-        showAction={false}
-    />
+<div class="max-w-7xl mx-auto">
+    <PageHeader>
+        <div slot="title">Sản phẩm & Công thức</div>
+        <div slot="actions">
+            {#if $permissionStore.userPermissions.has('edit_inventory')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <Plus class="h-4 w-4 mr-1" />
+                    Thêm mới
+                </button>
+            {/if}
+        </div>
+    </PageHeader>
 
     {#if products.length === 0}
         <Loading />
@@ -318,14 +325,6 @@
         {/if}
     {/if}
 
-    {#if $permissionStore.userPermissions.has('edit_inventory')}
-        <button
-            class="btn btn-circle btn-primary btn-lg fixed bottom-24 right-6 shadow-xl z-50"
-            on:click={openAddModal}
-        >
-            <Plus class="h-8 w-8" />
-        </button>
-    {/if}
 </div>
 
 <!-- Modal: View Recipe (Mobile Friendly) -->
