@@ -199,27 +199,27 @@
                         {#each filteredPartners as item}
                             <tr class="hover group">
                                 <td class="font-mono text-sm">{item.code || '-'}</td>
+                                <td class="font-medium">{item.name}</td>
+                                <td class="text-center">
+                                    {#if item.type === 'supplier'}
+                                        <span class="badge badge-warning badge-sm">NCC</span>
+                                    {:else if item.type === 'manufacturer'}
+                                        <span class="badge badge-neutral badge-sm">Nhà SX</span>
+                                    {:else}
+                                        <span class="badge badge-info badge-sm">Khách {item.customerType || 'lẻ'}</span>
+                                    {/if}
+                                </td>
+                                <td class="font-mono text-sm">{item.phone || '-'}</td>
+                                <td class="text-sm truncate max-w-xs">{item.address || '-'}</td>
+                                <td class="text-center">
+                                    <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                        <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        {/each}
                     {/if}
-                            <td class="font-medium">{item.name}</td>
-                            <td class="text-center">
-                                {#if item.type === 'supplier'}
-                                    <span class="badge badge-warning badge-sm">NCC</span>
-                                {:else if item.type === 'manufacturer'}
-                                    <span class="badge badge-neutral badge-sm">Nhà SX</span>
-                                {:else}
-                                    <span class="badge badge-info badge-sm">Khách {item.customerType || 'lẻ'}</span>
-                                {/if}
-                            </td>
-                            <td class="font-mono text-sm">{item.phone || '-'}</td>
-                            <td class="text-sm truncate max-w-xs">{item.address || '-'}</td>
-                            <td class="text-center">
-                                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                    <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
-                                </div>
-                            </td>
-                        </tr>
-                    {/each}
                 </tbody>
              </svelte:fragment>
         </ResponsiveTable>

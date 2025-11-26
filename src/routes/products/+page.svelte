@@ -276,7 +276,6 @@
                         {#each paginatedProducts as item}
                             <tr class="hover cursor-pointer group" on:click={() => toggleRecipeDetail(item.id)}>
                                 <td>
-                    {/if}
                                 <button class="btn btn-xs btn-ghost btn-circle">
                                     <ChevronRight class="h-4 w-4 transform transition-transform {openRecipeId === item.id ? 'rotate-90' : ''}" />
                                 </button>
@@ -339,6 +338,7 @@
                             </tr>
                         {/if}
                     {/each}
+                    {/if}
                 </tbody>
              </svelte:fragment>
         </ResponsiveTable>
