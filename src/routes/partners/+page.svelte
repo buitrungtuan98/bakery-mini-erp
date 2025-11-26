@@ -111,8 +111,11 @@
         </div>
     </PageHeader>
 
-    <div class="mb-6">
-        <input type="text" bind:value={searchTerm} class="input input-bordered w-full max-w-md" placeholder="Tìm kiếm tên, số điện thoại..." />
+    <div class="mb-4">
+        <div class="form-control w-full max-w-sm">
+            <label class="label py-1"><span class="label-text text-xs">Tìm kiếm</span></label>
+            <input type="text" bind:value={searchTerm} class="input input-bordered w-full input-sm" placeholder="Tên, số điện thoại..." />
+        </div>
     </div>
 
     {#if partners.length === 0}
@@ -121,46 +124,55 @@
         <ResponsiveTable>
              <svelte:fragment slot="mobile">
                  {#each filteredPartners as item}
-                    <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col gap-2 relative">
-                         <div class="flex justify-between items-start pr-8">
-                            <h3 class="font-bold text-slate-800">{item.name}</h3>
-                         </div>
-                         <div class="absolute top-4 right-4">
-                             {#if item.type === 'supplier'}
-                                <span class="badge badge-warning text-xs">NCC</span>
-                            {:else if item.type === 'manufacturer'}
-                                <span class="badge badge-neutral text-xs">Nhà SX</span>
-                            {:else}
-                                <span class="badge badge-info text-xs">Khách {item.customerType || 'lẻ'}</span>
-                            {/if}
-                         </div>
+                    <div class="card bg-base-100 shadow-sm border border-base-200">
+                        <div class="card-body p-4">
+                             <!-- Header -->
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h2 class="card-title text-base">{item.name}</h2>
+                                    <p class="text-xs text-base-content/60 font-mono">{item.code || '-'}</p>
+                                </div>
+                                {#if item.type === 'supplier'}
+                                    <div class="badge badge-warning">NCC</div>
+                                {:else if item.type === 'manufacturer'}
+                                    <div class="badge badge-neutral">Nhà SX</div>
+                                {:else}
+                                    <div class="badge badge-info">Khách {item.customerType || 'lẻ'}</div>
+                                {/if}
+                            </div>
 
-                         <div class="text-sm text-slate-600 flex flex-col gap-1 mt-1">
-                             <div class="flex gap-2">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>
-                                 <span>{item.phone || 'Chưa có SĐT'}</span>
-                             </div>
-                             <div class="flex gap-2">
-                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
-                                 <span class="truncate">{item.address || 'Chưa có địa chỉ'}</span>
-                             </div>
-                         </div>
+                            <div class="divider my-1"></div>
 
-                         <div class="divider my-1"></div>
-                         <div class="flex justify-end gap-2">
-                            <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                            <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
-                         </div>
+                            <!-- Body -->
+                            <div class="text-sm text-base-content/80 flex flex-col gap-1">
+                                <div class="flex gap-2 items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/40" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>
+                                    <span class="font-mono">{item.phone || 'Chưa có SĐT'}</span>
+                                </div>
+                                <div class="flex gap-2 items-start">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/40 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                                    <span>{item.address || 'Chưa có địa chỉ'}</span>
+                                </div>
+                            </div>
+
+                            <div class="divider my-1"></div>
+
+                            <!-- Footer Actions -->
+                            <div class="card-actions justify-end">
+                                <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                            </div>
+                        </div>
                     </div>
                  {/each}
              </svelte:fragment>
 
              <svelte:fragment slot="desktop">
                 <thead>
-                    <tr class="bg-slate-50 text-slate-600">
+                    <tr>
                         <th>Mã</th>
                         <th>Tên Đối tác</th>
-                        <th>Loại</th>
+                        <th class="text-center">Loại</th>
                         <th>SĐT</th>
                         <th>Địa chỉ</th>
                         <th class="text-center">Thao tác</th>
@@ -169,22 +181,22 @@
                 <tbody>
                     {#each filteredPartners as item}
                         <tr class="hover">
-                            <td class="font-mono text-sm font-bold text-slate-500">{item.code || '-'}</td>
-                            <td class="font-bold text-slate-700">{item.name}</td>
-                            <td>
+                            <td class="font-mono text-sm">{item.code || '-'}</td>
+                            <td class="font-medium">{item.name}</td>
+                            <td class="text-center">
                                 {#if item.type === 'supplier'}
-                                    <span class="badge badge-warning text-xs">NCC</span>
+                                    <span class="badge badge-warning badge-sm">NCC</span>
                                 {:else if item.type === 'manufacturer'}
-                                    <span class="badge badge-neutral text-xs">Nhà SX</span>
+                                    <span class="badge badge-neutral badge-sm">Nhà SX</span>
                                 {:else}
-                                    <span class="badge badge-info text-xs">Khách {item.customerType || 'lẻ'}</span>
+                                    <span class="badge badge-info badge-sm">Khách {item.customerType || 'lẻ'}</span>
                                 {/if}
                             </td>
                             <td class="font-mono text-sm">{item.phone || '-'}</td>
                             <td class="text-sm truncate max-w-xs">{item.address || '-'}</td>
                             <td class="text-center">
-                                <button class="btn btn-xs btn-ghost text-sky-600" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                <button class="btn btn-xs btn-ghost text-red-500" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                             </td>
                         </tr>
                     {/each}

@@ -194,55 +194,63 @@
         <ResponsiveTable>
              <svelte:fragment slot="mobile">
                  {#each paginatedProducts as item}
-                    <div
-                        class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col gap-2 cursor-pointer active:bg-slate-50"
-                        on:click={() => openRecipeViewMobile(item)}
-                    >
-                         <div class="flex justify-between items-start">
-                             <div>
-                                 <h3 class="font-bold text-slate-800 text-lg">{item.name}</h3>
-                                 <span class="text-xs text-slate-400 font-mono">{item.code || '-'}</span>
-                             </div>
-                             <span class="badge badge-lg badge-primary badge-outline">{item.sellingPrice?.toLocaleString()} đ</span>
-                         </div>
+                    <div class="card bg-base-100 shadow-sm border border-base-200">
+                        <div class="card-body p-4">
+                            <!-- Header -->
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h2 class="card-title text-base">{item.name}</h2>
+                                    <p class="text-xs text-base-content/60 font-mono">{item.code || '-'}</p>
+                                </div>
+                                <div class="badge badge-primary badge-outline font-mono">
+                                    {item.sellingPrice?.toLocaleString()} đ
+                                </div>
+                            </div>
 
-                         <div class="text-sm text-slate-500">
-                             Yield: <span class="font-mono text-slate-800">{item.estimatedYieldQty}</span>
-                             <span class="mx-2">|</span>
-                             Items: <span class="font-mono text-slate-800">{item.items?.length || 0}</span>
-                         </div>
+                            <div class="divider my-1"></div>
 
-                         {#if $permissionStore.userPermissions.has('view_finance')}
-                            <div class="flex justify-between items-center text-xs text-slate-400 mt-1">
-                                <span>Giá vốn LT: {item.theoreticalCost?.toLocaleString()} đ</span>
-                                {#if item.sellingPrice > 0}
-                                    <span class="text-emerald-600 font-bold">
-                                        Lãi: {((((item.sellingPrice || 0) - (item.theoreticalCost || 0)) / item.sellingPrice) * 100)?.toFixed(0)}%
-                                    </span>
+                            <!-- Body -->
+                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                <div class="text-base-content/60">Sản lượng (Yield)</div>
+                                <div class="font-medium text-right">{item.estimatedYieldQty}</div>
+
+                                <div class="text-base-content/60">Số NVL</div>
+                                <div class="font-medium text-right">{item.items?.length || 0}</div>
+
+                                {#if $permissionStore.userPermissions.has('view_finance')}
+                                    <div class="text-base-content/60">Giá vốn (LT)</div>
+                                    <div class="font-mono text-right">{item.theoreticalCost?.toLocaleString()} đ</div>
                                 {/if}
                             </div>
-                         {/if}
 
-                         <div class="divider my-1"></div>
-                         <div class="flex justify-end gap-2">
-                            <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                            <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
-                         </div>
+                            <div class="divider my-1"></div>
+
+                            <!-- Footer Actions -->
+                            <div class="card-actions justify-between items-center">
+                                <div class="text-xs text-info cursor-pointer" on:click={() => openRecipeViewMobile(item)}>
+                                    Xem công thức
+                                </div>
+                                <div class="flex gap-2">
+                                    <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                    <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                  {/each}
              </svelte:fragment>
 
              <svelte:fragment slot="desktop">
                 <thead>
-                    <tr class="bg-slate-50 text-slate-600">
+                    <tr>
                         <th class="w-10"></th>
                         <th>Mã</th>
                         <th>Tên Sản phẩm</th>
-                        <th>Yield (Ước tính)</th>
-                        <th>Giá bán</th>
+                        <th class="text-right">Yield</th>
+                        <th class="text-right">Giá bán</th>
                         {#if $permissionStore.userPermissions.has('view_finance')}
-                            <th class="hidden sm:table-cell">Giá vốn (LT)</th>
-                            <th class="hidden sm:table-cell">Lợi nhuận %</th>
+                            <th class="text-right">Giá vốn (LT)</th>
+                            <th class="text-center">Lợi nhuận %</th>
                         {/if}
                         <th class="text-center">Thao tác</th>
                     </tr>
@@ -251,38 +259,39 @@
                     {#each paginatedProducts as item}
                         <tr class="hover cursor-pointer" on:click={() => toggleRecipeDetail(item.id)}>
                             <td>
-                                <button class="btn btn-xs btn-ghost btn-circle text-slate-400">
+                                <button class="btn btn-xs btn-ghost btn-circle">
                                     <ChevronRight class="h-4 w-4 transform transition-transform {openRecipeId === item.id ? 'rotate-90' : ''}" />
                                 </button>
                             </td>
-                            <td class="font-mono text-sm text-slate-500">{item.code || '-'}</td>
-                            <td class="font-bold text-slate-700">{item.name}</td>
-                            <td>{item.estimatedYieldQty?.toLocaleString() || 1}</td>
-                            <td class="font-mono text-sky-600">{item.sellingPrice?.toLocaleString()} đ</td>
+                            <td class="font-mono text-sm">{item.code || '-'}</td>
+                            <td class="font-medium">{item.name}</td>
+                            <td class="text-right">{item.estimatedYieldQty?.toLocaleString() || 1}</td>
+                            <td class="font-mono text-primary text-right">{item.sellingPrice?.toLocaleString()} đ</td>
 
                             {#if $permissionStore.userPermissions.has('view_finance')}
-                                <td class="font-mono text-slate-500 hidden sm:table-cell">{item.theoreticalCost?.toLocaleString()} đ</td>
-                                <td class="hidden sm:table-cell">
+                                <td class="font-mono text-base-content/60 text-right">{item.theoreticalCost?.toLocaleString()} đ</td>
+                                <td class="text-center">
                                     {#if item.sellingPrice > 0}
-                                        <span class="badge badge-sm badge-success text-white">
-                                            {((((item.sellingPrice || 0) - (item.theoreticalCost || 0)) / item.sellingPrice) * 100)?.toFixed(0)}%
+                                        {@const profitMargin = (((item.sellingPrice || 0) - (item.theoreticalCost || 0)) / item.sellingPrice) * 100}
+                                        <span class="badge badge-sm {profitMargin > 20 ? 'badge-success' : 'badge-warning'} text-white">
+                                            {profitMargin?.toFixed(0)}%
                                         </span>
                                     {/if}
                                 </td>
                             {/if}
 
                             <td class="text-center">
-                                <button class="btn btn-xs btn-ghost text-sky-600" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                <button class="btn btn-xs btn-ghost text-red-500" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                             </td>
                         </tr>
 
                         {#if openRecipeId === item.id}
-                            <tr class="bg-slate-50">
-                                <td colspan="7" class="p-0 border-b border-slate-200">
+                            <tr class="bg-base-200">
+                                <td colspan={8} class="p-0">
                                     <div class="p-4 pl-12">
-                                        <h4 class="text-xs font-bold text-slate-500 uppercase mb-2">Chi tiết Công thức (BOM)</h4>
-                                        <table class="table table-xs w-full bg-white rounded border border-slate-200">
+                                        <h4 class="text-xs font-bold uppercase mb-2">Chi tiết Công thức (BOM)</h4>
+                                        <table class="table table-xs w-full bg-base-100 rounded border">
                                             <thead>
                                                 <tr>
                                                     <th>Nguyên liệu</th>
@@ -297,7 +306,7 @@
                                                         <tr>
                                                             <td>{ingredient.name}</td>
                                                             <td class="text-right font-medium">{recipeItem.quantity} {recipeItem.unit}</td>
-                                                            <td class="text-right font-mono text-slate-500">
+                                                            <td class="text-right font-mono text-base-content/60">
                                                                 {Math.round(ingredient.avgCost * recipeItem.quantity).toLocaleString()} đ
                                                             </td>
                                                         </tr>
