@@ -66,9 +66,12 @@
 <!-- Full Screen Menu Drawer -->
 {#if isMenuOpen}
     <div
+        role="button"
+        tabindex="0"
         class="fixed inset-0 z-50 bg-black/50 lg:hidden"
         transition:fade={{ duration: 150 }}
         on:click={closeMenu}
+        on:keydown={(e) => e.key === 'Escape' && closeMenu()}
     ></div>
 
     <div
@@ -78,7 +81,7 @@
         <div class="p-4">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="font-bold text-lg text-primary">Menu Chức năng</h3>
-                <button class="btn btn-sm btn-circle btn-ghost" on:click={closeMenu}>
+                <button aria-label="Đóng menu" class="btn btn-sm btn-circle btn-ghost" on:click={closeMenu}>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>

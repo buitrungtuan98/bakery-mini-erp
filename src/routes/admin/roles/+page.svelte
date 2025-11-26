@@ -147,6 +147,8 @@
             <div class="tabs tabs-boxed bg-base-200 mb-4 overflow-x-auto flex-nowrap">
                 {#each roles as role}
                     <a
+                        href="#{role.id}"
+                        role="button"
                         class="tab flex-shrink-0 {activeRoleTab === role.id ? 'tab-active' : ''}"
                         on:click={() => activeRoleTab = role.id}
                     >

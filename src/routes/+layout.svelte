@@ -50,3 +50,7 @@
 	</div>
 	<Toaster />
 {/if}
+
+<svelte:head>
+	<link rel="manifest" href="/manifest.json" />
+</svelte:head>

@@ -514,9 +514,9 @@
 
     <!-- TABS -->
     <div role="tablist" class="tabs tabs-boxed mx-2 mb-4 bg-base-200">
-        <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Tạo Đơn</a>
-        <a role="tab" class="tab {activeTab === 'plan' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'plan'}>Kế hoạch</a>
-        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
+        <a href="?tab=create" role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Tạo Đơn</a>
+        <a href="?tab=plan" role="tab" class="tab {activeTab === 'plan' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'plan'}>Kế hoạch</a>
+        <a href="?tab=history" role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
     {#if activeTab === 'create'}
@@ -527,7 +527,13 @@
         {/if}
 
         <!-- 1. Customer Selection (Card) -->
-        <div class="card bg-white shadow-sm border border-slate-200 p-4 mb-4 mx-2" on:click={() => isCustomerModalOpen = true}>
+        <div
+            role="button"
+            tabindex="0"
+            class="card bg-white shadow-sm border border-slate-200 p-4 mb-4 mx-2"
+            on:click={() => isCustomerModalOpen = true}
+            on:keydown={(e) => e.key === 'Enter' && (isCustomerModalOpen = true)}
+        >
             <div class="flex justify-between items-center">
                 <div>
                     {#if customer}
@@ -539,7 +545,7 @@
                         <p class="text-xs text-slate-400">Chạm để chọn</p>
                     {/if}
                 </div>
-                <button class="btn btn-circle btn-sm btn-ghost">
+                <button aria-label="Chọn khách hàng" class="btn btn-circle btn-sm btn-ghost">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                 </button>
             </div>
@@ -548,12 +554,12 @@
         <!-- Delivery Info & Status -->
         <div class="grid grid-cols-2 gap-2 mx-2 mb-4">
              <div class="form-control">
-                <label class="label py-0"><span class="label-text text-xs">Ngày giao</span></label>
-                <input type="datetime-local" bind:value={deliveryDateInput} class="input input-sm input-bordered w-full" />
+                <label for="delivery_date" class="label py-0"><span class="label-text text-xs">Ngày giao</span></label>
+                <input id="delivery_date" type="datetime-local" bind:value={deliveryDateInput} class="input input-sm input-bordered w-full" />
             </div>
             <div class="form-control">
-                <label class="label py-0"><span class="label-text text-xs">Trạng thái</span></label>
-                <select bind:value={selectedStatus} class="select select-sm select-bordered w-full">
+                <label for="order_status" class="label py-0"><span class="label-text text-xs">Trạng thái</span></label>
+                <select id="order_status" bind:value={selectedStatus} class="select select-sm select-bordered w-full">
                     <option value="open">Mới (Open)</option>
                     <option value="cooking">Đang làm</option>
                     <option value="delivering">Đang giao</option>
@@ -568,8 +574,11 @@
                 {@const prodStock = products.find(p => p.id === item.productId)?.currentStock || 0}
                 {@const isMissing = item.quantity > prodStock}
                 <div
+                    role="button"
+                    tabindex="0"
                     class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50"
                     on:click={() => openEditItem(i)}
+                    on:keydown={(e) => e.key === 'Enter' && openEditItem(i)}
                 >
                     <div>
                         <div class="font-medium text-slate-800 text-sm">{item.productName}</div>
@@ -600,7 +609,8 @@
 
         <!-- 3. Add Item Button (FAB) -->
         <button
-        class="btn btn-circle btn-primary btn-lg fixed bottom-44 right-4 shadow-xl z-30"
+            aria-label="Thêm sản phẩm vào giỏ hàng"
+            class="btn btn-circle btn-primary btn-lg fixed bottom-44 right-4 shadow-xl z-30"
             on:click={openProductSelector}
         >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
@@ -768,7 +778,6 @@
             bind:value={customerSearchTerm}
             placeholder="Tìm tên khách hàng..."
             class="input input-bordered w-full mb-4 sticky top-0"
-            autofocus
         />
         <div class="space-y-1 max-h-[60vh] overflow-y-auto">
             {#each filteredCustomers as cust}
@@ -800,7 +809,6 @@
             bind:value={productSearchTerm}
             placeholder="Tìm tên sản phẩm..."
             class="input input-bordered w-full mb-4 sticky top-0"
-            autofocus
         />
         <div class="space-y-1 max-h-[60vh] overflow-y-auto pb-10">
             {#each filteredProducts as prod}
@@ -833,17 +841,17 @@
 >
     {#if selectedItemIndex >= 0}
         <div class="form-control mb-4">
-            <label class="label">Sản phẩm</label>
-            <input type="text" value={editingItem.productName} disabled class="input input-bordered w-full bg-slate-100" />
+            <label for="edit_product_name" class="label">Sản phẩm</label>
+            <input id="edit_product_name" type="text" value={editingItem.productName} disabled class="input input-bordered w-full bg-slate-100" />
         </div>
         <div class="flex gap-4 mb-4">
             <div class="form-control w-1/2">
-                <label class="label">Số lượng</label>
-                <input type="number" bind:value={editingItem.quantity} min="1" class="input input-bordered w-full font-bold text-lg text-center" />
+                <label for="edit_quantity" class="label">Số lượng</label>
+                <input id="edit_quantity" type="number" bind:value={editingItem.quantity} min="1" class="input input-bordered w-full font-bold text-lg text-center" />
             </div>
             <div class="form-control w-1/2">
-                <label class="label">Đơn giá</label>
-                <input type="number" bind:value={editingItem.unitPrice} class="input input-bordered w-full text-right" />
+                <label for="edit_unit_price" class="label">Đơn giá</label>
+                <input id="edit_unit_price" type="number" bind:value={editingItem.unitPrice} class="input input-bordered w-full text-right" />
             </div>
         </div>
         <div class="text-right font-bold text-xl text-primary mb-6">

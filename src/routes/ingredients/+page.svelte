@@ -8,7 +8,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+    import { Pencil, Trash2 } from 'lucide-svelte';
 
     // Components
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -142,28 +142,32 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <PageHeader
-        title="Danh sách Nguyên liệu"
-        actionLabel="Thêm Nguyên liệu"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('edit_inventory')}
-    >
-        <Plus class="h-4 w-4" />
-    </PageHeader>
+    <PageHeader title="Danh sách Nguyên liệu">
+		<svelte:fragment slot="action">
+			{#if $permissionStore.userPermissions.has('edit_inventory')}
+				<button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+					Thêm Nguyên liệu
+				</button>
+			{/if}
+		</svelte:fragment>
+	</PageHeader>
     
     <div class="bg-white rounded-lg p-4 mb-6 shadow-sm border border-slate-200">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div class="form-control md:col-span-2">
-                <label class="label"><span class="label-text font-medium">Tìm kiếm</span></label>
-                <input type="text" bind:value={searchTerm} class="input input-bordered w-full input-sm" placeholder="Mã, tên, nhà SX..." />
+                <label for="search-term" class="label"><span class="label-text font-medium">Tìm kiếm</span></label>
+                <input id="search-term" type="text" bind:value={searchTerm} class="input input-bordered w-full input-sm" placeholder="Mã, tên, nhà SX..." />
             </div>
             <div class="form-control">
-                <label class="label"><span class="label-text font-medium">Ngày tạo (Từ)</span></label>
-                <input type="date" bind:value={startDate} class="input input-bordered w-full input-sm" />
+                <label for="start-date" class="label"><span class="label-text font-medium">Ngày tạo (Từ)</span></label>
+                <input id="start-date" type="date" bind:value={startDate} class="input input-bordered w-full input-sm" />
             </div>
             <div class="form-control">
-                <label class="label"><span class="label-text font-medium">Ngày tạo (Đến)</span></label>
-                <input type="date" bind:value={endDate} class="input input-bordered w-full input-sm" />
+                <label for="end-date" class="label"><span class="label-text font-medium">Ngày tạo (Đến)</span></label>
+                <input id="end-date" type="date" bind:value={endDate} class="input input-bordered w-full input-sm" />
             </div>
         </div>
     </div>
@@ -281,24 +285,24 @@
 >
     {#if !isEditing}
         <div class="form-control w-full mb-3">
-            <label class="label"><span class="label-text">Mã hiển thị</span></label>
-            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+            <label for="code-display" class="label"><span class="label-text">Mã hiển thị</span></label>
+            <input id="code-display" type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
         </div>
     {:else}
         <div class="form-control w-full mb-3">
-            <label class="label"><span class="label-text">Mã hiển thị</span></label>
-            <input type="text" bind:value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+            <label for="code-display-edit" class="label"><span class="label-text">Mã hiển thị</span></label>
+            <input id="code-display-edit" type="text" bind:value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
         </div>
     {/if}
 
     <div class="form-control w-full mb-3">
-        <label class="label"><span class="label-text">Tên Nguyên liệu</span></label>
-        <input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Trứng gà" />
+        <label for="ingredient-name" class="label"><span class="label-text">Tên Nguyên liệu</span></label>
+        <input id="ingredient-name" type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Trứng gà" />
     </div>
 
     <div class="form-control w-full mb-3">
-        <label class="label"><span class="label-text">Nhà Sản xuất</span></label>
-        <select bind:value={formData.manufacturerId} class="select select-bordered w-full">
+        <label for="manufacturer" class="label"><span class="label-text">Nhà Sản xuất</span></label>
+        <select id="manufacturer" bind:value={formData.manufacturerId} class="select select-bordered w-full">
             <option value="" disabled selected>-- Chọn Nhà sản xuất --</option>
             {#each manufacturers as mfg}
                 <option value={mfg.id}>{mfg.name}</option>
@@ -308,16 +312,16 @@
 
     <div class="flex gap-4">
         <div class="form-control w-1/2">
-            <label class="label"><span class="label-text">Đơn vị gốc</span></label>
-            <select bind:value={formData.baseUnit} class="select select-bordered w-full" disabled={isEditing}>
+            <label for="base-unit" class="label"><span class="label-text">Đơn vị gốc</span></label>
+            <select id="base-unit" bind:value={formData.baseUnit} class="select select-bordered w-full" disabled={isEditing}>
                 <option value="g">Gram (g)</option>
                 <option value="ml">Mililit (ml)</option>
                 <option value="cai">Cái / Quả</option>
             </select>
         </div>
         <div class="form-control w-1/2">
-            <label class="label"><span class="label-text">Min-stock</span></label>
-            <input type="number" bind:value={formData.minStock} class="input input-bordered w-full" />
+            <label for="min-stock" class="label"><span class="label-text">Min-stock</span></label>
+            <input id="min-stock" type="number" bind:value={formData.minStock} class="input input-bordered w-full" />
         </div>
     </div>
 </Modal>

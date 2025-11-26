@@ -144,12 +144,12 @@
     <div class="card bg-base-100 shadow-sm p-4 mb-6 border border-slate-200">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div class="form-control">
-                <label class="label py-0"><span class="label-text text-xs">Từ ngày</span></label>
-                <input type="date" bind:value={startDate} class="input input-bordered w-full" />
+                <label for="start-date" class="label py-0"><span class="label-text text-xs">Từ ngày</span></label>
+                <input id="start-date" type="date" bind:value={startDate} class="input input-bordered w-full" />
             </div>
             <div class="form-control">
-                <label class="label py-0"><span class="label-text text-xs">Đến ngày</span></label>
-                <input type="date" bind:value={endDate} class="input input-bordered w-full" />
+                <label for="end-date" class="label py-0"><span class="label-text text-xs">Đến ngày</span></label>
+                <input id="end-date" type="date" bind:value={endDate} class="input input-bordered w-full" />
             </div>
             <button class="btn btn-primary w-full" on:click={fetchReportData} disabled={loading}>
                 <Search class="h-4 w-4 mr-2" />

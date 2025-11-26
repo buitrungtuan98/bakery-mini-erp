@@ -172,8 +172,8 @@
     <h1 class="text-2xl font-bold mb-6 text-primary">Kiểm Kê Kho (Stocktake)</h1>
 
     <div class="tabs tabs-boxed mb-4">
-        <a class="tab {activeTab === 'ingredients' ? 'tab-active' : ''}" on:click={() => activeTab = 'ingredients'}>Nguyên liệu</a>
-        <a class="tab {activeTab === 'assets' ? 'tab-active' : ''}" on:click={() => activeTab = 'assets'}>Công cụ & Tài sản</a>
+        <a href="?type=ingredients" class="tab {activeTab === 'ingredients' ? 'tab-active' : ''}" on:click={() => activeTab = 'ingredients'}>Nguyên liệu</a>
+        <a href="?type=assets" class="tab {activeTab === 'assets' ? 'tab-active' : ''}" on:click={() => activeTab = 'assets'}>Công cụ & Tài sản</a>
     </div>
 
     {#if loading}
@@ -188,7 +188,7 @@
 
             <ResponsiveTable>
                 <svelte:fragment slot="mobile">
-                    {#each ingredients as item}
+                    {#each ingredients as item, i}
                         {@const diff = (item.actualStock || 0) - item.currentStock}
                         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 mb-2 {diff !== 0 ? 'border-l-4 border-l-warning' : ''}">
                             <div class="flex justify-between items-start mb-2">
@@ -198,8 +198,8 @@
 
                             <div class="flex items-center gap-4 mb-2">
                                 <div class="form-control w-1/2">
-                                    <label class="label text-xs p-0 pb-1">Thực tế</label>
-                                    <input type="number" bind:value={item.actualStock} class="input input-bordered input-sm font-bold text-primary" />
+                                    <label for="ingredient_actual_stock_{i}" class="label text-xs p-0 pb-1">Thực tế</label>
+                                    <input id="ingredient_actual_stock_{i}" type="number" bind:value={item.actualStock} class="input input-bordered input-sm font-bold text-primary" />
                                 </div>
                                 <div class="w-1/2 text-right">
                                     <div class="text-xs text-slate-400">Chênh lệch</div>
@@ -260,16 +260,16 @@
                             
                             <div class="grid grid-cols-3 gap-2">
                                 <div class="form-control">
-                                    <label class="label text-xs p-0 pb-1 text-success">Tốt</label>
-                                    <input type="number" bind:value={item.actualGood} class="input input-bordered input-sm font-bold" />
+                                    <label for="asset_good_{item.id}" class="label text-xs p-0 pb-1 text-success">Tốt</label>
+                                    <input id="asset_good_{item.id}" type="number" bind:value={item.actualGood} class="input input-bordered input-sm font-bold" />
                                 </div>
                                 <div class="form-control">
-                                    <label class="label text-xs p-0 pb-1 text-warning">Hỏng</label>
-                                    <input type="number" bind:value={item.actualBroken} class="input input-bordered input-sm font-bold" />
+                                    <label for="asset_broken_{item.id}" class="label text-xs p-0 pb-1 text-warning">Hỏng</label>
+                                    <input id="asset_broken_{item.id}" type="number" bind:value={item.actualBroken} class="input input-bordered input-sm font-bold" />
                                 </div>
                                 <div class="form-control">
-                                    <label class="label text-xs p-0 pb-1 text-error">Mất</label>
-                                    <input type="number" bind:value={item.actualLost} class="input input-bordered input-sm font-bold" />
+                                    <label for="asset_lost_{item.id}" class="label text-xs p-0 pb-1 text-error">Mất</label>
+                                    <input id="asset_lost_{item.id}" type="number" bind:value={item.actualLost} class="input input-bordered input-sm font-bold" />
                                 </div>
                             </div>
                             <button class="btn btn-sm btn-ghost w-full mt-2" on:click={() => handleStocktakeAssets(item)} disabled={processing}>Cập nhật</button>

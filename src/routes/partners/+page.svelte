@@ -8,7 +8,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+    import { Pencil, Trash2 } from 'lucide-svelte';
     
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -99,13 +99,17 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <PageHeader
-        title="Quản lý Đối tác"
-        actionLabel="Thêm Đối tác"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('manage_partners')}
-    >
-        <Plus class="h-4 w-4" />
+    <PageHeader title="Quản lý Đối tác">
+        <svelte:fragment slot="action">
+            {#if $permissionStore.userPermissions.has('manage_partners')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Thêm Đối tác
+                </button>
+            {/if}
+        </svelte:fragment>
     </PageHeader>
 
     <div class="mb-6">
@@ -200,25 +204,25 @@
 >
     {#if !isEditing}
         <div class="form-control mb-3">
-            <label class="label"><span class="label-text">Mã Đối tác</span></label>
-            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+            <label for="code-display" class="label"><span class="label-text">Mã Đối tác</span></label>
+            <input id="code-display" type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
         </div>
     {:else if formData.code}
         <div class="form-control mb-3">
-            <label class="label"><span class="label-text">Mã Đối tác</span></label>
-            <input type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+            <label for="code-display-edit" class="label"><span class="label-text">Mã Đối tác</span></label>
+            <input id="code-display-edit" type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
         </div>
     {/if}
 
     <div class="form-control mb-3">
-        <label class="label"><span class="label-text">Tên Đối tác</span></label>
-        <input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Cửa hàng A" />
+        <label for="partner-name" class="label"><span class="label-text">Tên Đối tác</span></label>
+        <input id="partner-name" type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Cửa hàng A" />
     </div>
 
     <div class="flex gap-4 mb-3">
         <div class="form-control w-1/2">
-            <label class="label"><span class="label-text">Loại hình</span></label>
-            <select bind:value={formData.type} class="select select-bordered w-full">
+            <label for="partner-type" class="label"><span class="label-text">Loại hình</span></label>
+            <select id="partner-type" bind:value={formData.type} class="select select-bordered w-full">
                 <option value="customer">Khách hàng</option>
                 <option value="supplier">Nhà cung cấp (Bán hàng cho mình)</option>
                 <option value="manufacturer">Nhà sản xuất (Chỉ làm thương hiệu)</option>
@@ -226,8 +230,8 @@
         </div>
         {#if formData.type === 'customer'}
             <div class="form-control w-1/2">
-                <label class="label"><span class="label-text">Phân loại Khách</span></label>
-                <select bind:value={formData.customerType} class="select select-bordered w-full">
+                <label for="customer-type" class="label"><span class="label-text">Phân loại Khách</span></label>
+                <select id="customer-type" bind:value={formData.customerType} class="select select-bordered w-full">
                     <option value="lẻ">Khách lẻ</option>
                     <option value="sỉ">Khách sỉ</option>
                 </select>
@@ -236,12 +240,12 @@
     </div>
 
     <div class="form-control mb-3">
-        <label class="label"><span class="label-text">Số điện thoại</span></label>
-        <input type="text" bind:value={formData.phone} class="input input-bordered w-full" />
+        <label for="phone" class="label"><span class="label-text">Số điện thoại</span></label>
+        <input id="phone" type="text" bind:value={formData.phone} class="input input-bordered w-full" />
     </div>
 
     <div class="form-control mb-3">
-        <label class="label"><span class="label-text">Địa chỉ</span></label>
-        <input type="text" bind:value={formData.address} class="input input-bordered w-full" />
+        <label for="address" class="label"><span class="label-text">Địa chỉ</span></label>
+        <input id="address" type="text" bind:value={formData.address} class="input input-bordered w-full" />
     </div>
 </Modal>

@@ -8,7 +8,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-svelte';
+    import { Pencil, Trash2, ChevronRight } from 'lucide-svelte';
 
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -168,10 +168,18 @@
 </script>
 
 <div class="max-w-7xl mx-auto pb-24">
-    <PageHeader
-        title="Quản lý Sản phẩm & Công thức"
-        showAction={false}
-    />
+    <PageHeader title="Quản lý Sản phẩm & Công thức">
+        <svelte:fragment slot="action">
+            {#if $permissionStore.userPermissions.has('edit_inventory')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Thêm Sản phẩm
+                </button>
+            {/if}
+        </svelte:fragment>
+    </PageHeader>
 
     {#if products.length === 0}
         <Loading />
@@ -187,7 +195,7 @@
         <ResponsiveTable>
              <svelte:fragment slot="mobile">
                  {#each paginatedProducts as item}
-                    <div
+                    <div role="button" tabindex="0" on:keydown={(e) => e.key === 'Enter' && openRecipeViewMobile(item)}
                         class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 flex flex-col gap-2 cursor-pointer active:bg-slate-50"
                         on:click={() => openRecipeViewMobile(item)}
                     >
@@ -317,15 +325,6 @@
             </div>
         {/if}
     {/if}
-
-    {#if $permissionStore.userPermissions.has('edit_inventory')}
-        <button
-            class="btn btn-circle btn-primary btn-lg fixed bottom-24 right-6 shadow-xl z-50"
-            on:click={openAddModal}
-        >
-            <Plus class="h-8 w-8" />
-        </button>
-    {/if}
 </div>
 
 <!-- Modal: View Recipe (Mobile Friendly) -->
@@ -380,28 +379,28 @@
 >
     {#if !isEditing}
         <div class="form-control mb-3">
-            <label class="label"><span class="label-text">Mã Sản phẩm</span></label>
-            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+            <label for="product-code" class="label"><span class="label-text">Mã Sản phẩm</span></label>
+            <input id="product-code" type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
         </div>
     {:else if formData.code}
         <div class="form-control mb-3">
-            <label class="label"><span class="label-text">Mã Sản phẩm</span></label>
-            <input type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+            <label for="product-code-edit" class="label"><span class="label-text">Mã Sản phẩm</span></label>
+            <input id="product-code-edit" type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
         </div>
     {/if}
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div class="form-control">
-            <label class="label"><span class="label-text">Tên Sản phẩm</span></label>
-            <input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Bánh Mì" />
+            <label for="product-name" class="label"><span class="label-text">Tên Sản phẩm</span></label>
+            <input id="product-name" type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Bánh Mì" />
         </div>
         <div class="form-control">
-            <label class="label"><span class="label-text">Giá bán (đ)</span></label>
-            <input type="number" bind:value={formData.sellingPrice} min="0" class="input input-bordered w-full" />
+            <label for="selling-price" class="label"><span class="label-text">Giá bán (đ)</span></label>
+            <input id="selling-price" type="number" bind:value={formData.sellingPrice} min="0" class="input input-bordered w-full" />
         </div>
         <div class="form-control">
-            <label class="label"><span class="label-text">Yield (SL/mẻ)</span></label>
-            <input type="number" bind:value={formData.estimatedYieldQty} min="1" class="input input-bordered w-full" />
+            <label for="yield" class="label"><span class="label-text">Yield (SL/mẻ)</span></label>
+            <input id="yield" type="number" bind:value={formData.estimatedYieldQty} min="1" class="input input-bordered w-full" />
         </div>
     </div>
 
@@ -412,8 +411,9 @@
             {@const selectedIng = ingredients.find(x => x.id === item.ingredientId)}
             <div class="flex gap-2 items-start">
                 <div class="form-control flex-grow relative">
-                    <label class="label py-0"><span class="label-text text-xs">Nguyên liệu</span></label>
+                    <label for="ingredient-search-{i}" class="label py-0"><span class="label-text text-xs">Nguyên liệu</span></label>
                     <input
+                        id="ingredient-search-{i}"
                         type="text"
                         class="input input-bordered input-sm w-full"
                         placeholder="Tìm NVL..."
@@ -450,12 +450,12 @@
                 </div>
 
                 <div class="form-control w-24">
-                    <label class="label py-0">
+                    <label for="ingredient-quantity-{i}" class="label py-0">
                         <span class="label-text text-xs truncate">
                             {selectedIng ? selectedIng.baseUnit : 'Lượng'}
                         </span>
                     </label>
-                    <input type="number" bind:value={item.quantity} class="input input-bordered input-sm w-full text-right" />
+                    <input id="ingredient-quantity-{i}" type="number" bind:value={item.quantity} class="input input-bordered input-sm w-full text-right" />
                 </div>
 
                 <button class="btn btn-sm btn-ghost text-red-500 mt-5" on:click={() => removeRecipeItem(i)}>
@@ -467,7 +467,7 @@
 
     <div class="flex justify-between items-center">
         <button class="btn btn-xs btn-outline btn-primary" on:click={addRecipeItem}>
-            <Plus class="h-4 w-4 mr-2" /> Thêm dòng
+            + Thêm dòng
         </button>
         <div class="text-sm font-bold text-slate-600">
             Giá vốn LT: {theoreticalCost.toLocaleString()} đ/sp
