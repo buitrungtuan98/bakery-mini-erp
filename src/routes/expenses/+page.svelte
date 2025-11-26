@@ -8,6 +8,7 @@
     import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save } from 'lucide-svelte';
 
@@ -163,25 +164,31 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto pb-24">
-    <h1 class="text-2xl font-bold text-primary mb-6">Quản lý Chi phí (Expenses)</h1>
+<div class="max-w-7xl mx-auto">
+    <PageHeader>
+        <div slot="title">Chi phí</div>
+        <div slot="actions">
+            {#if $userPermissions.has('manage_expenses')}
+                <button class="btn btn-sm btn-ghost text-primary" on:click={() => isCategoryModalOpen = true}>
+                    <Plus class="h-4 w-4 mr-1" /> Quản lý Danh mục
+                </button>
+            {/if}
+        </div>
+    </PageHeader>
 
     <!-- TABS -->
     <div role="tablist" class="tabs tabs-boxed mb-6 bg-base-200">
         {#if $userPermissions.has('manage_expenses')}
-            <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Chi phí</a>
+            <a role="tab" class="tab {activeTab === 'create' ? 'tab-active' : ''}" on:click={() => activeTab = 'create'}>Ghi nhận</a>
         {/if}
-        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
     {#if activeTab === 'create' && $userPermissions.has('manage_expenses')}
         <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8">
             <div class="card-body p-4">
-                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                <div class="border-b pb-2 mb-4">
                      <h2 class="card-title text-lg">Ghi nhận Chi phí Mới</h2>
-                     <button class="btn btn-sm btn-ghost text-primary" on:click={() => isCategoryModalOpen = true}>
-                        <Plus class="h-4 w-4 mr-1" /> Quản lý Danh mục
-                     </button>
                 </div>
 
                 {#if errorMsg}

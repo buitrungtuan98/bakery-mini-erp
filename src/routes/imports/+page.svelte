@@ -9,6 +9,7 @@
     import { Timestamp } from 'firebase/firestore';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save, Trash2 } from 'lucide-svelte';
 
@@ -205,15 +206,17 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto pb-24">
-    <h1 class="text-2xl font-bold text-primary mb-6">Nhập Kho (Imports)</h1>
+<div class="max-w-7xl mx-auto">
+    <PageHeader>
+        <div slot="title">Nhập kho</div>
+    </PageHeader>
     
     <!-- TABS -->
     <div role="tablist" class="tabs tabs-boxed mb-6 bg-base-200">
         {#if $userPermissions.has('manage_imports')}
-            <a role="tab" class="tab {activeTab === 'create' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'create'}>Tạo Phiếu Nhập</a>
+            <a role="tab" class="tab {activeTab === 'create' ? 'tab-active' : ''}" on:click={() => activeTab = 'create'}>Tạo Phiếu Nhập</a>
         {/if}
-        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active bg-primary text-primary-content' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
+        <a role="tab" class="tab {activeTab === 'history' ? 'tab-active' : ''}" on:click={() => activeTab = 'history'}>Lịch sử</a>
     </div>
 
     {#if activeTab === 'create' && $userPermissions.has('manage_imports')}
