@@ -5,7 +5,7 @@
     import { onMount } from 'svelte';
     import { authStore } from '$lib/stores/authStore';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Save } from 'lucide-svelte';
 
     let roles: RoleDef[] = [];
@@ -66,11 +66,11 @@
             for (const role of roles) {
                 await setDoc(doc(db, 'roles', role.id), role);
             }
-            showToast("Đã lưu cấu hình thành công!", 'success');
+            showSuccessToast("Đã lưu cấu hình thành công!");
             permissionStore.initRoles();
             if ($authStore.user?.role) permissionStore.setUserRole($authStore.user.role);
         } catch (e) {
-            showToast("Lỗi lưu: " + e, 'error');
+            showErrorToast("Lỗi lưu: " + e.message);
         } finally {
             processing = false;
         }

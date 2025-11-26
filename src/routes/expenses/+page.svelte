@@ -8,7 +8,7 @@
     import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save } from 'lucide-svelte';
 
 	// --- Types ---
@@ -84,7 +84,7 @@
 	});
     
     async function handleAddCategory() {
-        if (!checkPermission('manage_expenses')) return showToast("Bạn không có quyền thêm danh mục.", 'error');
+        if (!checkPermission('manage_expenses')) return showErrorToast("Bạn không có quyền thêm danh mục.");
         if (!newCategoryName.trim()) return;
 
         try {
@@ -93,16 +93,16 @@
                 createdAt: serverTimestamp()
             });
             await logAction($authStore.user!, 'CREATE', 'expense_categories', `Thêm mới danh mục: ${newCategoryName}`);
-            showToast("Thêm danh mục thành công!", 'success');
+            showSuccessToast("Thêm danh mục thành công!");
             newCategoryName = '';
             // Don't close modal automatically, maybe they want to add more
         } catch (e) {
-            showToast("Lỗi thêm danh mục.", 'error');
+            showErrorToast("Lỗi thêm danh mục: " + e.message);
         }
     }
 
     async function handleAddExpense() {
-        if (!checkPermission('manage_expenses')) return showToast("Bạn không có quyền thêm chi phí.", 'error');
+        if (!checkPermission('manage_expenses')) return showErrorToast("Bạn không có quyền thêm chi phí.");
         if (!expenseData.categoryId) return (errorMsg = "Vui lòng chọn danh mục chi phí.");
         if (!expenseData.selectedSupplierId) return (errorMsg = "Vui lòng chọn Nhà cung cấp/Người bán.");
         if (expenseData.amount <= 0) return (errorMsg = "Số tiền phải lớn hơn 0.");
@@ -150,13 +150,13 @@
                 `Chi tiền: ${category?.name}, ${expenseData.amount.toLocaleString()} đ từ NCC ${supplier?.name || 'N/A'} (${code})`
             );
 
-            showToast(`Ghi nhận chi phí ${code} thành công!`, 'success');
+            showSuccessToast(`Ghi nhận chi phí ${code} thành công!`);
             expenseData.amount = 0;
             expenseData.description = '';
             isAssetPurchase = false;
             
         } catch (e) {
-            errorMsg = "Lỗi ghi nhận chi phí. Kiểm tra console.";
+            showErrorToast("Lỗi ghi nhận chi phí: " + e.message);
         } finally {
             processing = false;
         }

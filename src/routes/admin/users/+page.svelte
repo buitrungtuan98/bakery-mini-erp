@@ -6,7 +6,7 @@
     import { onMount } from 'svelte';
     import { logAction } from '$lib/logger';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Settings, Send, Trash2 } from 'lucide-svelte';
 
     interface UserProfile {
@@ -89,9 +89,9 @@
             const index = users.findIndex(u => u.id === user.id);
             if(index !== -1) users[index].role = newRole;
 
-            showToast(`Đã cập nhật quyền thành công!`, 'success');
+            showSuccessToast(`Đã cập nhật quyền thành công!`);
         } catch (e) {
-            showToast("Lỗi cập nhật quyền: " + e, 'error');
+            showErrorToast("Lỗi cập nhật quyền: " + e.message);
             users = [...users];
         }
     }
@@ -102,14 +102,14 @@
             await deleteDoc(doc(db, 'users', id));
             await logAction($authStore.user!, 'DELETE', 'users', `Xóa user: ${email}`);
             users = users.filter(u => u.id !== id);
-            showToast(`Đã xóa người dùng ${email}`, 'success');
-        } catch (e) { showToast("Lỗi xóa user: " + e, 'error'); }
+            showSuccessToast(`Đã xóa người dùng ${email}`);
+        } catch (e) { showErrorToast("Lỗi xóa user: " + e.message); }
     }
 
     async function handleInvite() {
-        if(!inviteEmail) return showToast("Vui lòng nhập Email.", 'warning');
-        if (users.find(u => u.email === inviteEmail)) return showToast("Email này đã là thành viên hệ thống.", 'warning');
-        if (invites.find(i => i.email === inviteEmail)) return showToast("Email này đã được mời trước đó.", 'warning');
+        if(!inviteEmail) return showErrorToast("Vui lòng nhập Email.");
+        if (users.find(u => u.email === inviteEmail)) return showErrorToast("Email này đã là thành viên hệ thống.");
+        if (invites.find(i => i.email === inviteEmail)) return showErrorToast("Email này đã được mời trước đó.");
 
         inviteLoading = true;
         try {
@@ -121,11 +121,11 @@
             });
             await logAction($authStore.user!, 'CREATE', 'invited_emails', `Mời ${inviteEmail} làm ${inviteRole}`);
 
-            showToast(`Đã gửi lời mời cho ${inviteEmail}`, 'success');
+            showSuccessToast(`Đã gửi lời mời cho ${inviteEmail}`);
             inviteEmail = '';
             await fetchInvites();
         } catch (e) {
-            showToast("Lỗi gửi lời mời: " + e, 'error');
+            showErrorToast("Lỗi gửi lời mời: " + e.message);
         } finally {
             inviteLoading = false;
         }
@@ -136,8 +136,8 @@
         try {
             await deleteDoc(doc(db, 'invited_emails', id));
             invites = invites.filter(i => i.id !== id);
-            showToast("Đã hủy lời mời.", 'success');
-        } catch (e) { showToast("Lỗi: " + e, 'error'); }
+            showSuccessToast("Đã hủy lời mời.");
+        } catch (e) { showErrorToast("Lỗi: " + e.message); }
     }
 </script>
 

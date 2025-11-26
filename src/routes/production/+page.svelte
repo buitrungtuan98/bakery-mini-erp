@@ -9,7 +9,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Save, Trash2 } from 'lucide-svelte';
 
 	// --- Types ---
@@ -157,7 +157,7 @@
     // --- Delete/Reverse Logic ---
     async function handleDeleteRun(run: ProductionRun) {
         if (!checkPermission('manage_roles')) {
-             if (!checkPermission('create_production')) return showToast("Bạn không có quyền xóa lệnh sản xuất.", 'error');
+             if (!checkPermission('create_production')) return showErrorToast("Bạn không có quyền xóa lệnh sản xuất.");
         }
 
         if (!confirm(`Xác nhận xóa lệnh sản xuất "${run.productName}" ngày ${run.productionDate.toDate().toLocaleDateString()}? Hành động này sẽ đảo ngược tồn kho.`)) return;
@@ -187,10 +187,10 @@
 
             const displayId = run.code || run.id.substring(0, 8).toUpperCase();
             await logAction($authStore.user!, 'DELETE', 'production_runs', `Đảo ngược và xóa lệnh SX: ${displayId}, Yield: ${run.actualYield}`);
-            showToast("Đảo ngược lệnh sản xuất thành công!", 'success');
+            showSuccessToast("Đảo ngược lệnh sản xuất thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
-            showToast("LỖI KHÔNG THỂ ĐẢO NGƯỢC: " + e.message, 'error');
+            showErrorToast("LỖI KHÔNG THỂ ĐẢO NGƯỢC: " + e.message);
         }
     }
     
@@ -269,7 +269,7 @@
                 await logAction($authStore.user!, 'TRANSACTION', 'production_runs', `SX ${prod.name}, Yield: ${actualYield} (${code})`);
             });
 
-            showToast(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm! Mã: ${code}`, 'success');
+            showSuccessToast(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm! Mã: ${code}`);
             // selectedProductId = '';
             // actualYield = 0;
             // productionInputs = [];
@@ -277,7 +277,7 @@
 
 		} catch (error) {
 			console.error(error);
-			showToast('Lỗi khi chạy lệnh sản xuất: ' + error, 'error');
+			showErrorToast('Lỗi khi chạy lệnh sản xuất: ' + error.message);
 		} finally {
 			processing = false;
 		}
