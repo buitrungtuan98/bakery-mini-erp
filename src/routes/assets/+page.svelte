@@ -1,14 +1,16 @@
 <script lang="ts">
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
-    import { checkPermission, userPermissions } from '$lib/stores/permissionStore';
+    import { checkPermission, permissionStore } from '$lib/stores/permissionStore';
 	import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, deleteDoc, serverTimestamp } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import PageHeader from '$lib/components/ui/PageHeader.svelte';
+    import Modal from '$lib/components/ui/Modal.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2, Save } from 'lucide-svelte';
+    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
 
 	interface Asset {
 		id: string;
@@ -24,6 +26,7 @@
 	let loading = true;
 	let isModalOpen = false;
 	let isEditing = false;
+    let processing = false;
 
 	let formData = {
 		id: '', code: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0,
@@ -43,21 +46,22 @@
 	onDestroy(() => { if (unsubscribe) unsubscribe(); });
 
 	function openAddModal() {
+        if (!checkPermission('manage_assets')) return showErrorToast("Bạn không có quyền.");
 		isEditing = false;
 		formData = { id: '', code: '', name: '', category: 'Dụng cụ', status: 'Đang dùng', originalPrice: 0, quantity: { total: 1, good: 1, broken: 0, lost: 0 } };
 		isModalOpen = true;
 	}
 
     function openEditModal(item: Asset) {
+        if (!checkPermission('manage_assets')) return showErrorToast("Bạn không có quyền.");
         isEditing = true;
         formData = { ...item };
         isModalOpen = true;
     }
 
 	async function handleSubmit() {
-        if (!checkPermission('manage_assets')) return showErrorToast("Bạn không có quyền thêm/sửa tài sản.");
-        
-        // Tự động tính tổng
+        processing = true;
+        // Auto-calculate total
         formData.quantity.total = formData.quantity.good + formData.quantity.broken; 
 
 		try {
@@ -83,6 +87,7 @@
 			}
 			isModalOpen = false;
 		} catch (error) { showErrorToast("Lỗi: " + error.message); }
+        finally { processing = false; }
 	}
 
     async function handleDelete(id: string) {
@@ -98,14 +103,15 @@
 </script>
 
 <div class="max-w-7xl mx-auto pb-20">
-	<div class="flex justify-between items-center mb-6">
-		<h1 class="text-2xl font-bold">Kho Công cụ & Tài sản</h1>
-		{#if $userPermissions.has('manage_assets')}
-			<button class="btn btn-primary" on:click={openAddModal}>
-                <Plus class="h-4 w-4 mr-2" /> Thêm Tài sản
-            </button>
-		{/if}
-	</div>
+	<PageHeader title="Kho Công cụ & Tài sản">
+        <svelte:fragment slot="action">
+            {#if $permissionStore.userPermissions.has('manage_assets')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <Plus class="h-4 w-4 mr-1" /> Thêm Tài sản
+                </button>
+            {/if}
+        </svelte:fragment>
+    </PageHeader>
 
 	{#if loading}
 		<div class="text-center py-8">Đang tải...</div>
@@ -154,7 +160,7 @@
 
             <svelte:fragment slot="desktop">
                 <thead>
-                    <tr>
+                    <tr class="bg-slate-50 text-slate-600">
                         <th>Mã</th>
                         <th>Tên Tài sản</th>
                         <th>Loại</th>
@@ -189,60 +195,56 @@
 	{/if}
 </div>
 
-<input type="checkbox" class="modal-toggle" bind:checked={isModalOpen} />
-<div class="modal" role="dialog">
-	<div class="modal-box">
-		<h3 class="font-bold text-lg mb-4">{isEditing ? 'Cập nhật' : 'Thêm mới'} Tài sản</h3>
-
-        {#if !isEditing}
-            <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Mã Tài sản</span></label>
-                <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
-            </div>
-        {:else if formData.code}
-            <div class="form-control mb-3">
-                <label class="label"><span class="label-text">Mã Tài sản</span></label>
-                <input type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
-            </div>
-        {/if}
-
-		<div class="form-control w-full mb-3">
-			<label class="label">Tên Tài sản</label>
-			<input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Lò nướng Sanaky" />
-		</div>
-        <div class="grid grid-cols-2 gap-4 mb-3">
-            <div class="form-control">
-                <label class="label">Loại</label>
-                <select bind:value={formData.category} class="select select-bordered">
-                    <option>Dụng cụ</option>
-                    <option>Thiết bị điện</option>
-                    <option>Nội thất</option>
-                </select>
-            </div>
-            <div class="form-control">
-                <label class="label">Giá mua (đ)</label>
-                <input type="number" bind:value={formData.originalPrice} class="input input-bordered" />
-            </div>
+<Modal
+    title={isEditing ? 'Cập nhật Tài sản' : 'Thêm mới Tài sản'}
+    isOpen={isModalOpen}
+    onClose={() => isModalOpen = false}
+    onConfirm={handleSubmit}
+    loading={processing}
+    confirmText="Lưu lại"
+>
+    {#if !isEditing}
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Mã Tài sản</span></label>
+            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
         </div>
-        <div class="grid grid-cols-3 gap-4 mb-3 bg-base-200 p-4 rounded-box">
-            <div class="form-control">
-                <label class="label text-success">Tốt</label>
-                <input type="number" bind:value={formData.quantity.good} class="input input-bordered input-sm" />
-            </div>
-            <div class="form-control">
-                <label class="label text-warning">Hỏng</label>
-                <input type="number" bind:value={formData.quantity.broken} class="input input-bordered input-sm" />
-            </div>
-            <div class="form-control">
-                <label class="label text-error">Mất</label>
-                <input type="number" bind:value={formData.quantity.lost} class="input input-bordered input-sm" />
-            </div>
+    {:else if formData.code}
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Mã Tài sản</span></label>
+            <input type="text" value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
         </div>
-		<div class="modal-action">
-			<button class="btn" on:click={() => isModalOpen = false}>Hủy</button>
-			<button class="btn btn-primary" on:click={handleSubmit}>
-                <Save class="h-4 w-4 mr-2" /> Lưu lại
-            </button>
-		</div>
-	</div>
-</div>
+    {/if}
+
+    <div class="form-control w-full mb-3">
+        <label class="label">Tên Tài sản</label>
+        <input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Lò nướng Sanaky" />
+    </div>
+    <div class="grid grid-cols-2 gap-4 mb-3">
+        <div class="form-control">
+            <label class="label">Loại</label>
+            <select bind:value={formData.category} class="select select-bordered">
+                <option>Dụng cụ</option>
+                <option>Thiết bị điện</option>
+                <option>Nội thất</option>
+            </select>
+        </div>
+        <div class="form-control">
+            <label class="label">Giá mua (đ)</label>
+            <input type="number" bind:value={formData.originalPrice} class="input input-bordered" />
+        </div>
+    </div>
+    <div class="grid grid-cols-3 gap-4 mb-3 bg-base-200 p-4 rounded-box">
+        <div class="form-control">
+            <label class="label text-success">Tốt</label>
+            <input type="number" bind:value={formData.quantity.good} class="input input-bordered input-sm" />
+        </div>
+        <div class="form-control">
+            <label class="label text-warning">Hỏng</label>
+            <input type="number" bind:value={formData.quantity.broken} class="input input-bordered input-sm" />
+        </div>
+        <div class="form-control">
+            <label class="label text-error">Mất</label>
+            <input type="number" bind:value={formData.quantity.lost} class="input input-bordered input-sm" />
+        </div>
+    </div>
+</Modal>

@@ -8,7 +8,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+    import { Pencil, Trash2 } from 'lucide-svelte';
 
     // Components
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -142,14 +142,18 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <PageHeader
-        title="Danh sách Nguyên liệu"
-        actionLabel="Thêm Nguyên liệu"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('edit_inventory')}
-    >
-        <Plus class="h-4 w-4" />
-    </PageHeader>
+    <PageHeader title="Danh sách Nguyên liệu">
+		<svelte:fragment slot="action">
+			{#if $permissionStore.userPermissions.has('edit_inventory')}
+				<button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+					Thêm Nguyên liệu
+				</button>
+			{/if}
+		</svelte:fragment>
+	</PageHeader>
     
     <div class="bg-white rounded-lg p-4 mb-6 shadow-sm border border-slate-200">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">

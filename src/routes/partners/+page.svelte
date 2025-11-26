@@ -8,7 +8,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+    import { Pencil, Trash2 } from 'lucide-svelte';
     
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -99,13 +99,17 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <PageHeader
-        title="Quản lý Đối tác"
-        actionLabel="Thêm Đối tác"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('manage_partners')}
-    >
-        <Plus class="h-4 w-4" />
+    <PageHeader title="Quản lý Đối tác">
+        <svelte:fragment slot="action">
+            {#if $permissionStore.userPermissions.has('manage_partners')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Thêm Đối tác
+                </button>
+            {/if}
+        </svelte:fragment>
     </PageHeader>
 
     <div class="mb-6">

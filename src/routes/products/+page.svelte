@@ -8,7 +8,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-svelte';
+    import { Pencil, Trash2, ChevronRight } from 'lucide-svelte';
 
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -168,10 +168,18 @@
 </script>
 
 <div class="max-w-7xl mx-auto pb-24">
-    <PageHeader
-        title="Quản lý Sản phẩm & Công thức"
-        showAction={false}
-    />
+    <PageHeader title="Quản lý Sản phẩm & Công thức">
+        <svelte:fragment slot="action">
+            {#if $permissionStore.userPermissions.has('edit_inventory')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Thêm Sản phẩm
+                </button>
+            {/if}
+        </svelte:fragment>
+    </PageHeader>
 
     {#if products.length === 0}
         <Loading />
@@ -317,15 +325,6 @@
             </div>
         {/if}
     {/if}
-
-    {#if $permissionStore.userPermissions.has('edit_inventory')}
-        <button
-            class="btn btn-circle btn-primary btn-lg fixed bottom-24 right-6 shadow-xl z-50"
-            on:click={openAddModal}
-        >
-            <Plus class="h-8 w-8" />
-        </button>
-    {/if}
 </div>
 
 <!-- Modal: View Recipe (Mobile Friendly) -->
@@ -467,7 +466,7 @@
 
     <div class="flex justify-between items-center">
         <button class="btn btn-xs btn-outline btn-primary" on:click={addRecipeItem}>
-            <Plus class="h-4 w-4 mr-2" /> Thêm dòng
+            + Thêm dòng
         </button>
         <div class="text-sm font-bold text-slate-600">
             Giá vốn LT: {theoreticalCost.toLocaleString()} đ/sp
