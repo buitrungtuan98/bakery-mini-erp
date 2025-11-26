@@ -142,13 +142,16 @@
 </script>
 
 <div class="max-w-7xl mx-auto">
-    <PageHeader
-        title="Danh sách Nguyên liệu"
-        actionLabel="Thêm Nguyên liệu"
-        onAction={openAddModal}
-        showAction={$permissionStore.userPermissions.has('edit_inventory')}
-    >
-        <Plus class="h-4 w-4" />
+    <PageHeader>
+        <div slot="title">Nguyên liệu</div>
+        <div slot="actions">
+            {#if $permissionStore.userPermissions.has('edit_inventory')}
+                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                    <Plus class="h-4 w-4 mr-1" />
+                    Thêm mới
+                </button>
+            {/if}
+        </div>
     </PageHeader>
     
     <div class="bg-white rounded-lg p-4 mb-6 shadow-sm border border-slate-200">
