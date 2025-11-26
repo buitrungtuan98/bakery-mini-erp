@@ -48,5 +48,5 @@
             <BottomNav />
         {/if}
 	</div>
-	<Toaster position="top-center" />
+	<Toaster />
 {/if}

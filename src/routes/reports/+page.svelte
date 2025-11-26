@@ -5,7 +5,7 @@
     import { onMount } from 'svelte';
     import * as XLSX from 'xlsx/xlsx.mjs';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Search, FileDown } from 'lucide-svelte';
 
     let loading = true;
@@ -64,10 +64,10 @@
                 const dateB = b.data.createdAt?.toDate() || new Date(0);
                 return dateB.getTime() - dateA.getTime();
             });
-
+            showSuccessToast("Tải báo cáo thành công!");
         } catch (error) {
             console.error("Lỗi tải báo cáo:", error);
-            showToast("Lỗi tải dữ liệu báo cáo (có thể do thiếu Index).", "error");
+            showErrorToast("Lỗi tải dữ liệu báo cáo (có thể do thiếu Index).");
         } finally {
             loading = false;
         }
@@ -124,7 +124,7 @@
 
     function exportToExcel() {
         const ledgerData = createFlatLedger(transactions);
-        if (!ledgerData.length) return showToast("Không có dữ liệu!", "warning");
+        if (!ledgerData.length) return showErrorToast("Không có dữ liệu!");
         
         const worksheet = XLSX.utils.json_to_sheet(ledgerData.map(i => ({
             "Ngày": i.date, "Số CT": i.docId, "Loại": i.type,
