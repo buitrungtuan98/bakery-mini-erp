@@ -7,7 +7,7 @@
     import { partnerStore, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2 } from 'lucide-svelte';
     
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -37,21 +37,21 @@
 
     // Handlers
     function openAddModal() {
-        if (!checkPermission('manage_partners')) return showToast("Không có quyền.", "error");
+        if (!checkPermission('manage_partners')) return showErrorToast("Không có quyền.");
         isEditing = false;
         formData = { id: '', code: '', name: '', type: 'customer', customerType: 'lẻ', phone: '', address: '', customPrices: [] };
         isModalOpen = true;
     }
 
     function openEditModal(item: Partner) {
-        if (!checkPermission('manage_partners')) return showToast("Không có quyền.", "error");
+        if (!checkPermission('manage_partners')) return showErrorToast("Không có quyền.");
         isEditing = true;
         formData = { ...item };
         isModalOpen = true;
     }
 
     async function handleSubmit() {
-        if (!formData.name) return showToast("Thiếu tên đối tác", "warning");
+        if (!formData.name) return showErrorToast("Thiếu tên đối tác");
         processing = true;
         
         try {
@@ -67,6 +67,7 @@
             if (isEditing) {
                 await updateDoc(doc(db, 'partners', formData.id), dataToSave);
                 await logAction($authStore.user!, 'UPDATE', 'partners', `Cập nhật đối tác: ${formData.name}`);
+                showSuccessToast("Cập nhật đối tác thành công!");
             } else {
                 // Generate Code
                 let prefix = 'KH';
@@ -78,21 +79,21 @@
 
                 await addDoc(collection(db, 'partners'), { ...dataToSave, createdAt: serverTimestamp() });
                 await logAction($authStore.user!, 'CREATE', 'partners', `Thêm mới đối tác: ${formData.name} (${code})`);
-                showToast("Thêm đối tác thành công!", "success");
+                showSuccessToast("Thêm đối tác thành công!");
             }
             isModalOpen = false;
-        } catch (e) { showToast("Lỗi: " + e, "error"); }
+        } catch (e) { showErrorToast("Lỗi: " + e.message); }
         finally { processing = false; }
     }
 
     async function handleDelete(id: string) {
-        if (!checkPermission('manage_partners')) return showToast("Không có quyền.", "error");
+        if (!checkPermission('manage_partners')) return showErrorToast("Không có quyền.");
         if (!confirm("Xóa đối tác này?")) return;
         try {
             await deleteDoc(doc(db, 'partners', id));
-            showToast("Đã xóa đối tác.", "success");
+            showSuccessToast("Đã xóa đối tác.");
         } catch (error) {
-            showToast("Lỗi xóa đối tác: " + error, "error");
+            showErrorToast("Lỗi xóa đối tác: " + error.message);
         }
     }
 </script>

@@ -7,7 +7,7 @@
     import { ingredientStore, partnerStore, type Ingredient, type Partner } from '$lib/stores/masterDataStore';
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2 } from 'lucide-svelte';
 
     // Components
@@ -75,14 +75,14 @@
 
     // --- Handlers ---
     function openAddModal() {
-        if (!checkPermission('edit_inventory')) return showToast("Bạn không có quyền.", 'error');
+        if (!checkPermission('edit_inventory')) return showErrorToast("Bạn không có quyền.");
         isEditing = false;
         formData = { id: '', code: '', name: '', baseUnit: 'g', minStock: 100, manufacturerId: '', manufacturerName: '' };
         isModalOpen = true;
     }
 
     function openEditModal(item: Ingredient) {
-        if (!checkPermission('edit_inventory')) return showToast("Bạn không có quyền.", 'error');
+        if (!checkPermission('edit_inventory')) return showErrorToast("Bạn không có quyền.");
         isEditing = true;
         formData = {
             id: item.id, code: item.code, name: item.name, baseUnit: item.baseUnit, minStock: item.minStock, 
@@ -113,6 +113,7 @@
             if (isEditing) {
                 await updateDoc(doc(db, 'ingredients', formData.id), baseData);
                 await logAction($authStore.user!, 'UPDATE', 'ingredients', `Cập nhật NVL: ${formData.name}`);
+                showSuccessToast("Cập nhật nguyên liệu thành công!");
             } else {
                 await addDoc(collection(db, 'ingredients'), {
                     ...baseData,
@@ -121,22 +122,22 @@
                     createdAt: serverTimestamp() 
                 });
                 await logAction($authStore.user!, 'CREATE', 'ingredients', `Thêm mới NVL: ${formData.name} (${code})`);
-                showToast("Thêm nguyên liệu thành công!", 'success');
+                showSuccessToast("Thêm nguyên liệu thành công!");
             }
             isModalOpen = false;
-        } catch (error) { showToast("Lỗi lưu: " + error, 'error'); }
+        } catch (error) { showErrorToast("Lỗi lưu: " + error.message); }
         finally { processing = false; }
     }
 
     async function handleDelete(id: string) {
-        if (!checkPermission('edit_inventory')) return showToast("Bạn không có quyền.", 'error');
+        if (!checkPermission('edit_inventory')) return showErrorToast("Bạn không có quyền.");
         if(!confirm("Xóa nguyên liệu này?")) return;
         
         try {
             await deleteDoc(doc(db, 'ingredients', id));
             await logAction($authStore.user!, 'DELETE', 'ingredients', `Xóa NVL ID: ${id}`);
-            showToast("Đã xóa nguyên liệu.", 'success');
-        } catch (error) { showToast("Lỗi xóa: " + error, 'error'); }
+            showSuccessToast("Đã xóa nguyên liệu.");
+        } catch (error) { showErrorToast("Lỗi xóa: " + error.message); }
     }
 </script>
 

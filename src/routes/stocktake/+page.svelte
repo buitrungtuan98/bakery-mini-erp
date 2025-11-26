@@ -7,7 +7,7 @@
 	import { onMount, onDestroy } from 'svelte';
     import { logAction } from '$lib/logger';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
 
     // --- Types ---
     interface Ingredient { 
@@ -100,7 +100,7 @@
 
     // --- LOGIC ---
     async function handleStocktakeIngredients() {
-        if (!checkPermission('edit_inventory')) return showToast("Bạn không có quyền cân bằng kho.", "error");
+        if (!checkPermission('edit_inventory')) return showErrorToast("Bạn không có quyền cân bằng kho.");
         if (!confirm("Xác nhận cập nhật tồn kho theo số liệu thực tế này?")) return;
         processing = true;
         
@@ -132,22 +132,22 @@
                     await logAction($authStore.user!, 'UPDATE', 'ingredients', `Kiểm kê kho NVL: ${item.name}. Thay đổi: ${diff} ${item.baseUnit}`);
                 }
             });
-            showToast("Đã cân bằng kho nguyên liệu thành công!", "success");
+            showSuccessToast("Đã cân bằng kho nguyên liệu thành công!");
             // await loadData();
         } catch (e) { 
-            showToast("Lỗi: Không thể cân bằng kho. " + e, "error");
+            showErrorToast("Lỗi: Không thể cân bằng kho. " + e.message);
         } 
         finally { processing = false; }
     }
 
     async function handleStocktakeAssets(asset: Asset) {
-        if (!checkPermission('manage_assets')) return showToast("Bạn không có quyền cập nhật tài sản.", "error");
-        if (!asset.id) return showToast("Lỗi dữ liệu: Tài sản bị thiếu ID.", "error");
+        if (!checkPermission('manage_assets')) return showErrorToast("Bạn không có quyền cập nhật tài sản.");
+        if (!asset.id) return showErrorToast("Lỗi dữ liệu: Tài sản bị thiếu ID.");
         
         const newTotal = (asset.actualGood || 0) + (asset.actualBroken || 0) + (asset.actualLost || 0);
         const originalTotal = asset.quantity.total;
         
-        if (newTotal > originalTotal) return showToast(`Lỗi: Tổng số lượng mới (${newTotal}) không thể lớn hơn số lượng đã mua ban đầu (${originalTotal}).`, "error");
+        if (newTotal > originalTotal) return showErrorToast(`Lỗi: Tổng số lượng mới (${newTotal}) không thể lớn hơn số lượng đã mua ban đầu (${originalTotal}).`);
 
         try {
             const ref = doc(db, 'assets', asset.id);
@@ -160,10 +160,10 @@
                 }
             });
             await logAction($authStore.user!, 'UPDATE', 'assets', `Kiểm kê: ${asset.name} (Tốt: ${asset.actualGood}, Hỏng: ${asset.actualBroken}, Mất: ${asset.actualLost})`);
-            showToast("Đã cập nhật tài sản!", "success");
+            showSuccessToast("Đã cập nhật tài sản!");
 
         } catch (e) { 
-            showToast("Lỗi: " + e, "error");
+            showErrorToast("Lỗi: " + e.message);
         }
     }
 </script>

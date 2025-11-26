@@ -7,7 +7,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2, Save } from 'lucide-svelte';
 
 	interface Asset {
@@ -55,7 +55,7 @@
     }
 
 	async function handleSubmit() {
-        if (!checkPermission('manage_assets')) return showToast("Bạn không có quyền thêm/sửa tài sản.", "error");
+        if (!checkPermission('manage_assets')) return showErrorToast("Bạn không có quyền thêm/sửa tài sản.");
         
         // Tự động tính tổng
         formData.quantity.total = formData.quantity.good + formData.quantity.broken; 
@@ -72,26 +72,27 @@
 			if (isEditing) {
 				await updateDoc(doc(db, 'assets', formData.id), dataToSave);
                 await logAction($authStore.user!, 'UPDATE', 'assets', `Cập nhật tài sản: ${formData.name}`);
+                showSuccessToast("Cập nhật tài sản thành công!");
 			} else {
                 const code = await generateNextCode('assets', 'TS');
                 dataToSave.code = code;
 
 				await addDoc(collection(db, 'assets'), { ...dataToSave, createdAt: serverTimestamp() });
                 await logAction($authStore.user!, 'CREATE', 'assets', `Thêm tài sản mới: ${formData.name} (${code})`);
-                showToast("Thêm tài sản mới thành công!", "success");
+                showSuccessToast("Thêm tài sản mới thành công!");
 			}
 			isModalOpen = false;
-		} catch (error) { showToast("Lỗi: " + error, "error"); }
+		} catch (error) { showErrorToast("Lỗi: " + error.message); }
 	}
 
     async function handleDelete(id: string) {
-        if (!checkPermission('manage_assets')) return showToast("Bạn không có quyền xóa tài sản.", "error");
+        if (!checkPermission('manage_assets')) return showErrorToast("Bạn không có quyền xóa tài sản.");
         if(!confirm("Xóa tài sản này?")) return;
         try {
             await deleteDoc(doc(db, 'assets', id));
-            showToast("Đã xóa tài sản.", "success");
+            showSuccessToast("Đã xóa tài sản.");
         } catch (error) {
-            showToast("Lỗi xóa tài sản: " + error, "error");
+            showErrorToast("Lỗi xóa tài sản: " + error.message);
         }
     }
 </script>

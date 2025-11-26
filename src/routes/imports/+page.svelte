@@ -9,7 +9,7 @@
     import { Timestamp } from 'firebase/firestore';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
-    import { showToast } from '$lib/utils/toast';
+    import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save, Trash2 } from 'lucide-svelte';
 
 	// --- Types ---
@@ -122,13 +122,13 @@
 
 	// --- Submit Logic ---
 	async function handleImport() {
-		if (!selectedSupplierId) return showToast('Chưa chọn Nhà cung cấp', 'warning');
+		if (!selectedSupplierId) return showErrorToast('Chưa chọn Nhà cung cấp');
         const validItems = importItems.filter(i => i.ingredientId && i.quantity > 0);
-		if (validItems.length === 0) return showToast('Chưa có dòng hàng nào hợp lệ', 'warning');
+		if (validItems.length === 0) return showErrorToast('Chưa có dòng hàng nào hợp lệ');
         if (!confirm(`Xác nhận nhập kho với tổng tiền: ${totalAmount.toLocaleString()} đ?`)) return;
 
         const selectedDate = new Date(importDate);
-        if (isNaN(selectedDate.getTime())) return showToast('Ngày nhập không hợp lệ!', 'error');
+        if (isNaN(selectedDate.getTime())) return showErrorToast('Ngày nhập không hợp lệ!');
 
 		processing = true;
 
@@ -182,26 +182,26 @@
                 await logAction($authStore.user!, 'TRANSACTION', 'imports', `Tạo phiếu nhập ${code}`);
             });
 
-            showToast(`Nhập kho thành công! Mã: ${code}`, 'success');
+            showSuccessToast(`Nhập kho thành công! Mã: ${code}`);
             selectedSupplierId = '';
             importItems = [];
 
 		} catch (error: any) {
 			console.error(error);
-			showToast('Lỗi: ' + error.message || error, 'error');
+			showErrorToast('Lỗi: ' + error.message || error);
 		} finally {
 			processing = false;
 		}
 	}
     
     async function deleteReceipt(id: string) {
-        if (!checkPermission('manage_imports')) return showToast("Không có quyền xóa.", 'error');
+        if (!checkPermission('manage_imports')) return showErrorToast("Không có quyền xóa.");
         if(!confirm("Xóa phiếu nhập có thể làm sai lệch tồn kho. Chắc chắn?")) return;
         try {
             await deleteDoc(doc(db, 'imports', id));
             await logAction($authStore.user!, 'DELETE', 'imports', `Xóa phiếu nhập ID: ${id}`);
-            showToast("Đã xóa phiếu nhập.", 'success');
-        } catch (error) { showToast("Lỗi xóa: " + error, 'error'); }
+            showSuccessToast("Đã xóa phiếu nhập.");
+        } catch (error) { showErrorToast("Lỗi xóa: " + error.message); }
     }
 </script>
 
