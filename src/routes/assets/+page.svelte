@@ -85,7 +85,7 @@
                 showSuccessToast("Thêm tài sản mới thành công!");
 			}
 			isModalOpen = false;
-		} catch (error) { showErrorToast("Lỗi: " + error.message); }
+		} catch (error: any) { showErrorToast("Lỗi: " + error.message); }
 	}
 
     async function handleDelete(id: string) {
@@ -94,7 +94,7 @@
         try {
             await deleteDoc(doc(db, 'assets', id));
             showSuccessToast("Đã xóa tài sản.");
-        } catch (error) {
+        } catch (error: any) {
             showErrorToast("Lỗi xóa tài sản: " + error.message);
         }
     }

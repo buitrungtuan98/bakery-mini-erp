@@ -100,7 +100,7 @@
             showSuccessToast("Thêm danh mục thành công!");
             newCategoryName = '';
             // Don't close modal automatically, maybe they want to add more
-        } catch (e) {
+        } catch (e: any) {
             showErrorToast("Lỗi thêm danh mục: " + e.message);
         }
     }
@@ -159,7 +159,7 @@
             expenseData.description = '';
             isAssetPurchase = false;
             
-        } catch (e) {
+        } catch (e: any) {
             showErrorToast("Lỗi ghi nhận chi phí: " + e.message);
         } finally {
             processing = false;

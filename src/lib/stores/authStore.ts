@@ -52,7 +52,7 @@ function createAuthStore() {
                             },
                             loading: false
                         });
-                    } catch (error) {
+                    } catch (error: any) {
                         console.error("Auth Store Error:", error);
                         permissionStore.setUserRole('staff');
                         set({

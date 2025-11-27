@@ -69,7 +69,7 @@
             showSuccessToast("Đã lưu cấu hình thành công!");
             permissionStore.initRoles();
             if ($authStore.user?.role) permissionStore.setUserRole($authStore.user.role);
-        } catch (e) {
+        } catch (e: any) {
             showErrorToast("Lỗi lưu: " + e.message);
         } finally {
             processing = false;

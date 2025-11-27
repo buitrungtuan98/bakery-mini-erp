@@ -32,28 +32,28 @@
 	
 	<div class="navbar-center">
 		<ul class="menu menu-horizontal px-0 text-sm"> 
-			<li class="relative"><a href="/" class="{activeRoute === '/' ? 'active' : ''} py-1">Dashboard</a></li>
+			<li class="relative"><a href="/" data-sveltekit-preload-data="hover" class="{activeRoute === '/' ? 'active' : ''} py-1">Dashboard</a></li>
 
             {#if canManage}
-                <li class="relative"><a href="/ingredients" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''} py-1">Nguyên liệu</a></li>
-                <li class="relative"><a href="/products" class="{activeRoute.startsWith('/products') ? 'active' : ''} py-1">Sản phẩm/CT</a></li>
-                <li class="relative"><a href="/imports" class="{activeRoute.startsWith('/imports') ? 'active' : ''} py-1">Nhập hàng</a></li>
-                <li class="relative"><a href="/production" class="{activeRoute.startsWith('/production') ? 'active' : ''} py-1">Sản xuất</a></li>
-                <li class="relative"><a href="/stocktake" class="{activeRoute.startsWith('/stocktake') ? 'active' : ''} py-1">Kiểm kho</a></li>
+                <li class="relative"><a href="/ingredients" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''} py-1">Nguyên liệu</a></li>
+                <li class="relative"><a href="/products" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/products') ? 'active' : ''} py-1">Sản phẩm/CT</a></li>
+                <li class="relative"><a href="/imports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/imports') ? 'active' : ''} py-1">Nhập hàng</a></li>
+                <li class="relative"><a href="/production" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/production') ? 'active' : ''} py-1">Sản xuất</a></li>
+                <li class="relative"><a href="/stocktake" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/stocktake') ? 'active' : ''} py-1">Kiểm kho</a></li>
             {/if}
 
             {#if canSell}
-                <li class="relative"><a href="/sales" class="{activeRoute.startsWith('/sales') ? 'active' : ''} py-1">Bán hàng</a></li>
-                <li class="relative"><a href="/partners" class="{activeRoute.startsWith('/partners') ? 'active' : ''} py-1">Đối tác</a></li>
+                <li class="relative"><a href="/sales" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/sales') ? 'active' : ''} py-1">Bán hàng</a></li>
+                <li class="relative"><a href="/partners" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/partners') ? 'active' : ''} py-1">Đối tác</a></li>
             {/if}
 
             {#if canManage || canSell}
-                <li class="relative"><a href="/reports" class="{activeRoute.startsWith('/reports') ? 'active' : ''} py-1">Báo cáo</a></li>
+                <li class="relative"><a href="/reports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/reports') ? 'active' : ''} py-1">Báo cáo</a></li>
             {/if}
 
             {#if isAdmin}
-                 <li class="relative"><a href="/admin/users" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} py-1 text-secondary font-bold">Quản lý User</a></li>
-                 <li class="relative"><a href="/history" class="{activeRoute.startsWith('/history') ? 'active' : ''} py-1">Lịch sử HT</a></li>
+                 <li class="relative"><a href="/admin/users" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} py-1 text-secondary font-bold">Quản lý User</a></li>
+                 <li class="relative"><a href="/history" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/history') ? 'active' : ''} py-1">Lịch sử HT</a></li>
             {/if}
 		</ul>
 	</div>

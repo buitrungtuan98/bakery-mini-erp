@@ -36,7 +36,7 @@ export async function logAction(
             details: details,
             timestamp: serverTimestamp(),
         });
-    } catch (e) {
+    } catch (e: any) {
         console.error("Failed to write audit log:", e);
     }
 }

@@ -131,7 +131,7 @@
             contextPeriodEnd = endDate.toLocaleDateString('vi-VN');
 
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Lỗi tải Dashboard Data:", error);
         } finally {
             loading = false;

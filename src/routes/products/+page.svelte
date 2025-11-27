@@ -153,7 +153,7 @@
                 showSuccessToast("Thêm sản phẩm thành công!");
             }
             isModalOpen = false;
-        } catch (e) {
+        } catch (e: any) {
             showErrorToast("Lỗi: " + e.message);
         }
         finally { processing = false; }

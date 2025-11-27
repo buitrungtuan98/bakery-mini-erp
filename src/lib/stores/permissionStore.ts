@@ -85,7 +85,7 @@ function createPermissionStore() {
                     roles = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as RoleDef));
                 }
                 update(store => ({ ...store, roles, loading: false }));
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Failed to load roles:", e);
                 update(store => ({ ...store, roles: DEFAULT_ROLES, loading: false }));
             }

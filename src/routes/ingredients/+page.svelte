@@ -129,7 +129,7 @@
                 showSuccessToast("Thêm nguyên liệu thành công!");
             }
             isModalOpen = false;
-        } catch (error) { showErrorToast("Lỗi lưu: " + error.message); }
+        } catch (error: any) { showErrorToast("Lỗi lưu: " + error.message); }
         finally { processing = false; }
     }
 
@@ -141,7 +141,7 @@
             await deleteDoc(doc(db, 'ingredients', id));
             await logAction($authStore.user!, 'DELETE', 'ingredients', `Xóa NVL ID: ${id}`);
             showSuccessToast("Đã xóa nguyên liệu.");
-        } catch (error) { showErrorToast("Lỗi xóa: " + error.message); }
+        } catch (error: any) { showErrorToast("Lỗi xóa: " + error.message); }
     }
 </script>
 

@@ -13,32 +13,9 @@
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { Plus } from 'lucide-svelte';
     import Bill from '$lib/components/ui/Bill.svelte';
-    import jsPDF from 'jspdf';
-    import html2canvas from 'html2canvas-pro';
-    import type { Order } from '$lib/types/order';
+    import type { Order, OrderItem } from '$lib/types/order';
     import { tick } from 'svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-
-	// --- Types ---
-	interface OrderItem {
-		productId: string; productName?: string; quantity: number; unitPrice: number; lineTotal: number;
-		lineCOGS: number;  initialPrice: number; 
-        originalBasePrice?: number;
-	}
-    
-    interface Order {
-        id: string;
-        code?: string;
-        createdAt: { toDate: () => Date };
-        deliveryDate?: { toDate: () => Date };
-        customerId: string;
-        customerInfo: { name: string, type?: 'sỉ'|'lẻ', phone?: string };
-        totalRevenue: number;
-        totalProfit: number;
-        status: 'open' | 'cooking' | 'delivering' | 'delivered' | 'completed' | 'canceled'; // 'completed' is legacy
-        shippingAddress: string;
-        items: OrderItem[];
-    }
 
 	// --- State ---
 	let products: Product[] = [];
@@ -497,6 +474,14 @@
         }
 
         try {
+            // Dynamically import jsPDF and html2canvas
+            const [jsPDFModule, html2canvasModule] = await Promise.all([
+                import('jspdf'),
+                import('html2canvas-pro')
+            ]);
+            const jsPDF = jsPDFModule.default;
+            const html2canvas = html2canvasModule.default;
+
             const canvas = await html2canvas(billElement, {
                 scale: 2, // Higher scale for better quality
                 useCORS: true
@@ -517,7 +502,7 @@
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
             pdf.save(`hoadon-${order.code || order.id.slice(0,6)}.pdf`);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Lỗi khi tạo PDF:", error);
             showErrorToast("Đã có lỗi xảy ra khi tạo file PDF.");
         } finally {

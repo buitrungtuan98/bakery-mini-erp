@@ -70,7 +70,7 @@
                 loading = false;
             });
             
-        } catch (e) { loading = false; }
+        } catch (e: any) { loading = false; }
     }
     
     $: if ($authStore.user && !isDataFetched) {
@@ -204,7 +204,7 @@
             await deleteDoc(doc(db, 'imports', id));
             await logAction($authStore.user!, 'DELETE', 'imports', `Xóa phiếu nhập ID: ${id}`);
             showSuccessToast("Đã xóa phiếu nhập.");
-        } catch (error) { showErrorToast("Lỗi xóa: " + error.message); }
+        } catch (error: any) { showErrorToast("Lỗi xóa: " + error.message); }
     }
 </script>
 

@@ -91,7 +91,7 @@
             if(index !== -1) users[index].role = newRole;
 
             showSuccessToast(`Đã cập nhật quyền thành công!`);
-        } catch (e) {
+        } catch (e: any) {
             showErrorToast("Lỗi cập nhật quyền: " + e.message);
             users = [...users];
         }
@@ -104,7 +104,7 @@
             await logAction($authStore.user!, 'DELETE', 'users', `Xóa user: ${email}`);
             users = users.filter(u => u.id !== id);
             showSuccessToast(`Đã xóa người dùng ${email}`);
-        } catch (e) { showErrorToast("Lỗi xóa user: " + e.message); }
+        } catch (e: any) { showErrorToast("Lỗi xóa user: " + e.message); }
     }
 
     async function handleInvite() {
@@ -125,7 +125,7 @@
             showSuccessToast(`Đã gửi lời mời cho ${inviteEmail}`);
             inviteEmail = '';
             await fetchInvites();
-        } catch (e) {
+        } catch (e: any) {
             showErrorToast("Lỗi gửi lời mời: " + e.message);
         } finally {
             inviteLoading = false;
@@ -138,7 +138,7 @@
             await deleteDoc(doc(db, 'invited_emails', id));
             invites = invites.filter(i => i.id !== id);
             showSuccessToast("Đã hủy lời mời.");
-        } catch (e) { showErrorToast("Lỗi: " + e.message); }
+        } catch (e: any) { showErrorToast("Lỗi: " + e.message); }
     }
 </script>
 

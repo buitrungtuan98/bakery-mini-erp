@@ -86,7 +86,7 @@
                 showSuccessToast("Thêm đối tác thành công!");
             }
             isModalOpen = false;
-        } catch (e) { showErrorToast("Lỗi: " + e.message); }
+        } catch (e: any) { showErrorToast("Lỗi: " + e.message); }
         finally { processing = false; }
     }
 
@@ -96,7 +96,7 @@
         try {
             await deleteDoc(doc(db, 'partners', id));
             showSuccessToast("Đã xóa đối tác.");
-        } catch (error) {
+        } catch (error: any) {
             showErrorToast("Lỗi xóa đối tác: " + error.message);
         }
     }
