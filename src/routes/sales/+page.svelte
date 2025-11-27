@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
-    import { productStore, partnerStore, type Product, type Partner } from '$lib/stores/masterDataStore';
+    import { productStore, partnerStore } from '$lib/stores/masterDataStore';
+    import type { MasterProduct, MasterPartner, SalesOrder, SalesOrderItem } from '$lib/types/erp';
 	import { onMount, onDestroy } from 'svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -9,7 +10,6 @@
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
 	import { Plus, User, Clock, CheckCircle, Truck, Package, Trash2, Printer, Calendar, Tag, ChevronRight } from 'lucide-svelte';
     import Bill from '$lib/components/ui/Bill.svelte';
-    import type { Order, OrderItem } from '$lib/types/order';
     import { tick } from 'svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { orderService } from '$lib/services/orderService';
@@ -17,9 +17,9 @@
     import { fade } from 'svelte/transition';
 
 	// --- State ---
-	let products: Product[] = [];
-    let customers: Partner[] = [];
-    let ordersHistory: Order[] = [];
+	let products: MasterProduct[] = [];
+    let customers: MasterPartner[] = [];
+    let ordersHistory: SalesOrder[] = [];
 	let loading = true;
 	let processing = false;
 	let errorMsg = '';
@@ -32,7 +32,8 @@
     let isCustomerModalOpen = false;
     let isEditItemModalOpen = false;
     let selectedItemIndex = -1;
-    let editingItem: OrderItem = { productId: '', quantity: 0, unitPrice: 0, lineTotal: 0, lineCOGS: 0, initialPrice: 0 };
+    // Note: SalesOrderItem includes total and costPrice, initialized safely
+    let editingItem: SalesOrderItem = { productId: '', productName: '', quantity: 0, unitPrice: 0, total: 0, costPrice: 0, originalPrice: 0 };
     let productSearchTerm = '';
     let customerSearchTerm = '';
 
@@ -49,8 +50,8 @@
 
 	// Dữ liệu Phiếu bán hàng
 	let selectedCustomerId = '';
-	let customer: Partner | undefined;
-	let orderItems: OrderItem[] = []; // Default empty
+	let customer: MasterPartner | undefined;
+	let orderItems: SalesOrderItem[] = []; // Default empty
 	let shippingFee = 0;
 	let shippingAddress = '';
     let shippingPhone = '';
@@ -73,7 +74,7 @@
     $: filteredCustomers = customers.filter(c => c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()));
 	
 	// Hàm tính giá đơn vị và tổng tiền của item
-	function updatePricing(item: OrderItem, products: Product[], currentCustomer: Partner | undefined, isManualUpdate: boolean): OrderItem {
+	function updatePricing(item: SalesOrderItem, products: MasterProduct[], currentCustomer: MasterPartner | undefined, isManualUpdate: boolean): SalesOrderItem {
 		const product = products.find(p => p.id === item.productId);
 		if (!product) return item;
 
@@ -81,7 +82,7 @@
 		let basePrice = customPriceEntry?.price || product.sellingPrice; 
 		
 		let finalUnitPrice;
-		if (isManualUpdate || item.unitPrice === 0 || item.unitPrice === item.initialPrice) {
+		if (isManualUpdate || item.unitPrice === 0 || item.unitPrice === item.originalPrice) {
 			finalUnitPrice = isManualUpdate ? item.unitPrice : basePrice; 
 		} else {
 			finalUnitPrice = item.unitPrice; 
@@ -89,19 +90,18 @@
 
 		const quantity = item.quantity || 0;
 		const lineTotal = finalUnitPrice * quantity;
-		const lineCOGS = product.theoreticalCost * quantity;
+		const lineCOGS = (product.costPrice || 0) * quantity;
 
 		return { 
             ...item, 
             unitPrice: finalUnitPrice, 
-            lineTotal: lineTotal, 
-            lineCOGS: lineCOGS, 
-            initialPrice: basePrice,
-            originalBasePrice: product.sellingPrice
+            total: lineTotal,
+            costPrice: lineCOGS,
+            originalPrice: basePrice
         };
 	}
 	
-	$: totalRevenue = orderItems.reduce((sum, item) => sum + (item.lineTotal || 0), 0) + (shippingFee || 0);
+	$: totalRevenue = orderItems.reduce((sum, item) => sum + (item.total || 0), 0) + (shippingFee || 0);
 
 	function handleCustomerChangeAndRecalculate(newCustomerId: string) {
         selectedCustomerId = newCustomerId;
@@ -160,7 +160,7 @@
         isProductModalOpen = true;
     }
 
-    function addProductToCart(product: Product) {
+    function addProductToCart(product: MasterProduct) {
         const existingIndex = orderItems.findIndex(i => i.productId === product.id);
 
         if (existingIndex >= 0) {
@@ -168,15 +168,14 @@
             item.quantity += 1;
             orderItems[existingIndex] = updatePricing(item, products, customer, false);
         } else {
-            const newItem: OrderItem = {
+            const newItem: SalesOrderItem = {
                 productId: product.id,
                 productName: product.name,
                 quantity: 1,
                 unitPrice: product.sellingPrice,
-                lineTotal: 0,
-                lineCOGS: 0,
-                initialPrice: product.sellingPrice,
-                originalBasePrice: product.sellingPrice
+                total: 0,
+                costPrice: 0,
+                originalPrice: product.sellingPrice
             };
             orderItems = [...orderItems, updatePricing(newItem, products, customer, false)];
         }
@@ -205,7 +204,7 @@
 	}
 
 	// --- CANCEL/REVERSE LOGIC ---
-    async function handleCancelOrder(order: Order) {
+    async function handleCancelOrder(order: SalesOrder) {
         const canCancel = checkPermission('manage_orders') || checkPermission('create_order');
         if (!canCancel) return showErrorToast("Bạn không có quyền hủy đơn.");
 
@@ -223,7 +222,7 @@
         }
     }
 
-    async function updateStatus(order: Order, newStatus: string) {
+    async function updateStatus(order: SalesOrder, newStatus: string) {
         if (!confirm(`Cập nhật trạng thái đơn hàng ${order.code} thành '${newStatus}'?`)) return;
 
         try {
@@ -277,10 +276,10 @@
 	}
 
     // --- PDF Printing Logic ---
-    let orderToPrint: Order | null = null;
+    let orderToPrint: SalesOrder | null = null;
     let isPrinting = false;
 
-    async function handlePrint(order: Order) {
+    async function handlePrint(order: SalesOrder) {
         if (isPrinting) return;
         orderToPrint = order;
         isPrinting = true;
@@ -438,8 +437,8 @@
                         </div>
                     </div>
                     <div class="text-right">
-                        <div class="font-bold text-slate-800 text-base">{item.lineTotal.toLocaleString()} đ</div>
-                        {#if item.unitPrice !== item.originalBasePrice}
+                        <div class="font-bold text-slate-800 text-base">{item.total.toLocaleString()} đ</div>
+                        {#if item.unitPrice !== item.originalPrice}
                             <div class="text-[9px] text-orange-500 font-bold bg-orange-50 px-1 rounded">CUSTOM</div>
                         {/if}
                     </div>
@@ -561,12 +560,12 @@
                                                 {:else}<Package size={16}/>{/if}
                                             </div>
                                             <div>
-                                                <div class="font-bold text-sm text-slate-800">{order.customerInfo.name}</div>
+                                                <div class="font-bold text-sm text-slate-800">{order.customerName}</div>
                                                 <div class="text-xs text-slate-400 font-mono mt-0.5">{order.code || order.id.slice(0,8)}</div>
                                             </div>
                                         </div>
                                         <div class="text-right">
-                                            <div class="font-bold text-base text-primary">{order.totalRevenue.toLocaleString()}</div>
+                                            <div class="font-bold text-base text-primary">{order.totalAmount.toLocaleString()}</div>
                                             <span class="badge badge-xs mt-1 font-medium border-0 py-2
                                                 {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
                                                  order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
@@ -582,7 +581,7 @@
 
                                     <div class="flex justify-between items-center border-t border-slate-50 pt-3 mt-1">
                                         <span class="text-[10px] text-slate-400">
-                                            {order.deliveryDate?.toDate ? order.deliveryDate.toDate().toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
+                                            {order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
                                         </span>
 
                                         <div class="flex gap-2">
@@ -628,8 +627,8 @@
                             {#each ordersHistory as order}
                                 <tr class="hover group {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
                                     <td class="font-mono text-sm">{order.code || order.id.slice(0,8)}</td>
-                                    <td class="font-bold">{order.customerInfo.name}</td>
-                                    <td class="text-sm">{order.deliveryDate?.toDate ? order.deliveryDate.toDate().toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}</td>
+                                    <td class="font-bold">{order.customerName}</td>
+                                    <td class="text-sm">{order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}</td>
                                     <td>
                                         <span class="badge badge-sm border-0 py-2
                                             {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
@@ -642,7 +641,7 @@
                                              order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
                                         </span>
                                     </td>
-                                    <td class="text-right font-bold text-primary">{order.totalRevenue.toLocaleString()}</td>
+                                    <td class="text-right font-bold text-primary">{order.totalAmount.toLocaleString()}</td>
                                     <td class="text-center">
                                         <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button class="btn btn-xs btn-ghost" on:click={() => handlePrint(order)}><Printer size={14} /></button>
