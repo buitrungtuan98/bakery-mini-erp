@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fade, slide } from 'svelte/transition';
 	import { quintOut } from 'svelte/easing';
+    import { X } from 'lucide-svelte';
 
 	export let title: string;
 	export let isOpen: boolean;
@@ -12,54 +13,54 @@
 	export let loading = false;
 	export let showConfirm = true;
     export let showCancel = true;
-
-    // Use a key to force re-render transitions
-    $: modalKey = isOpen;
 </script>
 
 {#if isOpen}
-    <!-- Backdrop -->
+    <!-- Backdrop: z-[60] to sit above BottomNav (z-50) -->
     <div
-        class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+        class="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm"
         on:click={onClose}
-        transition:fade={{ duration: 150 }}
+        transition:fade={{ duration: 200 }}
     ></div>
 
-    <!-- Responsive Modal Container -->
-    <!-- On lg screens: centered modal. On smaller screens: bottom sheet -->
-    <div class="fixed inset-0 z-50 flex items-end lg:items-center justify-center">
+    <!-- Responsive Modal Container: z-[60] -->
+    <!-- On lg screens: centered modal. On smaller screens: bottom sheet with safe area padding -->
+    <div class="fixed inset-0 z-[60] flex items-end lg:items-center justify-center p-0 lg:p-4 pointer-events-none">
         <div
-            class="modal-box w-full max-h-[85vh] lg:max-h-none lg:w-11/12 lg:max-w-lg rounded-t-2xl lg:rounded-lg shadow-2xl p-0 flex flex-col"
+            class="pointer-events-auto bg-base-100 w-full max-h-[85vh] lg:max-h-[80vh] lg:w-full lg:max-w-lg rounded-t-3xl lg:rounded-2xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-black/5"
             transition:slide={{ duration: 300, axis: 'y', easing: quintOut }}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
         >
+            <!-- Mobile Drag Indicator (Visual Only) -->
+            <div class="lg:hidden w-full flex justify-center pt-3 pb-1 bg-base-100" on:click={onClose}>
+                <div class="w-12 h-1.5 rounded-full bg-slate-200"></div>
+            </div>
+
             <!-- Header -->
-            <header class="flex items-center justify-between p-4 border-b border-base-200 sticky top-0 bg-base-100 z-10">
-                <h3 id="modal-title" class="font-bold text-lg">{title}</h3>
-                <button class="btn btn-sm btn-circle btn-ghost" on:click={onClose}>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+            <header class="flex items-center justify-between px-6 py-4 border-b border-base-200 bg-base-100 z-10 shrink-0">
+                <h3 id="modal-title" class="font-bold text-xl text-slate-800 tracking-tight">{title}</h3>
+                <button class="btn btn-sm btn-circle btn-ghost text-slate-400 hover:bg-slate-100" on:click={onClose}>
+                    <X size={20} />
                 </button>
             </header>
 
             <!-- Body (Scrollable) -->
-            <div class="p-4 overflow-y-auto flex-grow">
+            <div class="p-6 overflow-y-auto overflow-x-hidden flex-grow overscroll-contain">
                 <slot />
             </div>
 
             <!-- Footer -->
             {#if showConfirm || showCancel}
-            <footer class="p-4 border-t border-base-200 sticky bottom-0 bg-base-100 z-10">
-                <div class="flex justify-end gap-2">
+            <footer class="p-4 px-6 border-t border-base-200 bg-base-100 z-10 shrink-0 pb-safe">
+                <div class="flex flex-col-reverse lg:flex-row justify-end gap-3 lg:gap-2">
                     {#if showCancel}
-                        <button class="btn" on:click={onClose} disabled={loading}>{cancelText}</button>
+                        <button class="btn btn-ghost w-full lg:w-auto" on:click={onClose} disabled={loading}>{cancelText}</button>
                     {/if}
 
                     {#if showConfirm && onConfirm}
-                        <button class="btn {confirmBtnClass}" on:click={onConfirm} disabled={loading}>
+                        <button class="btn {confirmBtnClass} w-full lg:w-auto shadow-lg shadow-primary/20" on:click={onConfirm} disabled={loading}>
                             {#if loading}
                                 <span class="loading loading-spinner loading-xs"></span>
                             {/if}
@@ -73,3 +74,9 @@
         </div>
     </div>
 {/if}
+
+<style>
+    .pb-safe {
+        padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+</style>
