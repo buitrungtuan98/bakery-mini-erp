@@ -2,16 +2,15 @@
 	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
     import { permissionStore } from '$lib/stores/permissionStore';
-	import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+	import { collection, getDocs, query, orderBy, where } from 'firebase/firestore';
 	import { onMount } from 'svelte';
+    import type { SalesOrder, FinanceLedger, MasterIngredient } from '$lib/types/erp';
 
     // --- Types ---
-    interface Ingredient { name: string; currentStock: number; minStock: number; }
-    interface Order { totalRevenue: number; totalProfit: number; createdAt: { toDate: () => Date }; }
-    interface Expense { amount: number; date: { toDate: () => Date }; }
+    // Use ERP types
 
 	// --- State ---
-    let lowStockIngredients: Ingredient[] = [];
+    let lowStockIngredients: MasterIngredient[] = [];
     let totalRevenue = 0; 
     let totalProfit = 0;
     let totalExpenses = 0;
@@ -75,19 +74,19 @@
         }
 
         try {
-            // Lấy Master Data (Không đổi)
-            const ingSnap = await getDocs(query(collection(db, 'ingredients')));
-            const ingredientsData = ingSnap.docs.map(doc => doc.data() as Ingredient);
+            // Lấy Master Data
+            const ingSnap = await getDocs(query(collection(db, 'master_ingredients')));
+            const ingredientsData = ingSnap.docs.map(doc => doc.data() as MasterIngredient);
             lowStockIngredients = ingredientsData.filter(ing => ing.currentStock < ing.minStock);
 
-            // Lấy Transactions (Orders & Expenses)
+            // Lấy Transactions (Sales Orders & Finance Ledger)
             const [orderSnap, expenseSnap] = await Promise.all([
-                getDocs(query(collection(db, 'orders'), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, 'expenses_log'), orderBy('date', 'desc')))
+                getDocs(query(collection(db, 'sales_orders'), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, 'finance_ledger'), where('type', '==', 'expense'), orderBy('date', 'desc')))
             ]);
 
-            const ordersData = orderSnap.docs.map(doc => doc.data() as Order);
-            const expensesData = expenseSnap.docs.map(doc => doc.data() as Expense);
+            const ordersData = orderSnap.docs.map(doc => doc.data() as SalesOrder);
+            const expensesData = expenseSnap.docs.map(doc => doc.data() as FinanceLedger);
 
             
             // === 3. TÍNH TOÁN DỮ LIỆU THEO THỜI GIAN ===
@@ -95,7 +94,7 @@
             const { startDate, endDate } = getStartEndDate(selectedPeriod, customStartDate, customEndDate);
             
             let revenuePeriod = 0;
-            let profitPeriod = 0;
+            let profitPeriod = 0; // Gross Profit
             let expensesPeriod = 0;
             
             // Khởi tạo tổng tiền
@@ -105,16 +104,20 @@
             
             // Lọc và tính Orders
             ordersData.forEach(order => {
-                const orderDate = order.createdAt.toDate();
+                // Ignore canceled? Assuming yes.
+                if (order.status === 'canceled') return;
+
+                const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(0);
                 if (orderDate >= startDate && orderDate <= endDate) {
-                    revenuePeriod += order.totalRevenue;
-                    profitPeriod += order.totalProfit;
+                    revenuePeriod += (order.totalAmount || 0); // Sales
+                    const cogs = order.totalCost || 0;
+                    profitPeriod += ((order.totalAmount || 0) - cogs);
                 }
             });
 
             // Lọc và tính Expenses
             expensesData.forEach(expense => {
-                const expenseDate = expense.date.toDate();
+                const expenseDate = expense.date?.toDate ? expense.date.toDate() : new Date(0);
                 if (expenseDate >= startDate && expenseDate <= endDate) {
                     expensesPeriod += expense.amount;
                 }
@@ -122,9 +125,9 @@
 
             // Gán kết quả
             totalRevenue = revenuePeriod;
-            totalProfit = profitPeriod;
+            totalProfit = profitPeriod; // Gross
             totalExpenses = expensesPeriod;
-            netProfit = totalProfit - totalExpenses; 
+            netProfit = totalProfit - totalExpenses; // Net = Gross - Overhead
 
             // Cập nhật Context hiển thị
             contextPeriodStart = startDate.toLocaleDateString('vi-VN');
@@ -269,10 +272,6 @@
 
     <h2 class="text-xl font-bold mb-4">Biểu đồ Doanh thu/Chi phí (Visualization)</h2>
     <div class="h-64 bg-base-100 rounded-box shadow-xl flex flex-col items-center justify-center text-gray-500 p-4">
-        
-
-[Image of simple monthly revenue chart placeholder]
-
         <p>Để tối ưu chi phí và hiệu năng, tính năng biểu đồ phức tạp được thay thế bằng các chỉ số thống kê chính xác phía trên.</p>
     </div>
 </div>

@@ -36,7 +36,7 @@
 
 	onMount(() => {
         loading = true;
-		const q = query(collection(db, 'assets'), orderBy('name'));
+		const q = query(collection(db, 'master_assets'), orderBy('name'));
 		unsubscribe = onSnapshot(q, (snapshot) => {
 			assets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Asset));
 			loading = false;
@@ -73,15 +73,15 @@
             };
 
 			if (isEditing) {
-				await updateDoc(doc(db, 'assets', formData.id), dataToSave);
-                await logAction($authStore.user!, 'UPDATE', 'assets', `Cập nhật tài sản: ${formData.name}`);
+				await updateDoc(doc(db, 'master_assets', formData.id), dataToSave);
+                await logAction($authStore.user!, 'UPDATE', 'master_assets', `Cập nhật tài sản: ${formData.name}`);
                 showSuccessToast("Cập nhật tài sản thành công!");
 			} else {
-                const code = await generateNextCode('assets', 'TS');
+                const code = await generateNextCode('master_assets', 'TS');
                 dataToSave.code = code;
 
-				await addDoc(collection(db, 'assets'), { ...dataToSave, createdAt: serverTimestamp() });
-                await logAction($authStore.user!, 'CREATE', 'assets', `Thêm tài sản mới: ${formData.name} (${code})`);
+				await addDoc(collection(db, 'master_assets'), { ...dataToSave, createdAt: serverTimestamp() });
+                await logAction($authStore.user!, 'CREATE', 'master_assets', `Thêm tài sản mới: ${formData.name} (${code})`);
                 showSuccessToast("Thêm tài sản mới thành công!");
 			}
 			isModalOpen = false;
@@ -92,7 +92,7 @@
         if (!checkPermission('manage_assets')) return showErrorToast("Bạn không có quyền xóa tài sản.");
         if(!confirm("Xóa tài sản này?")) return;
         try {
-            await deleteDoc(doc(db, 'assets', id));
+            await deleteDoc(doc(db, 'master_assets', id));
             showSuccessToast("Đã xóa tài sản.");
         } catch (error: any) {
             showErrorToast("Lỗi xóa tài sản: " + error.message);

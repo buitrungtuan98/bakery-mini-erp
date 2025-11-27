@@ -406,7 +406,7 @@
                     on:click={() => selectProduct(prod.id)}
                 >
                     <span class="font-bold text-slate-800">{prod.name}</span>
-                    <span class="text-xs text-slate-400">GV: {prod.theoreticalCost.toLocaleString()}</span>
+                    <span class="text-xs text-slate-400">GV: {(prod.costPrice || 0).toLocaleString()}</span>
                 </button>
             {/each}
             {#if filteredProducts.length === 0}
