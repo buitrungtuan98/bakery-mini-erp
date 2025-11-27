@@ -5,6 +5,8 @@
 	import { collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import Loading from '$lib/components/ui/Loading.svelte';
+    import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
 	interface AuditLog {
 		id: string;
@@ -55,9 +57,9 @@
         </div>
     {:else}
         {#if loading}
-            <div class="text-center py-10">Đang tải 100 hoạt động gần nhất...</div>
+            <Loading />
         {:else if auditLogs.length === 0}
-            <div class="text-center py-10 text-gray-500">Chưa có hoạt động nào được ghi nhận.</div>
+            <EmptyState message="Chưa có hoạt động nào được ghi nhận." />
         {:else}
             <ResponsiveTable>
                 <svelte:fragment slot="mobile">

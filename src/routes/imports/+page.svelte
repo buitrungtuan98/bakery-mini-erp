@@ -10,6 +10,8 @@
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
+    import Loading from '$lib/components/ui/Loading.svelte';
+    import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save, Trash2 } from 'lucide-svelte';
 
@@ -287,7 +289,9 @@
 
     {#if activeTab === 'history'}
         {#if loading}
-            <div class="text-center py-10">Đang tải...</div>
+            <Loading />
+        {:else if importHistory.length === 0}
+            <EmptyState message="Chưa có phiếu nhập kho nào." />
         {:else}
             <ResponsiveTable>
                 <svelte:fragment slot="mobile">

@@ -40,24 +40,31 @@ export interface Partner {
 // --- Generic Store Creator ---
 function createFirestoreStore<T>(collectionName: string, orderByField: string = 'name') {
     const { subscribe, set, update } = writable<T[]>([]);
+    // Create a separate writable for loading state
+    const loading = writable<boolean>(true);
+
     let unsubscribe: (() => void) | null = null;
     let loaded = false;
 
     return {
         subscribe,
+        loading: { subscribe: loading.subscribe }, // Expose only the subscribe method
         init: () => {
             if (loaded && unsubscribe) return; // Đã load rồi thì không load lại
 
             console.log(`[Store] Initializing subscription for ${collectionName}...`);
+            loading.set(true);
             const q = query(collection(db, collectionName), orderBy(orderByField));
 
             unsubscribe = onSnapshot(q, (snapshot) => {
                 const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
                 set(data);
                 loaded = true;
+                loading.set(false);
                 console.log(`[Store] Loaded ${data.length} items from ${collectionName}.`);
             }, (error) => {
                 console.error(`[Store] Error loading ${collectionName}:`, error);
+                loading.set(false); // Stop loading on error
             });
         },
         reset: () => {
@@ -66,6 +73,7 @@ function createFirestoreStore<T>(collectionName: string, orderByField: string = 
                 unsubscribe = null;
             }
             set([]);
+            loading.set(true); // Reset to loading state for next init
             loaded = false;
         }
     };

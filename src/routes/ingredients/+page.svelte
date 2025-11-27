@@ -25,6 +25,7 @@
 
     // Subscribe to Stores
     $: ingredients = $ingredientStore;
+    const { loading: ingredientLoading } = ingredientStore;
     $: manufacturers = $partnerStore.filter(p => p.type === 'manufacturer');
 
     let loading = false;
@@ -168,7 +169,7 @@
         </div>
     </div>
 
-    {#if ingredients.length === 0}
+    {#if $ingredientLoading}
         <div class="space-y-4 md:hidden">
             {#each { length: 3 } as _}
                 <SkeletonCard />
@@ -177,6 +178,8 @@
         <div class="hidden md:block">
             <Loading />
         </div>
+    {:else if ingredients.length === 0}
+        <EmptyState message="Không tìm thấy nguyên liệu nào." />
     {:else}
         <ResponsiveTable>
              <svelte:fragment slot="mobile">

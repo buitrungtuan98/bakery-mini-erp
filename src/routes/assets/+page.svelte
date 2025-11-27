@@ -7,6 +7,8 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import Loading from '$lib/components/ui/Loading.svelte';
+    import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2, Save } from 'lucide-svelte';
 
@@ -33,6 +35,7 @@
 	let unsubscribe: () => void;
 
 	onMount(() => {
+        loading = true;
 		const q = query(collection(db, 'assets'), orderBy('name'));
 		unsubscribe = onSnapshot(q, (snapshot) => {
 			assets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Asset));
@@ -108,9 +111,9 @@
 	</div>
 
 	{#if loading}
-		<div class="text-center py-8">Đang tải...</div>
+		<Loading />
 	{:else if assets.length === 0}
-        <div class="text-center py-8 text-gray-500">Chưa có tài sản nào.</div>
+        <EmptyState message="Chưa có tài sản nào." />
     {:else}
         <ResponsiveTable>
             <svelte:fragment slot="mobile">
