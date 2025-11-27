@@ -9,25 +9,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Fetch User's Role ID (e.g. 'admin', 'manager')
     function getUserRole() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // --- DYNAMIC PERMISSION CHECK ---
-    // Checks if the user's role has the specific permission in the 'roles' collection.
-    // Fallback: If 'admin', always true.
     function hasPermission(perm) {
       let roleId = getUserRole();
       return roleId == 'admin' ||
              get(/databases/$(database)/documents/roles/$(roleId)).data.permissions.hasAny([perm]);
     }
-
-    // Legacy Helpers (Optional, but useful for bootstrapping if roles collection is empty)
-    // We will rely on hasPermission() primarily, but for initial setup (when roles might be missing),
-    // we might need a fallback. However, let's enforce the new system.
-    // If 'roles' doc is missing, get() fails -> Deny access.
-    // This is secure. Admin is excepted above.
 
     function isAdmin() {
       return isAuth() && getUserRole() == 'admin';
@@ -35,98 +25,92 @@ service cloud.firestore {
 
     // --- 1. SYSTEM CONFIGURATION ---
 
-    // ROLES: Configurable Permissions
-    // Admin manages roles. Authenticated users read to know their rights.
     match /roles/{roleId} {
       allow read: if isAuth();
       allow write: if isAdmin();
     }
 
-    // USERS: Profile & Role Assignment
     match /users/{userId} {
       allow create: if request.auth.uid == userId;
       allow read: if isAuth();
-      // Only Admin changes roles. User can update profile (but not role).
       allow update: if isAdmin() || (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
     }
 
-    // INVITES
     match /invited_emails/{inviteId} {
       allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('manage_users');
     }
 
-    // --- 2. MASTER DATA ---
+    // --- 2. MASTER DATA (New Schema) ---
     
-    // Ingredients: View(Inventory), Edit(Inventory)
-    match /ingredients/{ingId} {
-      allow read: if isAuth(); // Or hasPermission('view_inventory')
+    match /master_ingredients/{ingId} {
+      allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('edit_inventory');
     }
 
-    // Products: View(Inventory), Edit(Inventory)
-    match /products/{productId} {
+    match /master_products/{productId} {
       allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('edit_inventory');
     }
     
-    // Partners: View(Sales/Partners), Edit(Partners)
-    match /partners/{partnerId} {
+    match /master_partners/{partnerId} {
       allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('manage_partners');
     }
 
-    // Assets: View(Inventory/Assets), Edit(Assets)
+    // --- 3. TRANSACTION DATA (New Schema) ---
+
+    // Unified Inventory Log
+    match /inventory_transactions/{transId} {
+      allow read: if isAuth();
+      // Only created by trusted logic (Server or via functions), but for client-side app:
+      // Allow write if user has permission to perform the action causing the stock move.
+      // Broadly: 'manage_inventory' or 'create_order' or 'create_production'.
+      // For simplicity in Rules:
+      allow create: if isAuth();
+      allow update, delete: if isAdmin(); // History should be immutable mostly
+    }
+
+    // Sales Orders
+    match /sales_orders/{orderId} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || hasPermission('create_order') || hasPermission('manage_orders');
+    }
+
+    // Production Runs (Keep as a "Plan" or "Batch" record, linked to inventory logs)
+    match /production_runs/{runId} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || hasPermission('create_production');
+    }
+
+    // Imports (Keep as "Receipt" record, linked to inventory logs)
+    match /imports/{importId} {
+        allow read: if isAuth();
+        allow write: if isAdmin() || hasPermission('manage_imports');
+    }
+
+    // Finance
+    match /finance_ledger/{entryId} {
+        allow read: if isAuth() && (isAdmin() || hasPermission('view_finance'));
+        allow write: if isAdmin() || hasPermission('manage_expenses') || hasPermission('create_order');
+    }
+
+    // --- 4. LEGACY / AUX ---
     match /assets/{assetId} {
       allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('manage_assets');
     }
 
-    // Expense Categories
     match /expense_categories/{catId} {
       allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('manage_expenses');
     }
 
-    // --- 3. TRANSACTION DATA ---
-
-    // Imports: Manage(Imports) -> Creates stock
-    match /imports/{importId} {
-      allow read: if isAuth(); // History view
-      allow write: if isAdmin() || hasPermission('manage_imports');
-    }
-
-    // Production: Create(Production)
-    match /production_runs/{prodRunId} {
-      allow read: if isAuth();
-      allow write: if isAdmin() || hasPermission('create_production');
-    }
-    
-    // Orders: Create(Order) / Manage(Order)
-    match /orders/{orderId} {
-      allow read: if isAuth();
-      allow write: if isAdmin() || hasPermission('create_order') || hasPermission('manage_orders');
-    }
-
-    // Expenses Log: Manage(Expenses)
-     match /expenses_log/{logId} {
-      allow read: if isAuth();
-      allow write: if isAdmin() || hasPermission('manage_expenses');
-    }
-
-    // Stocktake Logs: Edit(Inventory) -> Result of stocktake
-    match /stocktake_logs/{logId} {
-      allow read: if isAuth();
-      allow create: if isAdmin() || hasPermission('edit_inventory') || hasPermission('manage_assets');
-    }
-
-    // --- 4. SYSTEM LOGS ---
     match /audit_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isAuth();
     }
 
-    // --- 5. CATCH-ALL ---
     match /{document=**} {
       allow read, write: if false; 
     }
