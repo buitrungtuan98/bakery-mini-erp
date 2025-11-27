@@ -14,17 +14,18 @@ export interface MasterProduct extends MasterEntity {
     sellingPrice: number;
     costPrice: number; // Theoretical cost based on recipe
     currentStock: number;
+    estimatedYieldQty?: number; // Standard yield per batch
     minStock: number;
-    unit: string;
-    recipe: RecipeItem[]; // Embedded recipe
-    isActive: boolean;
+    unit?: string;
+    items: RecipeItem[]; // Embedded recipe (Legacy name 'items' preserved for UI compatibility)
+    isActive?: boolean;
 }
 
 export interface RecipeItem {
     ingredientId: string;
-    ingredientName: string; // Snapshot
+    ingredientName?: string; // Snapshot
     quantity: number;
-    unit: string;
+    unit?: string;
 }
 
 export interface MasterIngredient extends MasterEntity {
@@ -32,8 +33,10 @@ export interface MasterIngredient extends MasterEntity {
     currentStock: number;
     avgCost: number; // Weighted Average Cost
     minStock: number;
+    manufacturerId?: string;
+    manufacturerName?: string;
     supplierId?: string; // Preferred supplier
-    isActive: boolean;
+    isActive?: boolean;
 }
 
 export interface MasterPartner extends MasterEntity {
