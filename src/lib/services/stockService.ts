@@ -4,14 +4,13 @@ import {
     doc,
     runTransaction,
     serverTimestamp,
-    addDoc,
     query,
     orderBy,
     getDocs,
     updateDoc
 } from 'firebase/firestore';
 import { logAction } from '$lib/logger';
-import { generateNextCode } from '$lib/utils';
+import { recordInventoryTransaction } from '$lib/services/inventoryService';
 import type { User } from 'firebase/auth';
 
 export interface StockItem {
@@ -22,6 +21,7 @@ export interface StockItem {
     actualStock: number;
     difference: number;
     unit?: string;
+    baseUnit?: string;
     // For Assets
     quantity?: { total: number; good: number; broken: number; lost: number };
     actualGood?: number;
@@ -31,7 +31,7 @@ export interface StockItem {
 
 export const stockService = {
     async fetchIngredients() {
-        const q = query(collection(db, 'ingredients'), orderBy('code'));
+        const q = query(collection(db, 'master_ingredients'), orderBy('code'));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({
             id: doc.id,
@@ -41,7 +41,7 @@ export const stockService = {
     },
 
     async fetchAssets() {
-        const q = query(collection(db, 'assets'), orderBy('code'));
+        const q = query(collection(db, 'master_assets'), orderBy('code'));
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => {
             const data = doc.data();
@@ -60,33 +60,35 @@ export const stockService = {
         if (item.actualStock === item.currentStock) return;
         const diff = item.actualStock - item.currentStock;
 
+        // We use the Central Inventory Engine
         await runTransaction(db, async (transaction) => {
-            const ref = doc(db, 'ingredients', item.id);
-            transaction.update(ref, { currentStock: item.actualStock });
-
-            // Create Adjustment Log
-            // Could move this to a dedicated collection if needed, but for now simple log
-            const logRef = doc(collection(db, 'stock_adjustments'));
-            transaction.set(logRef, {
+             await recordInventoryTransaction(transaction, {
+                type: 'adjustment',
                 itemId: item.id,
                 itemType: 'ingredient',
-                itemName: item.name,
-                oldStock: item.currentStock,
-                newStock: item.actualStock,
-                difference: diff,
-                reason: 'Stocktake adjustment',
-                createdBy: user.email,
-                createdAt: serverTimestamp()
+                quantityChange: diff, // + or -
+                unitCost: 0, // Adjustment usually doesn't have a cost or we use avgCost?
+                             // If we want to preserve value, we might read avgCost.
+                             // recordInventoryTransaction reads current state, so we can pass 0
+                             // and rely on it not messing up AvgCost if we implement logic there.
+                             // BUT current logic in inventoryService:
+                             // "Weighted Average Cost Logic (Only for Imports/Positive Adjustments)"
+                             // If adjustment is positive, we might dilute cost if we pass 0.
+                             // Ideally we pass current AvgCost to maintain it.
+                             // Let's rely on recordInventoryTransaction to handle this or pass 0.
+                             // For now, passing 0.
+                relatedDocId: 'stocktake-' + new Date().toISOString().split('T')[0],
+                performer: { uid: user.uid, email: user.email || 'unknown' },
+                timestamp: new Date()
             });
         });
 
-        await logAction(user, 'UPDATE', 'ingredients', `Kiểm kê ${item.code}: ${item.currentStock} -> ${item.actualStock}`);
+        await logAction(user, 'UPDATE', 'master_ingredients', `Kiểm kê ${item.code}: ${item.currentStock} -> ${item.actualStock}`);
     },
 
     async adjustAssetStock(user: User, item: StockItem) {
         // Calculate total
         const newTotal = (item.actualGood || 0) + (item.actualBroken || 0) + (item.actualLost || 0);
-        const oldTotal = item.quantity?.total || 0;
 
         if (
             item.actualGood === item.quantity?.good &&
@@ -94,7 +96,7 @@ export const stockService = {
             item.actualLost === item.quantity?.lost
         ) return;
 
-        await updateDoc(doc(db, 'assets', item.id), {
+        await updateDoc(doc(db, 'master_assets', item.id), {
             quantity: {
                 total: newTotal,
                 good: item.actualGood || 0,
@@ -104,7 +106,7 @@ export const stockService = {
             updatedAt: serverTimestamp()
         });
 
-        await logAction(user, 'UPDATE', 'assets',
+        await logAction(user, 'UPDATE', 'master_assets',
             `Kiểm kê ${item.code}: Tốt(${item.actualGood}), Hỏng(${item.actualBroken}), Mất(${item.actualLost})`
         );
     }

@@ -215,8 +215,8 @@
                                 </div>
                                 <div class="mb-1 font-medium">{log.description}</div>
                                 <div class="flex justify-between items-center text-xs">
-                                    <span class="badge badge-ghost badge-sm">{log.categoryName}</span>
-                                    <span class="text-gray-500">{log.supplier}</span>
+                                    <span class="badge badge-ghost badge-sm">{log.category}</span>
+                                    <span class="text-gray-500">{log.supplierName || 'N/A'}</span>
                                 </div>
                             </div>
                         {/each}
@@ -237,9 +237,9 @@
                         {#each expensesLog as log}
                             <tr>
                                 <td>{log.date?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
-                                <td><span class="badge badge-warning badge-outline">{log.categoryName}</span></td>
+                                <td><span class="badge badge-warning badge-outline">{log.category}</span></td>
                                 <td>{log.description}</td>
-                                <td>{log.supplier}</td>
+                                <td>{log.supplierName || 'N/A'}</td>
                                 <td class="text-right font-mono text-error">-{log.amount.toLocaleString()} đ</td>
                             </tr>
                         {/each}
