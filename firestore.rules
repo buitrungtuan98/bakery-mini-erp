@@ -96,17 +96,17 @@ service cloud.firestore {
     }
 
     // --- 4. LEGACY / AUX ---
-    match /assets/{assetId} {
+    match /master_assets/{assetId} {
       allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('manage_assets');
     }
 
-    match /expense_categories/{catId} {
+    match /master_expense_categories/{catId} {
       allow read: if isAuth();
       allow write: if isAdmin() || hasPermission('manage_expenses');
     }
 
-    match /audit_logs/{logId} {
+    match /system_audit_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isAuth();
     }
