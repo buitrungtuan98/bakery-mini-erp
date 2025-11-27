@@ -1,29 +1,12 @@
 <script lang="ts">
-    import { db } from '$lib/firebase';
     import { authStore } from '$lib/stores/authStore';
     import { permissionStore, userPermissions } from '$lib/stores/permissionStore';
-    import { collection, getDocs, doc, updateDoc, query, orderBy, deleteDoc, addDoc, serverTimestamp } from 'firebase/firestore';
     import { onMount } from 'svelte';
-    import { logAction } from '$lib/logger';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Settings, Send, Trash2 } from 'lucide-svelte';
-
-    interface UserProfile {
-        id: string;
-        email: string;
-        displayName?: string;
-        role: string;
-        createdAt?: any;
-    }
-
-    interface Invite {
-        id: string;
-        email: string;
-        role: string;
-        createdAt?: any;
-    }
+    import { userService, type UserProfile, type Invite } from '$lib/services/userService';
 
     let users: UserProfile[] = [];
     let invites: Invite[] = [];
@@ -53,24 +36,19 @@
 
     async function loadAllData() {
         loading = true;
-        await Promise.all([fetchUsers(), fetchInvites()]);
-        loading = false;
-    }
-
-    async function fetchUsers() {
         try {
-            const q = query(collection(db, 'users'), orderBy('email'));
-            const snapshot = await getDocs(q);
-            users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
-        } catch (e) { console.error(e); }
-    }
-
-    async function fetchInvites() {
-        try {
-            const q = query(collection(db, 'invited_emails'), orderBy('createdAt', 'desc'));
-            const snapshot = await getDocs(q);
-            invites = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Invite));
-        } catch (e) { console.error(e); }
+            const [fetchedUsers, fetchedInvites] = await Promise.all([
+                userService.fetchUsers(),
+                userService.fetchInvites()
+            ]);
+            users = fetchedUsers;
+            invites = fetchedInvites;
+        } catch (e) {
+            console.error(e);
+            showErrorToast("Lỗi tải dữ liệu.");
+        } finally {
+            loading = false;
+        }
     }
 
     async function updateUserRole(user: UserProfile, newRole: string) {
@@ -78,18 +56,14 @@
         const roleName = availableRoles.find(r => r.id === newRole)?.name || newRole;
 
         if (!confirm(`Bạn có chắc muốn đổi quyền của ${user.email} sang "${roleName}"?`)) {
-            users = [...users];
+            users = [...users]; // Trigger reactivity to reset select
             return;
         }
 
         try {
-            const userRef = doc(db, 'users', user.id);
-            await updateDoc(userRef, { role: newRole });
-            await logAction($authStore.user!, 'UPDATE', 'users', `Phân quyền ${user.email} -> ${roleName}`);
-
+            await userService.updateUserRole($authStore.user!, user.id, user.email, newRole);
             const index = users.findIndex(u => u.id === user.id);
             if(index !== -1) users[index].role = newRole;
-
             showSuccessToast(`Đã cập nhật quyền thành công!`);
         } catch (e: any) {
             showErrorToast("Lỗi cập nhật quyền: " + e.message);
@@ -100,8 +74,7 @@
     async function handleDeleteUser(id: string, email: string) {
         if (!confirm(`Xóa người dùng ${email}? Họ sẽ mất quyền truy cập ngay lập tức.`)) return;
         try {
-            await deleteDoc(doc(db, 'users', id));
-            await logAction($authStore.user!, 'DELETE', 'users', `Xóa user: ${email}`);
+            await userService.deleteUser($authStore.user!, id, email);
             users = users.filter(u => u.id !== id);
             showSuccessToast(`Đã xóa người dùng ${email}`);
         } catch (e: any) { showErrorToast("Lỗi xóa user: " + e.message); }
@@ -114,17 +87,10 @@
 
         inviteLoading = true;
         try {
-            await addDoc(collection(db, 'invited_emails'), {
-                email: inviteEmail,
-                role: inviteRole,
-                createdAt: serverTimestamp(),
-                createdBy: $authStore.user?.email
-            });
-            await logAction($authStore.user!, 'CREATE', 'invited_emails', `Mời ${inviteEmail} làm ${inviteRole}`);
-
+            await userService.inviteUser($authStore.user!, inviteEmail, inviteRole);
             showSuccessToast(`Đã gửi lời mời cho ${inviteEmail}`);
             inviteEmail = '';
-            await fetchInvites();
+            invites = await userService.fetchInvites(); // Refresh list
         } catch (e: any) {
             showErrorToast("Lỗi gửi lời mời: " + e.message);
         } finally {
@@ -135,7 +101,7 @@
     async function handleDeleteInvite(id: string) {
         if(!confirm("Hủy lời mời này?")) return;
         try {
-            await deleteDoc(doc(db, 'invited_emails', id));
+            await userService.cancelInvite($authStore.user!, id);
             invites = invites.filter(i => i.id !== id);
             showSuccessToast("Đã hủy lời mời.");
         } catch (e: any) { showErrorToast("Lỗi: " + e.message); }

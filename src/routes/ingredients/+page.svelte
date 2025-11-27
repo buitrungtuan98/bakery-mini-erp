@@ -1,15 +1,12 @@
 <script lang="ts">
-    import { db } from '$lib/firebase';
-    import { collection, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
     import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
     import { permissionStore } from '$lib/stores/permissionStore';
     import { ingredientStore, partnerStore, type Ingredient, type Partner } from '$lib/stores/masterDataStore';
-    import { logAction } from '$lib/logger';
-    import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2, Search, Calendar } from 'lucide-svelte';
     import { fade } from 'svelte/transition';
+    import { catalogService } from '$lib/services/catalogService';
 
     // Components
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -100,13 +97,8 @@
         const manufacturerSnapshot = manufacturers.find(m => m.id === formData.manufacturerId);
         
         try {
-            let code = formData.code;
-            if (!isEditing) {
-                code = await generateNextCode('ingredients', 'NVL');
-            }
-
             const baseData = {
-                code: code,
+                code: formData.code,
                 name: formData.name,
                 baseUnit: formData.baseUnit,
                 minStock: Number(formData.minStock),
@@ -115,17 +107,10 @@
             };
 
             if (isEditing) {
-                await updateDoc(doc(db, 'ingredients', formData.id), baseData);
-                await logAction($authStore.user!, 'UPDATE', 'ingredients', `Cập nhật NVL: ${formData.name}`);
+                await catalogService.updateIngredient($authStore.user!, formData.id, baseData);
                 showSuccessToast("Cập nhật nguyên liệu thành công!");
             } else {
-                await addDoc(collection(db, 'ingredients'), {
-                    ...baseData,
-                    currentStock: 0,
-                    avgCost: 0,
-                    createdAt: serverTimestamp() 
-                });
-                await logAction($authStore.user!, 'CREATE', 'ingredients', `Thêm mới NVL: ${formData.name} (${code})`);
+                await catalogService.createIngredient($authStore.user!, baseData);
                 showSuccessToast("Thêm nguyên liệu thành công!");
             }
             isModalOpen = false;
@@ -138,8 +123,7 @@
         if(!confirm("Xóa nguyên liệu này?")) return;
         
         try {
-            await deleteDoc(doc(db, 'ingredients', id));
-            await logAction($authStore.user!, 'DELETE', 'ingredients', `Xóa NVL ID: ${id}`);
+            await catalogService.deleteIngredient($authStore.user!, id);
             showSuccessToast("Đã xóa nguyên liệu.");
         } catch (error: any) { showErrorToast("Lỗi xóa: " + error.message); }
     }

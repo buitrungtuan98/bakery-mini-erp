@@ -1,21 +1,20 @@
 <script lang="ts">
-	import { db } from '$lib/firebase'; 
 	import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
     import { productStore, partnerStore, type Product, type Partner } from '$lib/stores/masterDataStore';
-	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, limit, Timestamp, where } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
-	import { logAction } from '$lib/logger';
-    import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
-	import { Plus, User, Clock, CheckCircle, Truck, Package, Trash2, Printer, Calendar, Tag } from 'lucide-svelte';
+	import { Plus, User, Clock, CheckCircle, Truck, Package, Trash2, Printer, Calendar, Tag, ChevronRight } from 'lucide-svelte';
     import Bill from '$lib/components/ui/Bill.svelte';
     import type { Order, OrderItem } from '$lib/types/order';
     import { tick } from 'svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
+    import { orderService } from '$lib/services/orderService';
+    import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
+    import { fade } from 'svelte/transition';
 
 	// --- State ---
 	let products: Product[] = [];
@@ -103,8 +102,6 @@
 	}
 	
 	$: totalRevenue = orderItems.reduce((sum, item) => sum + (item.lineTotal || 0), 0) + (shippingFee || 0);
-	$: totalCOGS = orderItems.reduce((sum, item) => sum + (item.lineCOGS || 0), 0);
-	$: totalProfit = totalRevenue - totalCOGS;
 
 	function handleCustomerChangeAndRecalculate(newCustomerId: string) {
         selectedCustomerId = newCustomerId;
@@ -126,10 +123,9 @@
 
     function fetchHistory(limitCount: number) {
         if (unsubscribeOrders) unsubscribeOrders();
-        const orderQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(limitCount));
-        unsubscribeOrders = onSnapshot(orderQuery, (snapshot) => {
-            ordersHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order));
-            loading = false;
+        unsubscribeOrders = orderService.subscribeHistory(limitCount, (orders) => {
+             ordersHistory = orders;
+             loading = false;
         });
     }
 
@@ -144,52 +140,10 @@
 
     function fetchDailyPlan(dateStr: string, statusFilter: string) {
         if (unsubscribePlan) unsubscribePlan();
-
         loadingPlan = true;
-        const start = new Date(dateStr);
-        start.setHours(0,0,0,0);
-        const end = new Date(dateStr);
-        end.setHours(23,59,59,999);
-
-        const q = query(
-            collection(db, 'orders'),
-            where('deliveryDate', '>=', Timestamp.fromDate(start)),
-            where('deliveryDate', '<=', Timestamp.fromDate(end))
-        );
-
-        unsubscribePlan = onSnapshot(q, (snapshot) => {
+        unsubscribePlan = orderService.subscribeDailyPlan(dateStr, statusFilter, products, (items) => {
+            dailyPlanItems = items;
             loadingPlan = false;
-            const tempMap = new Map<string, number>();
-
-            snapshot.docs.forEach(doc => {
-                const data = doc.data() as Order;
-                if (data.status === 'canceled') return;
-
-                if (statusFilter === 'all_active') {
-                } else if (data.status !== statusFilter) {
-                    return;
-                }
-
-                data.items.forEach(item => {
-                    const curr = tempMap.get(item.productId) || 0;
-                    tempMap.set(item.productId, curr + item.quantity);
-                });
-            });
-
-            const result = [];
-            for (const [pid, qty] of tempMap.entries()) {
-                const prod = products.find(p => p.id === pid);
-                const stock = prod?.currentStock || 0;
-                result.push({
-                    productId: pid,
-                    name: prod?.name || 'Unknown',
-                    ordered: qty,
-                    stock: stock,
-                    missing: stock < 0 ? Math.abs(stock) : 0
-                });
-            }
-
-            dailyPlanItems = result.sort((a,b) => a.name.localeCompare(b.name));
         });
     }
 
@@ -255,32 +209,11 @@
         const canCancel = checkPermission('manage_orders') || checkPermission('create_order');
         if (!canCancel) return showErrorToast("Bạn không có quyền hủy đơn.");
 
-        const orderDate = order.createdAt.toDate().toDateString();
-        const todayDate = new Date().toDateString();
-        if (orderDate !== todayDate) return showErrorToast("LỖI: Chỉ có thể hủy đơn hàng trong ngày đã tạo.");
-        if (order.status === 'canceled') return showErrorToast("Đơn hàng này đã bị hủy.");
-        const displayId = order.code || order.id.substring(0, 8);
-        if (!confirm(`Xác nhận hủy đơn hàng ${displayId}? Kho sẽ được cộng lại.`)) return;
+        if (!confirm(`Xác nhận hủy đơn hàng ${order.code || order.id.substring(0, 8)}?`)) return;
         
         processing = true;
         try {
-            await runTransaction(db, async (transaction) => {
-                const orderRef = doc(db, 'orders', order.id);
-                for (const item of order.items) {
-                    const productRef = doc(db, 'products', item.productId);
-                    const productSnap = await transaction.get(productRef);
-                    if (!productSnap.exists()) continue;
-                    const currentStock = Number(productSnap.data()?.currentStock || 0);
-                    const newStock = currentStock + item.quantity;
-                    transaction.update(productRef, { currentStock: newStock });
-                }
-                transaction.update(orderRef, {
-                    status: 'canceled',
-                    canceledBy: $authStore.user?.email,
-                    canceledAt: serverTimestamp()
-                });
-            });
-            await logAction($authStore.user!, 'UPDATE', 'orders', `Hủy đơn hàng: ${displayId}`);
+            await orderService.cancelOrder($authStore.user!, order);
             showSuccessToast("Hủy đơn hàng thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
@@ -290,15 +223,11 @@
         }
     }
 
-    async function updateStatus(order: Order, newStatus: 'open'|'cooking'|'delivering'|'delivered') {
+    async function updateStatus(order: Order, newStatus: string) {
         if (!confirm(`Cập nhật trạng thái đơn hàng ${order.code} thành '${newStatus}'?`)) return;
 
         try {
-            await runTransaction(db, async (transaction) => {
-                const orderRef = doc(db, 'orders', order.id);
-                transaction.update(orderRef, { status: newStatus });
-            });
-            await logAction($authStore.user!, 'UPDATE', 'orders', `Cập nhật trạng thái ${order.code} -> ${newStatus}`);
+            await orderService.updateStatus($authStore.user!, order, newStatus);
             showSuccessToast("Cập nhật trạng thái thành công!");
         } catch (e: any) {
             console.error(e);
@@ -316,57 +245,17 @@
 		processing = true;
 
 		try {
-            const code = await generateNextCode('orders', 'DH');
-
-			await runTransaction(db, async (transaction) => {
-				const productRefs = validItems.map(item => doc(db, 'products', item.productId));
-				const productSnaps = await Promise.all(productRefs.map(ref => transaction.get(ref)));
-
-				productSnaps.forEach((snap, index) => {
-					const item = validItems[index];
-                    const productRef = productRefs[index];
-					if (!snap.exists()) throw new Error(`Lỗi: Sản phẩm ID ${item.productId} không tồn tại.`);
-					
-					const currentStock = Number(snap.data()?.currentStock || 0);
-					const newStock = currentStock - item.quantity;
-
-					transaction.update(productRef, { currentStock: newStock });
-				});
-
-				const orderRef = doc(collection(db, 'orders'));
-				const customerSnapshot = customers.find(c => c.id === selectedCustomerId);
-				
-                const deliveryTimestamp = deliveryDateInput ? Timestamp.fromDate(new Date(deliveryDateInput)) : serverTimestamp();
-
-				transaction.set(orderRef, {
-                    code: code,
-					customerId: selectedCustomerId,
-					customerInfo: {
-						name: customerSnapshot?.name,
-						type: customerSnapshot?.customerType,
-						phone: shippingPhone
-					},
-					shippingAddress: shippingAddress,
-					status: selectedStatus,
-                    deliveryDate: deliveryTimestamp,
-					items: validItems.map(i => ({
-						productId: i.productId,
-						productName: products.find(p => p.id === i.productId)?.name,
-						quantity: i.quantity,
-						unitPrice: i.unitPrice,
-						lineTotal: i.lineTotal,
-						lineCOGS: i.lineCOGS
-					})),
-					totalRevenue: totalRevenue, 
-                    totalCOGS: totalCOGS, 
-                    totalProfit: totalProfit,
-					shippingFee: shippingFee,
-					createdBy: $authStore.user?.email,
-					createdAt: serverTimestamp()
-				});
-				
-				await logAction($authStore.user!, 'TRANSACTION', 'orders', `Tạo đơn hàng ${code}`);
-			});
+            const code = await orderService.createOrder(
+                $authStore.user!,
+                customer,
+                orderItems,
+                selectedStatus,
+                deliveryDateInput,
+                products,
+                shippingFee,
+                shippingAddress,
+                shippingPhone
+            );
 
 			showSuccessToast(`Tạo đơn hàng ${code} thành công!`);
 			selectedCustomerId = '';
@@ -390,18 +279,6 @@
     // --- PDF Printing Logic ---
     let orderToPrint: Order | null = null;
     let isPrinting = false;
-
-    function resetOrderForm() {
-        selectedCustomerId = '';
-        orderItems = [];
-        shippingFee = 0;
-        shippingAddress = '';
-        shippingPhone = '';
-        customer = undefined;
-        selectedStatus = 'open';
-        deliveryDateInput = new Date().toISOString().slice(0, 16);
-        activeTab = 'create';
-    }
 
     async function handlePrint(order: Order) {
         if (isPrinting) return;
@@ -454,7 +331,7 @@
     }
 </script>
 
-<div class="pb-safe">
+<div class="pb-safe max-w-7xl mx-auto">
     <PageHeader>
         <div slot="title" class="flex items-center gap-2">
             <span class="text-2xl font-bold tracking-tight text-slate-800">Bán hàng</span>
@@ -670,68 +547,115 @@
             {:else if ordersHistory.length === 0}
                 <EmptyState message="Chưa có đơn hàng nào." />
             {:else}
-                <div class="space-y-3">
-                    {#each ordersHistory as order}
-                        <div class="flex flex-col p-4 bg-white rounded-xl border border-slate-100 shadow-sm transition-all active:scale-[0.99] {order.status === 'canceled' ? 'opacity-60 grayscale bg-slate-50' : ''}">
-                            <div class="flex justify-between items-start mb-3">
-                                <div class="flex items-center gap-3">
-                                    <div class="bg-slate-100 p-2 rounded-lg text-slate-500">
-                                        {#if order.status === 'delivered'}<CheckCircle size={16}/>
-                                        {:else if order.status === 'delivering'}<Truck size={16}/>
-                                        {:else if order.status === 'cooking'}<Clock size={16}/>
-                                        {:else}<Package size={16}/>{/if}
+                <ResponsiveTable>
+                    <svelte:fragment slot="mobile">
+                        <div class="space-y-3">
+                            {#each ordersHistory as order}
+                                <div class="flex flex-col p-4 bg-white rounded-xl border border-slate-100 shadow-sm transition-all active:scale-[0.99] {order.status === 'canceled' ? 'opacity-60 grayscale bg-slate-50' : ''}">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="bg-slate-100 p-2 rounded-lg text-slate-500">
+                                                {#if order.status === 'delivered'}<CheckCircle size={16}/>
+                                                {:else if order.status === 'delivering'}<Truck size={16}/>
+                                                {:else if order.status === 'cooking'}<Clock size={16}/>
+                                                {:else}<Package size={16}/>{/if}
+                                            </div>
+                                            <div>
+                                                <div class="font-bold text-sm text-slate-800">{order.customerInfo.name}</div>
+                                                <div class="text-xs text-slate-400 font-mono mt-0.5">{order.code || order.id.slice(0,8)}</div>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="font-bold text-base text-primary">{order.totalRevenue.toLocaleString()}</div>
+                                            <span class="badge badge-xs mt-1 font-medium border-0 py-2
+                                                {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
+                                                 order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
+                                                 order.status === 'delivering' ? 'bg-indigo-50 text-indigo-600' :
+                                                 order.status === 'delivered' || order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-200 text-slate-500'}">
+                                                {order.status === 'open' ? 'Mới' :
+                                                 order.status === 'cooking' ? 'Đang làm' :
+                                                 order.status === 'delivering' ? 'Đang giao' :
+                                                 order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div class="font-bold text-sm text-slate-800">{order.customerInfo.name}</div>
-                                        <div class="text-xs text-slate-400 font-mono mt-0.5">{order.code || order.id.slice(0,8)}</div>
+
+                                    <div class="flex justify-between items-center border-t border-slate-50 pt-3 mt-1">
+                                        <span class="text-[10px] text-slate-400">
+                                            {order.deliveryDate?.toDate ? order.deliveryDate.toDate().toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
+                                        </span>
+
+                                        <div class="flex gap-2">
+                                            <!-- Status Update Actions (Quick) -->
+                                            {#if order.status !== 'canceled' && order.status !== 'delivered' && order.status !== 'completed'}
+                                                {#if order.status === 'open'}
+                                                    <button class="btn btn-xs btn-circle btn-ghost text-orange-500 bg-orange-50" on:click={() => updateStatus(order, 'cooking')}><Clock size={14}/></button>
+                                                {:else if order.status === 'cooking'}
+                                                    <button class="btn btn-xs btn-circle btn-ghost text-indigo-500 bg-indigo-50" on:click={() => updateStatus(order, 'delivering')}><Truck size={14}/></button>
+                                                {:else if order.status === 'delivering'}
+                                                    <button class="btn btn-xs btn-circle btn-ghost text-green-500 bg-green-50" on:click={() => updateStatus(order, 'delivered')}><CheckCircle size={14}/></button>
+                                                {/if}
+                                            {/if}
+
+                                            <button class="btn btn-xs btn-ghost gap-1" on:click|stopPropagation={() => handlePrint(order)}>
+                                                <Printer size={14} />
+                                            </button>
+
+                                            {#if order.status !== 'canceled'}
+                                            <button class="btn btn-xs btn-ghost text-red-400 hover:bg-red-50" on:click|stopPropagation={() => handleCancelOrder(order)}>
+                                                <Trash2 size={14} />
+                                            </button>
+                                            {/if}
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="text-right">
-                                    <div class="font-bold text-base text-primary">{order.totalRevenue.toLocaleString()}</div>
-                                    <span class="badge badge-xs mt-1 font-medium border-0 py-2
-                                        {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
-                                         order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
-                                         order.status === 'delivering' ? 'bg-indigo-50 text-indigo-600' :
-                                         order.status === 'delivered' || order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-200 text-slate-500'}">
-                                        {order.status === 'open' ? 'Mới' :
-                                         order.status === 'cooking' ? 'Đang làm' :
-                                         order.status === 'delivering' ? 'Đang giao' :
-                                         order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div class="flex justify-between items-center border-t border-slate-50 pt-3 mt-1">
-                                <span class="text-[10px] text-slate-400">
-                                    {order.deliveryDate?.toDate ? order.deliveryDate.toDate().toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
-                                </span>
-
-                                <div class="flex gap-2">
-                                    <!-- Status Update Actions (Quick) -->
-                                    {#if order.status !== 'canceled' && order.status !== 'delivered' && order.status !== 'completed'}
-                                        {#if order.status === 'open'}
-                                            <button class="btn btn-xs btn-circle btn-ghost text-orange-500 bg-orange-50" on:click={() => updateStatus(order, 'cooking')}><Clock size={14}/></button>
-                                        {:else if order.status === 'cooking'}
-                                            <button class="btn btn-xs btn-circle btn-ghost text-indigo-500 bg-indigo-50" on:click={() => updateStatus(order, 'delivering')}><Truck size={14}/></button>
-                                        {:else if order.status === 'delivering'}
-                                            <button class="btn btn-xs btn-circle btn-ghost text-green-500 bg-green-50" on:click={() => updateStatus(order, 'delivered')}><CheckCircle size={14}/></button>
-                                        {/if}
-                                    {/if}
-
-                                    <button class="btn btn-xs btn-ghost gap-1" on:click|stopPropagation={() => handlePrint(order)}>
-                                        <Printer size={14} />
-                                    </button>
-
-                                    {#if order.status !== 'canceled'}
-                                    <button class="btn btn-xs btn-ghost text-red-400 hover:bg-red-50" on:click|stopPropagation={() => handleCancelOrder(order)}>
-                                        <Trash2 size={14} />
-                                    </button>
-                                    {/if}
-                                </div>
-                            </div>
+                            {/each}
                         </div>
-                    {/each}
-                </div>
+                    </svelte:fragment>
+
+                    <svelte:fragment slot="desktop">
+                        <thead>
+                            <tr>
+                                <th>Mã ĐH</th>
+                                <th>Khách hàng</th>
+                                <th>Ngày giao</th>
+                                <th>Trạng thái</th>
+                                <th class="text-right">Tổng tiền</th>
+                                <th class="text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each ordersHistory as order}
+                                <tr class="hover group {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                                    <td class="font-mono text-sm">{order.code || order.id.slice(0,8)}</td>
+                                    <td class="font-bold">{order.customerInfo.name}</td>
+                                    <td class="text-sm">{order.deliveryDate?.toDate ? order.deliveryDate.toDate().toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}</td>
+                                    <td>
+                                        <span class="badge badge-sm border-0 py-2
+                                            {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
+                                             order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
+                                             order.status === 'delivering' ? 'bg-indigo-50 text-indigo-600' :
+                                             order.status === 'delivered' || order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-200 text-slate-500'}">
+                                            {order.status === 'open' ? 'Mới' :
+                                             order.status === 'cooking' ? 'Đang làm' :
+                                             order.status === 'delivering' ? 'Đang giao' :
+                                             order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
+                                        </span>
+                                    </td>
+                                    <td class="text-right font-bold text-primary">{order.totalRevenue.toLocaleString()}</td>
+                                    <td class="text-center">
+                                        <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button class="btn btn-xs btn-ghost" on:click={() => handlePrint(order)}><Printer size={14} /></button>
+                                            {#if order.status !== 'canceled'}
+                                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleCancelOrder(order)}><Trash2 size={14} /></button>
+                                            {/if}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </svelte:fragment>
+                </ResponsiveTable>
             {/if}
         </div>
     {/if} <!-- End History Tab -->

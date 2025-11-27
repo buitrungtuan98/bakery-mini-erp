@@ -18,8 +18,11 @@
 {#if isOpen}
     <!-- Backdrop: z-[60] to sit above BottomNav (z-50) -->
     <div
+        role="button"
+        tabindex="0"
         class="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm"
         on:click={onClose}
+        on:keydown={(e) => e.key === 'Escape' && onClose()}
         transition:fade={{ duration: 200 }}
     ></div>
 
@@ -34,7 +37,13 @@
             aria-labelledby="modal-title"
         >
             <!-- Mobile Drag Indicator (Visual Only) -->
-            <div class="lg:hidden w-full flex justify-center pt-3 pb-1 bg-base-100" on:click={onClose}>
+            <div
+                role="button"
+                tabindex="0"
+                class="lg:hidden w-full flex justify-center pt-3 pb-1 bg-base-100"
+                on:click={onClose}
+                on:keydown={(e) => e.key === 'Enter' && onClose()}
+            >
                 <div class="w-12 h-1.5 rounded-full bg-slate-200"></div>
             </div>
 

@@ -1,11 +1,7 @@
 <script lang="ts">
-	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
     import { checkPermission, userPermissions } from '$lib/stores/permissionStore';
-	import { collection, addDoc, getDocs, query, orderBy, onSnapshot, serverTimestamp, Timestamp, limit, where } from 'firebase/firestore';
-	import { onMount, onDestroy } from 'svelte';
-    import { logAction } from '$lib/logger';
-    import { generateNextCode } from '$lib/utils';
+	import { onDestroy, onMount } from 'svelte';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -13,27 +9,7 @@
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save } from 'lucide-svelte';
-
-	// --- Types ---
-    interface Category {
-        id: string;
-        name: string;
-    }
-    interface Partner {
-        id: string;
-        name: string;
-    }
-    interface ExpenseLog {
-        id: string;
-        code?: string;
-        date: { toDate: () => Date };
-        categoryName: string;
-        amount: number;
-        description: string;
-        supplier: string;
-        supplierId: string;
-        createdAt: { toDate: () => Date };
-    }
+    import { expenseService, type Category, type Partner, type ExpenseLog } from '$lib/services/expenseService';
 
 	// --- State ---
     let categories: Category[] = [];
@@ -63,20 +39,17 @@
     let unsubscribeSuppliers: () => void;
 
     onMount(async () => {
-        const catQuery = query(collection(db, 'expense_categories'), orderBy('name'));
-        unsubscribeCat = onSnapshot(catQuery, (snapshot) => {
-            categories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category));
+        unsubscribeCat = expenseService.subscribeCategories((cats) => {
+            categories = cats;
         });
         
-        const supplierQuery = query(collection(db, 'partners'), where('type', '==', 'supplier'), orderBy('name'));
-        unsubscribeSuppliers = onSnapshot(supplierQuery, (snapshot) => {
-            suppliers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner));
+        unsubscribeSuppliers = expenseService.subscribeSuppliers((supps) => {
+            suppliers = supps;
         });
         
         loading = true;
-        const logQuery = query(collection(db, 'expenses_log'), orderBy('date', 'desc'), limit(50));
-        unsubscribeLog = onSnapshot(logQuery, (snapshot) => {
-            expensesLog = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExpenseLog));
+        unsubscribeLog = expenseService.subscribeHistory(50, (logs) => {
+            expensesLog = logs;
             loading = false;
         });
 	});
@@ -92,14 +65,9 @@
         if (!newCategoryName.trim()) return;
 
         try {
-            await addDoc(collection(db, 'expense_categories'), {
-                name: newCategoryName.trim(),
-                createdAt: serverTimestamp()
-            });
-            await logAction($authStore.user!, 'CREATE', 'expense_categories', `Thêm mới danh mục: ${newCategoryName}`);
+            await expenseService.addCategory($authStore.user!, newCategoryName);
             showSuccessToast("Thêm danh mục thành công!");
             newCategoryName = '';
-            // Don't close modal automatically, maybe they want to add more
         } catch (e: any) {
             showErrorToast("Lỗi thêm danh mục: " + e.message);
         }
@@ -107,51 +75,17 @@
 
     async function handleAddExpense() {
         if (!checkPermission('manage_expenses')) return showErrorToast("Bạn không có quyền thêm chi phí.");
-        if (!expenseData.categoryId) return (errorMsg = "Vui lòng chọn danh mục chi phí.");
-        if (!expenseData.selectedSupplierId) return (errorMsg = "Vui lòng chọn Nhà cung cấp/Người bán.");
-        if (expenseData.amount <= 0) return (errorMsg = "Số tiền phải lớn hơn 0.");
         
         processing = true;
         errorMsg = '';
-        const selectedDate = new Date(expenseData.date);
 
         try {
-            const category = categories.find(c => c.id === expenseData.categoryId);
-            const supplier = suppliers.find(s => s.id === expenseData.selectedSupplierId);
-            const code = await generateNextCode('expenses_log', 'CP');
-            
-            const expenseRef = await addDoc(collection(db, 'expenses_log'), {
-                code: code,
-                date: Timestamp.fromDate(selectedDate),
-                categoryId: expenseData.categoryId,
-                categoryName: category?.name || 'N/A',
-                amount: Number(expenseData.amount),
-                description: expenseData.description || 'Không mô tả',
-                supplierId: expenseData.selectedSupplierId,
-                supplier: supplier?.name || 'N/A', 
-                createdBy: $authStore.user?.email,
-                createdAt: serverTimestamp()
-            });
-            
-            if (isAssetPurchase) {
-                 // Also generate asset code
-                 const assetCode = await generateNextCode('assets', 'TS');
-                 await addDoc(collection(db, 'assets'), {
-                    code: assetCode,
-                    name: expenseData.description, 
-                    category: category?.name || 'Tài sản chung',
-                    status: 'Đang dùng',
-                    originalPrice: Number(expenseData.amount),
-                    quantity: { total: 1, good: 1, broken: 0, lost: 0 }, 
-                    purchaseDate: Timestamp.fromDate(selectedDate),
-                    createdBy: $authStore.user?.email,
-                    createdAt: serverTimestamp()
-                });
-                await logAction($authStore.user!, 'CREATE', 'assets', `Tự động tạo tài sản từ chi phí: ${expenseData.description} (${assetCode})`);
-            }
-
-            await logAction($authStore.user!, 'TRANSACTION', 'expenses_log', 
-                `Chi tiền: ${category?.name}, ${expenseData.amount.toLocaleString()} đ từ NCC ${supplier?.name || 'N/A'} (${code})`
+            const code = await expenseService.createExpense(
+                $authStore.user!,
+                expenseData,
+                categories,
+                suppliers,
+                isAssetPurchase
             );
 
             showSuccessToast(`Ghi nhận chi phí ${code} thành công!`);
@@ -160,6 +94,7 @@
             isAssetPurchase = false;
             
         } catch (e: any) {
+            errorMsg = e.message;
             showErrorToast("Lỗi ghi nhận chi phí: " + e.message);
         } finally {
             processing = false;
@@ -195,7 +130,7 @@
                 </div>
 
                 {#if errorMsg}
-                    <div role="alert" class="alert alert-error text-sm mb-4"><span>{errorMsg}</span></div>
+                    <div role="alert" class="alert alert-error text-sm mb-4 text-white"><span>{errorMsg}</span></div>
                 {/if}
 
                 <div class="flex flex-col gap-4">

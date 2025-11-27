@@ -90,9 +90,12 @@
 <!-- Full Screen Menu Drawer -->
 {#if isMenuOpen}
     <div
+        role="button"
+        tabindex="0"
         class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm lg:hidden"
         transition:fade={{ duration: 200 }}
         on:click={closeMenu}
+        on:keydown={(e) => e.key === 'Escape' && (isMenuOpen = false)}
     ></div>
 
     <div

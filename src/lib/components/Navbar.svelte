@@ -63,6 +63,7 @@
                         <img src={$authStore.user.photoURL || "https://ui-avatars.com/api/?name=User"} alt="avatar" />
                     </div>
                 </div>
+                <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
                 <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow-soft bg-white rounded-xl w-52 border border-slate-100">
                     <li class="px-4 py-2 border-b border-slate-50 mb-2">
                         <span class="font-bold text-slate-800 block truncate">{$authStore.user.email}</span>
