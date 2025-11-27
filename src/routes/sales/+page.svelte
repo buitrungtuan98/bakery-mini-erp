@@ -11,7 +11,7 @@
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
-	import { Plus, User, Clock, CheckCircle, Truck, Package, Trash2, Printer } from 'lucide-svelte';
+	import { Plus, User, Clock, CheckCircle, Truck, Package, Trash2, Printer, Calendar, Tag } from 'lucide-svelte';
     import Bill from '$lib/components/ui/Bill.svelte';
     import type { Order, OrderItem } from '$lib/types/order';
     import { tick } from 'svelte';
@@ -37,14 +37,14 @@
     let productSearchTerm = '';
     let customerSearchTerm = '';
 
-    // History Pagination (Client side sort/filter if needed, but here we just use store/limit)
+    // History Pagination
     let historyLimit = 10;
     let unsubscribeOrders: () => void;
 
     // Daily Plan State
     let planDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10); // Default Tomorrow
     let dailyPlanItems: { productId: string; name: string; ordered: number; stock: number; missing: number }[] = [];
-    let planStatusFilter: string = 'all_active'; // 'all_active', 'open', 'cooking', 'delivering'
+    let planStatusFilter: string = 'all_active';
     let loadingPlan = false;
     let unsubscribePlan: () => void;
 
@@ -62,7 +62,7 @@
 
     // --- Data Binding ---
     $: products = $productStore;
-    $: customers = $partnerStore.filter(p => p.type === 'customer' || !p.type); // Default to customer if type undefined? Usually strict.
+    $: customers = $partnerStore.filter(p => p.type === 'customer' || !p.type);
 	
 	// Reactive Helper: Tìm khách hàng hiện tại
 	$: customer = customers.find(c => c.id === selectedCustomerId);
@@ -506,15 +506,27 @@
             </div>
         </div>
 
-        <!-- Delivery Info & Status -->
+        <!-- 2. Delivery Info & Status (Updated UI) -->
         <div class="grid grid-cols-2 gap-3 mx-2 mb-4">
-             <div class="form-control">
-                <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Ngày giao</span></label>
-                <input type="datetime-local" bind:value={deliveryDateInput} class="input input-sm input-bordered w-full bg-white" />
+             <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-col gap-1">
+                <label class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
+                    <Calendar size={14} /> Ngày giao
+                </label>
+                <input
+                    type="datetime-local"
+                    bind:value={deliveryDateInput}
+                    class="input input-sm input-ghost w-full px-0 font-bold text-slate-800 focus:bg-transparent"
+                />
             </div>
-            <div class="form-control">
-                <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Trạng thái</span></label>
-                <select bind:value={selectedStatus} class="select select-sm select-bordered w-full bg-white">
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-col gap-1">
+                <label class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
+                    <Tag size={14} /> Trạng thái
+                </label>
+                <select
+                    bind:value={selectedStatus}
+                    class="select select-sm select-ghost w-full px-0 font-bold text-primary focus:bg-transparent"
+                >
                     <option value="open">Mới (Open)</option>
                     <option value="cooking">Đang làm</option>
                     <option value="delivering">Đang giao</option>
@@ -523,7 +535,7 @@
             </div>
         </div>
 
-        <!-- 2. Cart Items List (Simplified) -->
+        <!-- 3. Cart Items List (Simplified) -->
         <div class="flex flex-col mx-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[200px]">
             {#each orderItems as item, i}
                 {@const prodStock = products.find(p => p.id === item.productId)?.currentStock || 0}

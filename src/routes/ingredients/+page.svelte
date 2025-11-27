@@ -8,7 +8,7 @@
     import { logAction } from '$lib/logger';
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+    import { Plus, Pencil, Trash2, Search, Calendar } from 'lucide-svelte';
     import { fade } from 'svelte/transition';
 
     // Components
@@ -145,12 +145,12 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto pb-20">
     <PageHeader>
         <div slot="title">Nguyên liệu</div>
         <div slot="actions">
             {#if $permissionStore.userPermissions.has('edit_inventory')}
-                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
+                <button class="btn btn-primary btn-sm shadow-lg shadow-primary/20" on:click={openAddModal}>
                     <Plus class="h-4 w-4 mr-1" />
                     Thêm mới
                 </button>
@@ -158,14 +158,24 @@
         </div>
     </PageHeader>
     
-    <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
-        <div class="form-control md:col-span-2">
-            <label class="label py-1"><span class="label-text text-xs">Tìm kiếm</span></label>
-            <input type="text" bind:value={searchTerm} class="input input-bordered w-full input-sm" placeholder="Mã, tên, nhà SX..." />
+    <!-- Filter Bar: Updated to be cleaner -->
+    <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="md:col-span-2 bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
+            <Search class="text-slate-400 ml-2" size={20} />
+            <input
+                type="text"
+                bind:value={searchTerm}
+                class="input input-ghost w-full focus:bg-transparent border-none focus:outline-none text-sm"
+                placeholder="Tìm mã, tên, nhà SX..."
+            />
         </div>
-        <div class="form-control">
-            <label class="label py-1"><span class="label-text text-xs">Ngày tạo</span></label>
-            <input type="date" bind:value={startDate} class="input input-bordered w-full input-sm" />
+        <div class="bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-2">
+            <Calendar class="text-slate-400 ml-2" size={20} />
+            <input
+                type="date"
+                bind:value={startDate}
+                class="input input-ghost w-full focus:bg-transparent border-none focus:outline-none text-sm"
+            />
         </div>
     </div>
 
@@ -185,41 +195,39 @@
              <svelte:fragment slot="mobile">
                 {#if paginatedIngredients.length > 0}
                     {#each paginatedIngredients as item (item.id)}
-                        <div in:fade={{ duration: 200 }} class="card bg-base-100 shadow-sm border border-base-200">
+                        <div in:fade={{ duration: 200 }} class="card bg-white shadow-sm border border-slate-100 mb-3">
                             <div class="card-body p-4">
                                 <!-- Header -->
                                 <div class="flex justify-between items-start">
                                     <div>
-                                        <h2 class="card-title text-base">{item.name}</h2>
-                                        <p class="text-xs text-base-content/60 font-mono">{item.code}</p>
+                                        <h2 class="font-bold text-base text-slate-800">{item.name}</h2>
+                                        <p class="text-xs text-slate-400 font-mono">{item.code}</p>
                                     </div>
-                                    <div class="badge badge-ghost badge-sm">{item.baseUnit}</div>
+                                    <span class="badge badge-ghost badge-sm">{item.baseUnit}</span>
                                 </div>
 
                                 <div class="divider my-1"></div>
 
                                 <!-- Body -->
                                 <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                    <div class="text-base-content/60">Tồn kho</div>
-                                    <div class="font-mono font-medium text-right {item.currentStock < item.minStock ? 'text-error' : ''}">
+                                    <div class="text-slate-500">Tồn kho</div>
+                                    <div class="font-mono font-medium text-right {item.currentStock < item.minStock ? 'text-red-500 font-bold' : 'text-slate-800'}">
                                         {item.currentStock?.toLocaleString() || 0}
                                     </div>
 
                                     {#if $permissionStore.userPermissions.has('view_finance')}
-                                        <div class="text-base-content/60">Giá vốn</div>
-                                        <div class="font-mono text-right">{item.avgCost?.toLocaleString() || 0} đ</div>
+                                        <div class="text-slate-500">Giá vốn</div>
+                                        <div class="font-mono text-right text-slate-800">{item.avgCost?.toLocaleString() || 0} đ</div>
                                     {/if}
 
-                                    <div class="text-base-content/60">Nhà SX</div>
-                                    <div class="text-right truncate">{item.manufacturerName || 'N/A'}</div>
+                                    <div class="text-slate-500">Nhà SX</div>
+                                    <div class="text-right truncate text-slate-800">{item.manufacturerName || 'N/A'}</div>
                                 </div>
 
-                                <div class="divider my-1"></div>
-
                                 <!-- Footer Actions -->
-                                <div class="card-actions justify-end">
+                                <div class="flex justify-end gap-3 mt-3 border-t border-slate-50 pt-3">
                                     <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                    <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                    <button class="btn btn-xs btn-ghost text-red-400 hover:bg-red-50" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
                                 </div>
                             </div>
                         </div>
@@ -303,25 +311,25 @@
     loading={processing}
 >
     {#if !isEditing}
-        <div class="form-control w-full mb-3">
-            <label class="label"><span class="label-text">Mã hiển thị</span></label>
-            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-100 text-slate-500 italic" />
+        <div class="form-control w-full mb-4">
+            <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Mã hiển thị</span></label>
+            <input type="text" value="Tự động tạo khi lưu" readonly class="input input-bordered w-full bg-slate-50 text-slate-500 italic" />
         </div>
     {:else}
-        <div class="form-control w-full mb-3">
-            <label class="label"><span class="label-text">Mã hiển thị</span></label>
-            <input type="text" bind:value={formData.code} readonly class="input input-bordered w-full bg-slate-100 font-bold" />
+        <div class="form-control w-full mb-4">
+            <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Mã hiển thị</span></label>
+            <input type="text" bind:value={formData.code} readonly class="input input-bordered w-full bg-slate-50 font-bold" />
         </div>
     {/if}
 
-    <div class="form-control w-full mb-3">
-        <label class="label"><span class="label-text">Tên Nguyên liệu</span></label>
-        <input type="text" bind:value={formData.name} class="input input-bordered w-full" placeholder="VD: Trứng gà" />
+    <div class="form-control w-full mb-4">
+        <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Tên Nguyên liệu</span></label>
+        <input type="text" bind:value={formData.name} class="input input-bordered w-full focus:ring-2 focus:ring-primary/20" placeholder="VD: Trứng gà" />
     </div>
 
-    <div class="form-control w-full mb-3">
-        <label class="label"><span class="label-text">Nhà Sản xuất</span></label>
-        <select bind:value={formData.manufacturerId} class="select select-bordered w-full">
+    <div class="form-control w-full mb-4">
+        <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Nhà Sản xuất</span></label>
+        <select bind:value={formData.manufacturerId} class="select select-bordered w-full focus:ring-2 focus:ring-primary/20">
             <option value="" disabled selected>-- Chọn Nhà sản xuất --</option>
             {#each manufacturers as mfg}
                 <option value={mfg.id}>{mfg.name}</option>
@@ -331,16 +339,16 @@
 
     <div class="flex gap-4">
         <div class="form-control w-1/2">
-            <label class="label"><span class="label-text">Đơn vị gốc</span></label>
-            <select bind:value={formData.baseUnit} class="select select-bordered w-full" disabled={isEditing}>
+            <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Đơn vị gốc</span></label>
+            <select bind:value={formData.baseUnit} class="select select-bordered w-full focus:ring-2 focus:ring-primary/20" disabled={isEditing}>
                 <option value="g">Gram (g)</option>
                 <option value="ml">Mililit (ml)</option>
                 <option value="cai">Cái / Quả</option>
             </select>
         </div>
         <div class="form-control w-1/2">
-            <label class="label"><span class="label-text">Min-stock</span></label>
-            <input type="number" bind:value={formData.minStock} class="input input-bordered w-full" />
+            <label class="label py-1"><span class="label-text text-xs font-bold text-slate-400 uppercase">Min-stock</span></label>
+            <input type="number" bind:value={formData.minStock} class="input input-bordered w-full focus:ring-2 focus:ring-primary/20" />
         </div>
     </div>
 </Modal>
