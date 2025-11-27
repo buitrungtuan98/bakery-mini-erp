@@ -23,7 +23,7 @@
     
 	onMount(() => {
         // Access check handled by Firestore rule mostly, but UI check here
-		const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(100));
+		const q = query(collection(db, 'system_audit_logs'), orderBy('timestamp', 'desc'), limit(100));
 		
 		unsubscribe = onSnapshot(q, (snapshot) => {
 			auditLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AuditLog));

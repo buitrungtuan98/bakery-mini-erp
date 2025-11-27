@@ -28,7 +28,7 @@ export async function logAction(
     if (!user.uid) return;
 
     try {
-        await addDoc(collection(db, 'audit_logs'), {
+        await addDoc(collection(db, 'system_audit_logs'), {
             userId: user.uid,
             userEmail: user.email,
             action: action,
