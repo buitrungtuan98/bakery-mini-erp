@@ -21,6 +21,7 @@
     // State
     let partners: Partner[] = [];
     $: partners = $partnerStore;
+    const { loading: partnerLoading } = partnerStore;
 
     let isModalOpen = false;
     let isEditing = false;
@@ -121,7 +122,7 @@
         </div>
     </div>
 
-    {#if partners.length === 0}
+    {#if $partnerLoading}
         <div class="space-y-4 md:hidden">
             {#each { length: 3 } as _}
                 <SkeletonCard />
@@ -130,6 +131,8 @@
         <div class="hidden md:block">
             <Loading />
         </div>
+    {:else if partners.length === 0}
+         <EmptyState message="Không tìm thấy đối tác nào." />
     {:else}
         <ResponsiveTable>
              <svelte:fragment slot="mobile">

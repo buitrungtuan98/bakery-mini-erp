@@ -10,6 +10,8 @@
     import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
+    import Loading from '$lib/components/ui/Loading.svelte';
+    import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Save, Trash2 } from 'lucide-svelte';
 
@@ -85,9 +87,13 @@
 	// --- Load Data ---
     function fetchHistory(limitCount: number) {
         if (unsubscribe) unsubscribe();
+        loading = true;
         const historyQuery = query(collection(db, 'production_runs'), orderBy('createdAt', 'desc'), limit(limitCount));
         unsubscribe = onSnapshot(historyQuery, (snapshot) => {
             productionHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductionRun));
+            loading = false;
+        }, (error) => {
+            console.error("Error fetching production history:", error);
             loading = false;
         });
     }
@@ -423,29 +429,35 @@
                  </select>
             </div>
 
-            <div class="space-y-2">
-                {#each productionHistory as run}
-                     <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
-                         <div>
-                             <div class="flex items-center gap-2">
-                                 <div class="font-bold text-sm text-slate-800">{run.productName}</div>
-                                 {#if run.code}
-                                     <span class="badge badge-xs badge-ghost font-mono">{run.code}</span>
-                                 {/if}
+            {#if loading}
+                <Loading />
+            {:else if productionHistory.length === 0}
+                <EmptyState message="Chưa có lịch sử sản xuất." />
+            {:else}
+                <div class="space-y-2">
+                    {#each productionHistory as run}
+                         <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                             <div>
+                                 <div class="flex items-center gap-2">
+                                     <div class="font-bold text-sm text-slate-800">{run.productName}</div>
+                                     {#if run.code}
+                                         <span class="badge badge-xs badge-ghost font-mono">{run.code}</span>
+                                     {/if}
+                                 </div>
+                                 <div class="text-xs text-slate-400 mt-1">
+                                     {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
+                                     <span class="mx-1">•</span>
+                                     <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
+                                 </div>
                              </div>
-                             <div class="text-xs text-slate-400 mt-1">
-                                 {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
-                                 <span class="mx-1">•</span>
-                                 <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
-                             </div>
+                             <button
+                                class="btn btn-xs btn-ghost text-red-400"
+                                on:click={() => handleDeleteRun(run)}
+                            ><Trash2 class="h-4 w-4" /></button>
                          </div>
-                         <button
-                            class="btn btn-xs btn-ghost text-red-400"
-                            on:click={() => handleDeleteRun(run)}
-                        ><Trash2 class="h-4 w-4" /></button>
-                     </div>
-                {/each}
-            </div>
+                    {/each}
+                </div>
+            {/if}
         </div>
     {/if} <!-- End History Tab -->
 

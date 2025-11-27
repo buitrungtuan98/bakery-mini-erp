@@ -23,6 +23,7 @@
     let ingredients: Ingredient[] = [];
 
     $: products = $productStore;
+    const { loading: productLoading } = productStore;
     $: ingredients = $ingredientStore;
 
     let isModalOpen = false;
@@ -183,7 +184,7 @@
         </div>
     </PageHeader>
 
-    {#if products.length === 0}
+    {#if $productLoading}
         <div class="space-y-4 md:hidden">
             {#each { length: 3 } as _}
                 <SkeletonCard />
@@ -192,6 +193,8 @@
         <div class="hidden md:block">
              <Loading />
         </div>
+    {:else if products.length === 0}
+        <EmptyState message="Không có sản phẩm nào." />
     {:else}
         <div class="flex justify-end mb-2">
             <select bind:value={itemsPerPage} class="select select-bordered select-xs">

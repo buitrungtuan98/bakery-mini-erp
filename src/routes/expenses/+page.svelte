@@ -9,6 +9,8 @@
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
+    import Loading from '$lib/components/ui/Loading.svelte';
+    import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save } from 'lucide-svelte';
 
@@ -71,6 +73,7 @@
             suppliers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner));
         });
         
+        loading = true;
         const logQuery = query(collection(db, 'expenses_log'), orderBy('date', 'desc'), limit(50));
         unsubscribeLog = onSnapshot(logQuery, (snapshot) => {
             expensesLog = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExpenseLog));
@@ -256,9 +259,10 @@
     
     {#if activeTab === 'history'}
         <!-- History Log -->
-        <!-- <h3 class="font-bold text-lg mb-3">Lịch sử Chi phí Gần nhất</h3> -->
         {#if loading}
-            <div class="text-center py-8">Đang tải...</div>
+            <Loading />
+        {:else if expensesLog.length === 0}
+            <EmptyState message="Chưa có chi phí nào." />
         {:else}
             <ResponsiveTable>
                 <svelte:fragment slot="mobile">
