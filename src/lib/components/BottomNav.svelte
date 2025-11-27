@@ -2,7 +2,7 @@
     import { page } from '$app/stores';
     import { permissionStore } from '$lib/stores/permissionStore';
     import { fade, slide } from 'svelte/transition';
-    import { Home, ShoppingCart, Factory, ChefHat, Menu as MenuIcon, X, Package, Truck, ClipboardList, Wallet, BarChart3, Users, History, Lock, UserCog } from 'lucide-svelte';
+    import { Home, ShoppingCart, Factory, ChefHat, Menu as MenuIcon, X, Package, Truck, ClipboardList, Wallet, BarChart3, Users, History, Lock, UserCog, Database } from 'lucide-svelte';
 
     $: activeRoute = $page.url.pathname;
 
@@ -66,13 +66,13 @@
       </a>
   {/if}
 
-  <!-- Products / Recipe -->
-  <a href="/products" data-sveltekit-preload-data="hover"
-     class="active-press flex flex-col items-center justify-center gap-1 {isActive('/products') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+  <!-- Master Data (Replaced Products) -->
+  <a href="/master" data-sveltekit-preload-data="hover"
+     class="active-press flex flex-col items-center justify-center gap-1 {isActive('/master') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
      on:click={closeMenu}>
-    <ChefHat size={24} strokeWidth={isActive('/products') ? 2.5 : 2} />
-    <span class="text-[10px] font-medium">SP/CT</span>
-    {#if isActive('/products')}
+    <Database size={24} strokeWidth={isActive('/master') ? 2.5 : 2} />
+    <span class="text-[10px] font-medium">Dữ liệu</span>
+    {#if isActive('/master')}
         <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-4 rounded-b-full" transition:fade></span>
     {/if}
   </a>
@@ -113,10 +113,7 @@
             <div class="grid grid-cols-1 gap-1">
                 <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-2">Kho & Nhập liệu</div>
 
-                <a href="/ingredients" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                    <div class="p-2 rounded-lg bg-orange-100 text-orange-600"><Package size={20} /></div>
-                    <span class="font-medium text-slate-700">Nguyên liệu</span>
-                </a>
+                <!-- Removed Ingredients (moved to Master) -->
                 <a href="/imports" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
                      <div class="p-2 rounded-lg bg-blue-100 text-blue-600"><Truck size={20} /></div>
                     <span class="font-medium text-slate-700">Nhập hàng (Imports)</span>
@@ -138,10 +135,7 @@
                      <div class="p-2 rounded-lg bg-indigo-100 text-indigo-600"><BarChart3 size={20} /></div>
                     <span class="font-medium text-slate-700">Báo cáo (Reports)</span>
                 </a>
-                <a href="/partners" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                     <div class="p-2 rounded-lg bg-purple-100 text-purple-600"><Users size={20} /></div>
-                    <span class="font-medium text-slate-700">Đối tác (Partners)</span>
-                </a>
+                <!-- Removed Partners (Moved to Master) -->
                  <a href="/history" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
                      <div class="p-2 rounded-lg bg-slate-100 text-slate-600"><History size={20} /></div>
                     <span class="font-medium text-slate-700">Lịch sử Hệ thống</span>

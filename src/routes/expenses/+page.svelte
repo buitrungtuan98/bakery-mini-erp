@@ -21,7 +21,6 @@
     
     // UI State
     let activeTab: 'create' | 'history' = 'create';
-    let isCategoryModalOpen = false;
 
     let expenseData = {
         date: new Date().toISOString().split('T')[0],
@@ -31,7 +30,6 @@
         selectedSupplierId: ''
     };
     
-    let newCategoryName = '';
     let isAssetPurchase = false;
     
     let unsubscribeLog: () => void;
@@ -60,19 +58,6 @@
         if (unsubscribeSuppliers) unsubscribeSuppliers();
 	});
     
-    async function handleAddCategory() {
-        if (!checkPermission('manage_expenses')) return showErrorToast("Bạn không có quyền thêm danh mục.");
-        if (!newCategoryName.trim()) return;
-
-        try {
-            await expenseService.addCategory($authStore.user!, newCategoryName);
-            showSuccessToast("Thêm danh mục thành công!");
-            newCategoryName = '';
-        } catch (e: any) {
-            showErrorToast("Lỗi thêm danh mục: " + e.message);
-        }
-    }
-
     async function handleAddExpense() {
         if (!checkPermission('manage_expenses')) return showErrorToast("Bạn không có quyền thêm chi phí.");
         
@@ -105,13 +90,6 @@
 <div class="max-w-7xl mx-auto">
     <PageHeader>
         <div slot="title">Chi phí</div>
-        <div slot="actions">
-            {#if $userPermissions.has('manage_expenses')}
-                <button class="btn btn-sm btn-ghost text-primary" on:click={() => isCategoryModalOpen = true}>
-                    <Plus class="h-4 w-4 mr-1" /> Quản lý Danh mục
-                </button>
-            {/if}
-        </div>
     </PageHeader>
 
     <!-- TABS -->
@@ -250,27 +228,3 @@
     {/if}
 </div>
 
-<!-- Modal: Category Management -->
-<Modal title="Quản lý Danh mục Chi phí" isOpen={isCategoryModalOpen} onClose={() => isCategoryModalOpen = false} showConfirm={false}>
-    <div class="mb-6">
-        <label class="label"><span class="label-text">Thêm danh mục mới</span></label>
-        <div class="flex gap-2">
-            <input type="text" bind:value={newCategoryName} class="input input-bordered w-full" placeholder="Tên danh mục..." />
-            <button class="btn btn-primary" on:click={handleAddCategory}>
-                <Plus class="h-4 w-4 mr-2" /> Thêm
-            </button>
-        </div>
-    </div>
-
-    <div>
-        <label class="label"><span class="label-text font-bold">Danh sách hiện tại</span></label>
-        <div class="flex flex-wrap gap-2 max-h-[40vh] overflow-y-auto p-1">
-            {#each categories as cat}
-                <span class="badge badge-lg badge-outline bg-base-100 p-3">{cat.name}</span>
-            {/each}
-            {#if categories.length === 0}
-                <span class="text-sm text-slate-400 italic">Chưa có danh mục nào.</span>
-            {/if}
-        </div>
-    </div>
-</Modal>
