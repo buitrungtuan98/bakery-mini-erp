@@ -1,43 +1,17 @@
 <script lang="ts">
-	import { db } from '$lib/firebase';
 	import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
-    import { permissionStore } from '$lib/stores/permissionStore';
     import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
-	import { collection, query, orderBy, doc, runTransaction, serverTimestamp, Timestamp, onSnapshot, limit, deleteDoc } from 'firebase/firestore';
 	import { onMount, onDestroy } from 'svelte';
-    import { logAction } from '$lib/logger';
-    import { generateNextCode } from '$lib/utils';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
+    import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
-    import { Save, Trash2 } from 'lucide-svelte';
-
-	// --- Types ---
-	interface RecipeItem {
-		ingredientId: string; quantity: number; unit: string;
-	}
-	interface ProductionInput {
-		ingredientId: string; theoreticalQuantity: number;
-		actualQuantityUsed: number; 
-        snapshotCost: number; 
-	}
-    interface ProductionRun {
-        id: string;
-        code?: string;
-        productId: string;
-        productName: string;
-        productionDate: { toDate: () => Date };
-        actualYield: number;
-        actualCostPerUnit: number;
-        theoreticalCostSnapshot: number;
-        totalActualCost: number;
-        createdBy: string;
-        createdAt: { toDate: () => Date };
-        consumedInputs: any[];
-    }
+    import { Save, Trash2, Search, Calendar } from 'lucide-svelte';
+    import { productionService, type ProductionInput, type ProductionRun } from '$lib/services/productionService';
+    import { fade } from 'svelte/transition';
 
 	// --- State ---
 	let products: Product[] = [];
@@ -88,13 +62,9 @@
     function fetchHistory(limitCount: number) {
         if (unsubscribe) unsubscribe();
         loading = true;
-        const historyQuery = query(collection(db, 'production_runs'), orderBy('createdAt', 'desc'), limit(limitCount));
-        unsubscribe = onSnapshot(historyQuery, (snapshot) => {
-            productionHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductionRun));
-            loading = false;
-        }, (error) => {
-            console.error("Error fetching production history:", error);
-            loading = false;
+        unsubscribe = productionService.subscribeHistory(limitCount, (runs) => {
+             productionHistory = runs;
+             loading = false;
         });
     }
 
@@ -170,30 +140,7 @@
         if (!confirm(`Xác nhận xóa lệnh sản xuất "${run.productName}" ngày ${run.productionDate.toDate().toLocaleDateString()}? Hành động này sẽ đảo ngược tồn kho.`)) return;
 
         try {
-            await runTransaction(db, async (transaction) => {
-                const productRef = doc(db, 'products', run.productId);
-                const productSnap = await transaction.get(productRef);
-                const ingRefs = run.consumedInputs.map((input: any) => doc(db, 'ingredients', input.ingredientId));
-                const ingSnaps = await Promise.all(ingRefs.map(ref => transaction.get(ref)));
-
-                ingSnaps.forEach((snap, index) => {
-                    if (!snap.exists()) return; 
-                    const input = run.consumedInputs[index];
-                    const currentStock = Number(snap.data()!.currentStock || 0);
-                    const newStock = currentStock + input.actualQuantityUsed; 
-                    transaction.update(ingRefs[index], { currentStock: newStock });
-                });
-
-                if (!productSnap.exists()) throw new Error("Lỗi: Sản phẩm thành phẩm không tồn tại.");
-                const currentProductStock = Number(productSnap.data()!.currentStock || 0);
-                const newProductStock = currentProductStock - run.actualYield; 
-
-                transaction.update(productRef, { currentStock: newProductStock });
-                transaction.delete(doc(db, 'production_runs', run.id)); 
-            });
-
-            const displayId = run.code || run.id.substring(0, 8).toUpperCase();
-            await logAction($authStore.user!, 'DELETE', 'production_runs', `Đảo ngược và xóa lệnh SX: ${displayId}, Yield: ${run.actualYield}`);
+            await productionService.deleteProductionRun($authStore.user!, run);
             showSuccessToast("Đảo ngược lệnh sản xuất thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
@@ -209,78 +156,22 @@
         if (!selectedProductId || actualYield <= 0 || productionInputs.length === 0) {
             return (errorMsg = "Vui lòng chọn sản phẩm và nhập số lượng thành phẩm đạt chuẩn.");
         }
-        
-        const selectedDate = new Date(productionDate);
-        if (isNaN(selectedDate.getTime())) return (errorMsg = 'Ngày sản xuất không hợp lệ!');
 
-        for (const input of productionInputs) {
-            const currentStock = ingredients.find(i => i.id === input.ingredientId)?.currentStock || 0;
-            if (input.actualQuantityUsed > currentStock) {
-                const ingName = ingredients.find(i => i.id === input.ingredientId)?.name;
-                return (errorMsg = `Lỗi: ${ingName} không đủ tồn kho! Tồn: ${currentStock}, Cần: ${input.actualQuantityUsed}`);
-            }
-        }
-        
         if (!confirm(`Xác nhận chạy lệnh sản xuất ${actualYield.toLocaleString()} ${prod?.name}?`)) return;
 
 		processing = true;
 
 		try {
-            // Generate Code
-            const code = await generateNextCode('production_runs', 'SX');
-
-			await runTransaction(db, async (transaction) => {
-                if (!prod) throw new Error("Sản phẩm không hợp lệ.");
-
-                const ingRefs = productionInputs.map(input => doc(db, 'ingredients', input.ingredientId));
-                const ingSnaps = await Promise.all(ingRefs.map(ref => transaction.get(ref)));
-                const productRef = doc(db, 'products', selectedProductId);
-                const productSnap = await transaction.get(productRef);
-
-                ingSnaps.forEach((snap, index) => {
-                    if (!snap.exists()) throw new Error(`Lỗi: Nguyên liệu ID ${ingRefs[index].id} không tồn tại.`);
-                    const input = productionInputs[index];
-                    const currentStock = Number(snap.data()!.currentStock || 0);
-                    const newStock = currentStock - input.actualQuantityUsed;
-                    transaction.update(ingRefs[index], { currentStock: newStock });
-                });
-
-                if (!productSnap.exists()) throw new Error("Lỗi: Không tìm thấy sản phẩm trong CSDL.");
-                const currentProductStock = Number(productSnap.data()!.currentStock || 0);
-                const newProductStock = currentProductStock + actualYield;
-                
-                transaction.update(productRef, { currentStock: newProductStock });
-
-                const productionLogRef = doc(collection(db, 'production_runs'));
-                transaction.set(productionLogRef, {
-                    code: code,
-                    productId: selectedProductId,
-                    productName: prod.name,
-                    theoreticalCostSnapshot: prod.theoreticalCost,
-                    productionDate: Timestamp.fromDate(selectedDate), 
-                    
-                    actualYield: actualYield,
-                    totalActualCost: totalActualCost,
-                    actualCostPerUnit: actualCostPerUnit,
-                    
-                    consumedInputs: productionInputs.map(input => ({
-                        ingredientId: input.ingredientId,
-                        actualQuantityUsed: input.actualQuantityUsed,
-                        snapshotCost: input.snapshotCost
-                    })),
-
-                    createdBy: $authStore.user?.email,
-                    createdAt: serverTimestamp()
-                });
-                
-                await logAction($authStore.user!, 'TRANSACTION', 'production_runs', `SX ${prod.name}, Yield: ${actualYield} (${code})`);
-            });
+            const code = await productionService.createProductionRun(
+                $authStore.user!,
+                prod!,
+                productionDate,
+                actualYield,
+                productionInputs,
+                ingredients
+            );
 
             showSuccessToast(`Sản xuất thành công ${actualYield.toLocaleString()} thành phẩm! Mã: ${code}`);
-            // selectedProductId = '';
-            // actualYield = 0;
-            // productionInputs = [];
-            // batchScale = 1;
 
 		} catch (error: any) {
 			console.error(error);
@@ -304,7 +195,7 @@
 
     {#if activeTab === 'create'}
         {#if errorMsg}
-            <div role="alert" class="alert alert-error mb-4 mx-2">
+            <div role="alert" class="alert alert-error mb-4 mx-2 text-white">
                 <span>{errorMsg}</span>
             </div>
         {/if}
@@ -313,13 +204,13 @@
         <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4 mx-2">
             <div class="form-control mb-4" on:click={() => isProductModalOpen = true}>
                 <label class="label"><span class="label-text">Sản phẩm (Công thức)</span></label>
-                <div class="flex items-center justify-between border rounded-lg p-3 bg-slate-50">
+                <div class="flex items-center justify-between border rounded-lg p-3 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors">
                     {#if selectedProduct}
                         <span class="font-bold">{selectedProduct.name}</span>
                     {:else}
                         <span class="text-slate-400">Chọn công thức...</span>
                     {/if}
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    <Search size={18} class="text-slate-400" />
                 </div>
             </div>
 
@@ -434,29 +325,62 @@
             {:else if productionHistory.length === 0}
                 <EmptyState message="Chưa có lịch sử sản xuất." />
             {:else}
-                <div class="space-y-2">
-                    {#each productionHistory as run}
-                         <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
-                             <div>
-                                 <div class="flex items-center gap-2">
-                                     <div class="font-bold text-sm text-slate-800">{run.productName}</div>
-                                     {#if run.code}
-                                         <span class="badge badge-xs badge-ghost font-mono">{run.code}</span>
-                                     {/if}
+                <ResponsiveTable>
+                    <svelte:fragment slot="mobile">
+                        <div class="space-y-2">
+                            {#each productionHistory as run}
+                                 <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                                     <div>
+                                         <div class="flex items-center gap-2">
+                                             <div class="font-bold text-sm text-slate-800">{run.productName}</div>
+                                             {#if run.code}
+                                                 <span class="badge badge-xs badge-ghost font-mono">{run.code}</span>
+                                             {/if}
+                                         </div>
+                                         <div class="text-xs text-slate-400 mt-1">
+                                             {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
+                                             <span class="mx-1">•</span>
+                                             <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
+                                         </div>
+                                     </div>
+                                     <button
+                                        class="btn btn-xs btn-ghost text-red-400"
+                                        on:click={() => handleDeleteRun(run)}
+                                    ><Trash2 class="h-4 w-4" /></button>
                                  </div>
-                                 <div class="text-xs text-slate-400 mt-1">
-                                     {run.productionDate?.toDate().toLocaleDateString('vi-VN')}
-                                     <span class="mx-1">•</span>
-                                     <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
-                                 </div>
-                             </div>
-                             <button
-                                class="btn btn-xs btn-ghost text-red-400"
-                                on:click={() => handleDeleteRun(run)}
-                            ><Trash2 class="h-4 w-4" /></button>
-                         </div>
-                    {/each}
-                </div>
+                            {/each}
+                        </div>
+                    </svelte:fragment>
+
+                    <svelte:fragment slot="desktop">
+                         <thead>
+                            <tr>
+                                <th>Mã Lệnh</th>
+                                <th>Sản phẩm</th>
+                                <th>Ngày SX</th>
+                                <th class="text-right">Sản lượng</th>
+                                <th class="text-right">Tổng chi phí</th>
+                                <th class="text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {#each productionHistory as run}
+                                <tr class="hover group">
+                                    <td class="font-mono text-sm">{run.code || run.id.slice(0,8)}</td>
+                                    <td class="font-bold">{run.productName}</td>
+                                    <td>{run.productionDate?.toDate().toLocaleDateString('vi-VN')}</td>
+                                    <td class="text-right font-bold text-emerald-600">{run.actualYield}</td>
+                                    <td class="text-right font-mono text-error">{run.totalActualCost.toLocaleString()} đ</td>
+                                    <td class="text-center">
+                                        <button class="btn btn-xs btn-ghost text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" on:click={() => handleDeleteRun(run)}>
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </td>
+                                </tr>
+                            {/each}
+                        </tbody>
+                    </svelte:fragment>
+                </ResponsiveTable>
             {/if}
         </div>
     {/if} <!-- End History Tab -->
@@ -466,23 +390,28 @@
 <!-- Modal: Select Product -->
 <Modal title="Chọn Công thức" isOpen={isProductModalOpen} onClose={() => isProductModalOpen = false} showConfirm={false}>
     {#if isProductModalOpen}
-        <input
-            type="text"
-            bind:value={productSearchTerm}
-            placeholder="Tìm tên sản phẩm..."
-            class="input input-bordered w-full mb-4 sticky top-0"
-            autofocus
-        />
-        <div class="space-y-1 max-h-[60vh] overflow-y-auto pb-10">
+        <div class="sticky top-0 bg-base-100 z-10 pb-2">
+            <input
+                type="text"
+                bind:value={productSearchTerm}
+                placeholder="Tìm tên sản phẩm..."
+                class="input input-bordered w-full"
+                autofocus
+            />
+        </div>
+        <div class="space-y-1 max-h-[50vh] overflow-y-auto pb-10">
             {#each filteredProducts as prod}
                 <button
-                    class="w-full text-left p-3 rounded-lg border-b border-slate-50 active:bg-slate-50 flex justify-between items-center"
+                    class="w-full text-left p-3 rounded-lg border-b border-slate-50 active:bg-slate-50 flex justify-between items-center hover:bg-slate-50"
                     on:click={() => selectProduct(prod.id)}
                 >
                     <span class="font-bold text-slate-800">{prod.name}</span>
                     <span class="text-xs text-slate-400">GV: {prod.theoreticalCost.toLocaleString()}</span>
                 </button>
             {/each}
+            {#if filteredProducts.length === 0}
+                 <div class="text-center py-8 text-slate-400">Không tìm thấy.</div>
+            {/if}
         </div>
     {/if}
 </Modal>

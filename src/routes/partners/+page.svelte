@@ -1,15 +1,12 @@
 <script lang="ts">
-    import { db } from '$lib/firebase';
-    import { collection, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
     import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
     import { permissionStore } from '$lib/stores/permissionStore';
     import { partnerStore, type Partner } from '$lib/stores/masterDataStore';
-    import { logAction } from '$lib/logger';
-    import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2 } from 'lucide-svelte';
     import { fade } from 'svelte/transition';
+    import { catalogService } from '$lib/services/catalogService';
     
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -64,25 +61,14 @@
                 type: formData.type,
                 customerType: formData.type === 'customer' ? formData.customerType : null,
                 phone: formData.phone || '',
-                address: formData.address || '',
-                updatedAt: new Date()
+                address: formData.address || ''
             };
 
             if (isEditing) {
-                await updateDoc(doc(db, 'partners', formData.id), dataToSave);
-                await logAction($authStore.user!, 'UPDATE', 'partners', `Cập nhật đối tác: ${formData.name}`);
+                await catalogService.updatePartner($authStore.user!, formData.id, dataToSave);
                 showSuccessToast("Cập nhật đối tác thành công!");
             } else {
-                // Generate Code
-                let prefix = 'KH';
-                if (formData.type === 'supplier') prefix = 'NCC';
-                if (formData.type === 'manufacturer') prefix = 'NSX';
-
-                const code = await generateNextCode('partners', prefix);
-                dataToSave.code = code;
-
-                await addDoc(collection(db, 'partners'), { ...dataToSave, createdAt: serverTimestamp() });
-                await logAction($authStore.user!, 'CREATE', 'partners', `Thêm mới đối tác: ${formData.name} (${code})`);
+                await catalogService.createPartner($authStore.user!, dataToSave);
                 showSuccessToast("Thêm đối tác thành công!");
             }
             isModalOpen = false;
@@ -94,7 +80,7 @@
         if (!checkPermission('manage_partners')) return showErrorToast("Không có quyền.");
         if (!confirm("Xóa đối tác này?")) return;
         try {
-            await deleteDoc(doc(db, 'partners', id));
+            await catalogService.deletePartner($authStore.user!, id);
             showSuccessToast("Đã xóa đối tác.");
         } catch (error: any) {
             showErrorToast("Lỗi xóa đối tác: " + error.message);

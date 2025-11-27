@@ -1,15 +1,12 @@
 <script lang="ts">
-    import { db } from '$lib/firebase';
-    import { collection, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
     import { authStore } from '$lib/stores/authStore';
     import { checkPermission } from '$lib/stores/permissionStore';
     import { permissionStore } from '$lib/stores/permissionStore';
     import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
-    import { logAction } from '$lib/logger';
-    import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-svelte';
     import { slide, fade } from 'svelte/transition';
+    import { catalogService } from '$lib/services/catalogService';
 
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
@@ -136,20 +133,14 @@
                     const ing = ingredients.find(x => x.id === i.ingredientId);
                     return { ingredientId: i.ingredientId, quantity: Number(i.quantity), unit: ing?.baseUnit };
                 }),
-                theoreticalCost: theoreticalCost,
-                updatedAt: new Date()
+                theoreticalCost: theoreticalCost
             };
 
             if (isEditing) {
-                await updateDoc(doc(db, 'products', formData.id), dataToSave);
-                await logAction($authStore.user!, 'UPDATE', 'products', `Cập nhật SP: ${formData.name}`);
+                await catalogService.updateProduct($authStore.user!, formData.id, dataToSave);
                 showSuccessToast("Cập nhật sản phẩm thành công!");
             } else {
-                const code = await generateNextCode('products', 'SP');
-                dataToSave.code = code;
-
-                await addDoc(collection(db, 'products'), { ...dataToSave, createdAt: serverTimestamp() });
-                await logAction($authStore.user!, 'CREATE', 'products', `Thêm mới SP: ${formData.name} (${code})`);
+                await catalogService.createProduct($authStore.user!, dataToSave);
                 showSuccessToast("Thêm sản phẩm thành công!");
             }
             isModalOpen = false;
@@ -163,7 +154,7 @@
         if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         if (!confirm("Xóa sản phẩm này?")) return;
         try {
-            await deleteDoc(doc(db, 'products', id));
+            await catalogService.deleteProduct($authStore.user!, id);
             showSuccessToast("Đã xóa sản phẩm.");
         } catch (error) {
             showErrorToast("Lỗi xóa sản phẩm: " + error.message);

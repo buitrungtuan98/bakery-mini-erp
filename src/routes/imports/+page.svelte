@@ -1,12 +1,7 @@
 <script lang="ts">
-	import { db } from '$lib/firebase'; 
 	import { authStore } from '$lib/stores/authStore';
     import { checkPermission, userPermissions } from '$lib/stores/permissionStore';
-	import { collection, getDocs, query, orderBy, doc, runTransaction, serverTimestamp, onSnapshot, where, deleteDoc } from 'firebase/firestore';
 	import { onDestroy, onMount } from 'svelte';
-    import { logAction } from '$lib/logger';
-    import { generateNextCode } from '$lib/utils';
-    import { Timestamp } from 'firebase/firestore';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
@@ -14,20 +9,7 @@
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save, Trash2 } from 'lucide-svelte';
-
-	// --- Types ---
-    interface Partner { id: string; name: string; taxId?: string; }
-	interface Ingredient { id: string; name: string; code: string; baseUnit: string; avgCost: number; currentStock: number; }
-	interface ImportItem { ingredientId: string; quantity: number; price: number; tempIngredient?: Ingredient; }
-    interface ImportReceipt {
-        id: string;
-        code?: string;
-        supplierName: string;
-        totalAmount: number;
-        createdAt: { toDate: () => Date }; 
-        importDate: { toDate: () => Date };
-        items: any[];
-    }
+    import { inventoryService, type Partner, type Ingredient, type ImportReceipt, type ImportItem } from '$lib/services/inventoryService';
 
 	// --- State ---
 	let ingredients: Ingredient[] = []; 
@@ -43,13 +25,13 @@
 	let importItems: ImportItem[] = [];
 
     // UI State
-    let activeTab: 'create' | 'history' = 'history'; // Default to history potentially, logic below handles switch
+    let activeTab: 'create' | 'history' = 'history';
     let isItemModalOpen = false;
     let editingIndex = -1;
     let editingItem: ImportItem = { ingredientId: '', quantity: 0, price: 0 };
 
-	// --- Realtime Subscription & Fetch Logic (Lazy Fetching) ---
-	let unsubscribe: () => void;
+	// --- Realtime Subscription ---
+	let unsubscribeHistory: () => void;
     
     async function fetchImportData() {
         if (isDataFetched) return;
@@ -57,20 +39,22 @@
         isDataFetched = true;
         
         try {
-            const supplierQuery = query(collection(db, 'partners'), where('type', '==', 'supplier'), orderBy('name'));
-            const supplierSnap = await getDocs(supplierQuery);
-            suppliers = supplierSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner));
+            const [fetchedSuppliers, fetchedIngredients] = await Promise.all([
+                inventoryService.fetchSuppliers(),
+                inventoryService.fetchIngredients()
+            ]);
+            suppliers = fetchedSuppliers;
+            ingredients = fetchedIngredients;
             
-            const ingSnap = await getDocs(query(collection(db, 'ingredients'), orderBy('code')));
-            ingredients = ingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Ingredient));
-            
-            const q = query(collection(db, 'imports'), orderBy('createdAt', 'desc')); 
-            unsubscribe = onSnapshot(q, (snapshot) => {
-                importHistory = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImportReceipt));
+            unsubscribeHistory = inventoryService.subscribeHistory((receipts) => {
+                importHistory = receipts;
                 loading = false;
             });
             
-        } catch (e: any) { loading = false; }
+        } catch (e: any) {
+            console.error(e);
+            loading = false;
+        }
     }
     
     $: if ($authStore.user && !isDataFetched) {
@@ -80,7 +64,7 @@
     // Set default tab based on permission
     $: if ($userPermissions) {
          if ($userPermissions.has('manage_imports')) {
-             if (activeTab === 'history' && !isDataFetched) { // Initial load
+             if (activeTab === 'history' && !isDataFetched) {
                  activeTab = 'create';
              }
          } else {
@@ -88,7 +72,7 @@
          }
     }
 
-    onDestroy(() => { if (unsubscribe) unsubscribe(); });
+    onDestroy(() => { if (unsubscribeHistory) unsubscribeHistory(); });
 
 	// --- Helpers ---
     function openAddItem() {
@@ -118,72 +102,26 @@
 
 	function removeItem(index: number) {
 		importItems = importItems.filter((_, i) => i !== index);
-        isItemModalOpen = false; // If open
+        isItemModalOpen = false;
 	}
 
     $: totalAmount = importItems.reduce((sum, item) => sum + (item.price || 0), 0);
 
 	// --- Submit Logic ---
 	async function handleImport() {
-		if (!selectedSupplierId) return showErrorToast('Chưa chọn Nhà cung cấp');
-        const validItems = importItems.filter(i => i.ingredientId && i.quantity > 0);
-		if (validItems.length === 0) return showErrorToast('Chưa có dòng hàng nào hợp lệ');
         if (!confirm(`Xác nhận nhập kho với tổng tiền: ${totalAmount.toLocaleString()} đ?`)) return;
-
-        const selectedDate = new Date(importDate);
-        if (isNaN(selectedDate.getTime())) return showErrorToast('Ngày nhập không hợp lệ!');
 
 		processing = true;
 
 		try {
-            // Generate Code
-            const code = await generateNextCode('imports', 'NK');
-
-			await runTransaction(db, async (transaction) => {
-                const supplierSnapshot = suppliers.find(s => s.id === selectedSupplierId);
-                const ingRefs = validItems.map(item => ({
-                    ref: doc(db, 'ingredients', item.ingredientId),
-                    itemData: item
-                }));
-                const ingSnaps = await Promise.all(ingRefs.map(ir => transaction.get(ir.ref)));
-
-                ingSnaps.forEach((snap, idx) => {
-                    if (!snap.exists()) throw "Nguyên liệu không tồn tại!";
-                    const currentData = snap.data();
-                    const inputItem = ingRefs[idx].itemData;
-                    const currentStock = Number(currentData.currentStock || 0);
-                    const currentAvgCost = Number(currentData.avgCost || 0);
-                    const oldValue = currentStock * currentAvgCost;
-                    const newValue = inputItem.price; 
-                    const newStock = currentStock + inputItem.quantity;
-                    const newAvgCost = newStock > 0 ? (oldValue + newValue) / newStock : 0;
-
-                    transaction.update(ingRefs[idx].ref, {
-                        currentStock: newStock,
-                        avgCost: Math.round(newAvgCost) 
-                    });
-                });
-
-                const importRef = doc(collection(db, 'imports'));
-                transaction.set(importRef, {
-                    code: code,
-                    supplierId: selectedSupplierId,
-                    supplierName: supplierSnapshot?.name || 'N/A',
-                    importDate: Timestamp.fromDate(selectedDate),
-                    items: validItems.map(i => ({
-                        ingredientId: i.ingredientId,
-                        ingredientCode: ingredients.find(x=>x.id === i.ingredientId)?.code, 
-                        ingredientName: ingredients.find(x=>x.id === i.ingredientId)?.name,
-                        quantity: i.quantity,
-                        totalPrice: i.price
-                    })),
-                    totalAmount: totalAmount,
-                    createdBy: $authStore.user?.email,
-                    createdAt: serverTimestamp()
-                });
-                
-                await logAction($authStore.user!, 'TRANSACTION', 'imports', `Tạo phiếu nhập ${code}`);
-            });
+            const code = await inventoryService.createImportReceipt(
+                $authStore.user!,
+                selectedSupplierId,
+                importDate,
+                importItems,
+                suppliers,
+                ingredients
+            );
 
             showSuccessToast(`Nhập kho thành công! Mã: ${code}`);
             selectedSupplierId = '';
@@ -201,8 +139,7 @@
         if (!checkPermission('manage_imports')) return showErrorToast("Không có quyền xóa.");
         if(!confirm("Xóa phiếu nhập có thể làm sai lệch tồn kho. Chắc chắn?")) return;
         try {
-            await deleteDoc(doc(db, 'imports', id));
-            await logAction($authStore.user!, 'DELETE', 'imports', `Xóa phiếu nhập ID: ${id}`);
+            await inventoryService.deleteImportReceipt($authStore.user!, id);
             showSuccessToast("Đã xóa phiếu nhập.");
         } catch (error: any) { showErrorToast("Lỗi xóa: " + error.message); }
     }
@@ -223,8 +160,6 @@
 
     {#if activeTab === 'create' && $userPermissions.has('manage_imports')}
         <div class="card bg-base-100 shadow-sm border border-slate-200 mb-8 p-4">
-            <!-- <h2 class="card-title text-lg border-b pb-2 mb-4">Tạo Phiếu Nhập</h2> -->
-
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div class="form-control w-full">
                     <label class="label"><span class="label-text">Ngày Nhập</span></label>
@@ -249,7 +184,7 @@
             <!-- Items List (Card Style) -->
             <div class="space-y-3 mb-4">
                 {#each importItems as item, i}
-                    <div class="bg-base-50 p-3 rounded-lg border border-slate-200 relative" on:click={() => openEditItem(i)}>
+                    <div class="bg-base-50 p-3 rounded-lg border border-slate-200 relative cursor-pointer hover:bg-slate-100 transition-colors" on:click={() => openEditItem(i)}>
                         <div class="font-bold text-slate-700">{item.tempIngredient?.name || 'Chọn NVL...'}</div>
                         <div class="flex justify-between items-end mt-1">
                             <div class="text-sm">
@@ -337,7 +272,7 @@
                     </thead>
                     <tbody>
                         {#each importHistory as receipt}
-                            <tr>
+                            <tr class="hover group">
                                 <td>{receipt.importDate?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
                                 <td>{receipt.supplierName}</td>
                                 <td>
@@ -351,7 +286,7 @@
                                 <td>
                                     {#if $userPermissions.has('manage_imports')}
                                         <button
-                                            class="btn btn-xs btn-ghost text-error"
+                                            class="btn btn-xs btn-ghost text-error opacity-0 group-hover:opacity-100 transition-opacity"
                                             on:click={() => deleteReceipt(receipt.id)}
                                         >
                                             <Trash2 class="h-4 w-4" />
