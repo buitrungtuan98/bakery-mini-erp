@@ -19,57 +19,56 @@
 </script>
 
 <!--
-    REFACTOR NOTES:
-    - This Navbar is now ONLY for Desktop.
-    - Removed all mobile-specific logic (hamburger menu, mobile avatar).
-    - Simplified styling to be cleaner (no blur, no heavy shadow).
-    - The entire component is hidden on mobile (`hidden lg:flex`).
+    DESKTOP NAVBAR
+    - Minimalist, whitespace-focused.
+    - Hidden on mobile (lg:flex).
 -->
-<div class="navbar bg-base-100 border-b border-base-200 sticky top-0 z-40 py-0 min-h-12 hidden lg:flex">
-	<div class="navbar-start">
-		<a href="/" class="btn btn-ghost normal-case text-lg text-primary font-bold">Bánh Mì Boss</a>
+<div class="navbar bg-white/95 backdrop-blur border-b border-slate-100 sticky top-0 z-40 py-2 min-h-[60px] hidden lg:flex px-6">
+	<div class="navbar-start w-auto mr-8">
+		<a href="/" class="text-xl font-bold text-primary tracking-tight">Bánh Mì Boss</a>
 	</div>
 	
-	<div class="navbar-center">
-		<ul class="menu menu-horizontal px-0 text-sm"> 
-			<li class="relative"><a href="/" data-sveltekit-preload-data="hover" class="{activeRoute === '/' ? 'active' : ''} py-1">Dashboard</a></li>
+	<div class="navbar-center flex-1">
+		<ul class="menu menu-horizontal px-0 text-sm font-medium gap-1">
+			<li><a href="/" data-sveltekit-preload-data="hover" class="{activeRoute === '/' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Dashboard</a></li>
 
             {#if canManage}
-                <li class="relative"><a href="/ingredients" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/ingredients') ? 'active' : ''} py-1">Nguyên liệu</a></li>
-                <li class="relative"><a href="/products" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/products') ? 'active' : ''} py-1">Sản phẩm/CT</a></li>
-                <li class="relative"><a href="/imports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/imports') ? 'active' : ''} py-1">Nhập hàng</a></li>
-                <li class="relative"><a href="/production" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/production') ? 'active' : ''} py-1">Sản xuất</a></li>
-                <li class="relative"><a href="/stocktake" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/stocktake') ? 'active' : ''} py-1">Kiểm kho</a></li>
+                <li><a href="/ingredients" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/ingredients') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Nguyên liệu</a></li>
+                <li><a href="/products" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/products') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Sản phẩm</a></li>
+                <li><a href="/imports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/imports') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Nhập hàng</a></li>
+                <li><a href="/production" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/production') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Sản xuất</a></li>
+                <li><a href="/stocktake" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/stocktake') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Kiểm kho</a></li>
             {/if}
 
             {#if canSell}
-                <li class="relative"><a href="/sales" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/sales') ? 'active' : ''} py-1">Bán hàng</a></li>
-                <li class="relative"><a href="/partners" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/partners') ? 'active' : ''} py-1">Đối tác</a></li>
+                <li><a href="/sales" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/sales') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Bán hàng</a></li>
+                <li><a href="/partners" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/partners') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Đối tác</a></li>
             {/if}
 
             {#if canManage || canSell}
-                <li class="relative"><a href="/reports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/reports') ? 'active' : ''} py-1">Báo cáo</a></li>
+                <li><a href="/reports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/reports') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Báo cáo</a></li>
             {/if}
 
             {#if isAdmin}
-                 <li class="relative"><a href="/admin/users" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/admin/users') ? 'active' : ''} py-1 text-secondary font-bold">Quản lý User</a></li>
-                 <li class="relative"><a href="/history" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/history') ? 'active' : ''} py-1">Lịch sử HT</a></li>
+                 <li><a href="/admin/users" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/admin/users') ? 'bg-red-50 text-red-600' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2 font-semibold">Admin</a></li>
             {/if}
 		</ul>
 	</div>
 	
-	<div class="navbar-end hidden lg:flex">
+	<div class="navbar-end hidden lg:flex w-auto">
         {#if $authStore.user}
             <div class="dropdown dropdown-end">
-                <div role="button" tabindex="0" class="btn btn-ghost btn-circle avatar">
-                    <div class="w-10 rounded-full">
+                <div role="button" tabindex="0" class="btn btn-ghost btn-circle avatar ring-2 ring-slate-100">
+                    <div class="w-9 rounded-full">
                         <img src={$authStore.user.photoURL || "https://ui-avatars.com/api/?name=User"} alt="avatar" />
                     </div>
                 </div>
-                <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow bg-base-100 rounded-box w-52">
-                    <li class="menu-title">{$authStore.user.email}</li>
-                    <li class="menu-title text-primary font-bold uppercase text-xs">Role: {$authStore.user.role}</li>
-                    <li><button on:click={handleLogout}>Đăng xuất</button></li>
+                <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[1] p-2 shadow-soft bg-white rounded-xl w-52 border border-slate-100">
+                    <li class="px-4 py-2 border-b border-slate-50 mb-2">
+                        <span class="font-bold text-slate-800 block truncate">{$authStore.user.email}</span>
+                        <span class="text-xs text-slate-400 uppercase">{$authStore.user.role}</span>
+                    </li>
+                    <li><button on:click={handleLogout} class="text-red-500 hover:bg-red-50">Đăng xuất</button></li>
                 </ul>
             </div>
         {/if}

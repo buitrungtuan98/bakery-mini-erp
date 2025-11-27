@@ -31,16 +31,17 @@
 	<div class="flex h-screen w-full justify-center items-center bg-base-100">
 		<div class="flex flex-col items-center gap-4">
 			<span class="loading loading-dots loading-lg text-primary"></span>
-			<p class="text-sm text-gray-500">Đang tải dữ liệu hệ thống...</p>
+			<p class="text-sm text-slate-500 font-medium animate-pulse">Đang tải dữ liệu hệ thống...</p>
 		</div>
 	</div>
 {:else}
-	<div class="min-h-screen bg-base-100 text-base-content font-sans pb-16 lg:pb-0"> <!-- Added pb-16 for BottomNav -->
+	<div class="min-h-screen bg-base-200 text-slate-800 font-sans pb-24 lg:pb-0"> <!-- Increased pb for taller BottomNav -->
 		{#if $authStore.user}
 			<Navbar />
 		{/if}
 
-		<main class="p-2 md:p-4 max-w-7xl mx-auto">
+        <!-- Padding adjustment: Mobile needs less padding as we have cards -->
+		<main class="p-2 md:p-6 max-w-7xl mx-auto w-full">
 			<slot />
 		</main>
 
