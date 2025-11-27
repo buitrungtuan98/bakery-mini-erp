@@ -2,18 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global Resets & Mobile Optimizations */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent; /* Removes gray tap highlight on iOS */
+  }
+
+  body {
+    @apply text-slate-700; /* Softer than pure black */
+  }
+
+  /* Prevent auto-zoom on iOS inputs by ensuring font-size is at least 16px */
+  input, select, textarea, .input, .select, .textarea {
+    @apply text-base;
+  }
+
+  /* Better focus styles */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-base-100;
+  }
+}
+
 /* Custom scrollbar for tables */
 .table-wrapper::-webkit-scrollbar {
-    height: 8px;
-    width: 8px;
+    height: 6px; /* Thinner */
+    width: 6px;
 }
 .table-wrapper::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: transparent;
 }
 .table-wrapper::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+    @apply bg-slate-300 rounded-full;
 }
 .table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    @apply bg-slate-400;
+}
+
+/* Utilities for Micro-interactions */
+.active-press:active {
+    transform: scale(0.97);
+    transition: transform 0.1s;
+}
+
+/* Clean up DaisyUI defaults if needed */
+.btn {
+    @apply capitalize font-medium; /* Less aggressive than uppercase */
 }
