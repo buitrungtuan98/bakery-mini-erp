@@ -134,7 +134,7 @@
             });
             showSuccessToast("Đã cân bằng kho nguyên liệu thành công!");
             // await loadData();
-        } catch (e) { 
+        } catch (e: any) {
             showErrorToast("Lỗi: Không thể cân bằng kho. " + e.message);
         } 
         finally { processing = false; }
@@ -162,7 +162,7 @@
             await logAction($authStore.user!, 'UPDATE', 'assets', `Kiểm kê: ${asset.name} (Tốt: ${asset.actualGood}, Hỏng: ${asset.actualBroken}, Mất: ${asset.actualLost})`);
             showSuccessToast("Đã cập nhật tài sản!");
 
-        } catch (e) { 
+        } catch (e: any) {
             showErrorToast("Lỗi: " + e.message);
         }
     }

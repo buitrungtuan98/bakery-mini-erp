@@ -282,7 +282,7 @@
             // productionInputs = [];
             // batchScale = 1;
 
-		} catch (error) {
+		} catch (error: any) {
 			console.error(error);
 			showErrorToast('Lỗi khi chạy lệnh sản xuất: ' + error.message);
 		} finally {

@@ -14,14 +14,20 @@ export interface Ingredient {
     avgCost: number;
     manufacturerId: string;
     manufacturerName: string;
-    createdAt?: any;
+    createdAt?: { toDate: () => Date } | Date;
+}
+
+export interface ProductItem {
+    ingredientId: string;
+    quantity: number;
+    unit?: string;
 }
 
 export interface Product {
     id: string;
     name: string;
     sellingPrice: number;
-    items: any[];
+    items: ProductItem[];
     theoreticalCost: number;
     estimatedYieldQty: number;
     currentStock: number;
@@ -52,7 +58,6 @@ function createFirestoreStore<T>(collectionName: string, orderByField: string = 
         init: () => {
             if (loaded && unsubscribe) return; // Đã load rồi thì không load lại
 
-            console.log(`[Store] Initializing subscription for ${collectionName}...`);
             loading.set(true);
             const q = query(collection(db, collectionName), orderBy(orderByField));
 
@@ -61,7 +66,6 @@ function createFirestoreStore<T>(collectionName: string, orderByField: string = 
                 set(data);
                 loaded = true;
                 loading.set(false);
-                console.log(`[Store] Loaded ${data.length} items from ${collectionName}.`);
             }, (error) => {
                 console.error(`[Store] Error loading ${collectionName}:`, error);
                 loading.set(false); // Stop loading on error

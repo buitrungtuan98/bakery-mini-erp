@@ -65,7 +65,7 @@
                 return dateB.getTime() - dateA.getTime();
             });
             showSuccessToast("Tải báo cáo thành công!");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Lỗi tải báo cáo:", error);
             showErrorToast("Lỗi tải dữ liệu báo cáo (có thể do thiếu Index).");
         } finally {

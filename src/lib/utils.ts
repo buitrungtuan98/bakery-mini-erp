@@ -48,7 +48,7 @@ export async function generateNextCode(collectionName: string, prefix: string, l
         const nextNumber = currentNumber + 1;
         return `${prefix}-${nextNumber.toString().padStart(length, '0')}`;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(`Error generating next code for ${collectionName} with prefix ${prefix}:`, error);
         // Fallback: use timestamp or random to avoid blocking, but ideally we want sequential.
         // For now, let's throw or return a safe default that indicates an issue or retry.
