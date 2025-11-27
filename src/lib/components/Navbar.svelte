@@ -9,8 +9,10 @@
 	$: activeRoute = $page.url.pathname;
 
     // Check permission
-    $: canManage = $permissionStore.userPermissions.has('view_inventory') || $permissionStore.userPermissions.has('manage_imports');
     $: canSell = $permissionStore.userPermissions.has('view_sales');
+    $: canProduce = $permissionStore.userPermissions.has('view_production');
+    $: canManageInventory = $permissionStore.userPermissions.has('view_inventory') || $permissionStore.userPermissions.has('manage_imports');
+    $: canViewFinance = $permissionStore.userPermissions.has('view_finance') || $permissionStore.userPermissions.has('manage_expenses');
     $: isAdmin = $permissionStore.userPermissions.has('view_users');
 
 	async function handleLogout() {
@@ -32,20 +34,30 @@
 		<ul class="menu menu-horizontal px-0 text-sm font-medium gap-1">
 			<li><a href="/" data-sveltekit-preload-data="hover" class="{activeRoute === '/' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Dashboard</a></li>
 
-            {#if canManage}
-                <li><a href="/ingredients" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/ingredients') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Nguyên liệu</a></li>
-                <li><a href="/products" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/products') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Sản phẩm</a></li>
-                <li><a href="/imports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/imports') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Nhập hàng</a></li>
+            {#if canSell}
+                <li><a href="/sales" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/sales') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Bán hàng</a></li>
+            {/if}
+
+            {#if canProduce}
                 <li><a href="/production" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/production') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Sản xuất</a></li>
+            {/if}
+
+            {#if canManageInventory}
+                <li><a href="/imports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/imports') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Nhập hàng</a></li>
                 <li><a href="/stocktake" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/stocktake') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Kiểm kho</a></li>
             {/if}
 
-            {#if canSell}
-                <li><a href="/sales" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/sales') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Bán hàng</a></li>
-                <li><a href="/partners" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/partners') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Đối tác</a></li>
+            {#if canViewFinance}
+                <li><a href="/expenses" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/expenses') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Chi phí</a></li>
             {/if}
 
-            {#if canManage || canSell}
+            <!-- Master Data Link -->
+            {#if canManageInventory || canViewFinance}
+                 <li><a href="/master" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/master') ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Dữ liệu Chủ</a></li>
+            {/if}
+
+            <!-- Reports -->
+            {#if canManageInventory || canSell || canViewFinance}
                 <li><a href="/reports" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/reports') ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2">Báo cáo</a></li>
             {/if}
 

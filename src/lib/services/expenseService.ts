@@ -8,41 +8,32 @@ import {
     serverTimestamp,
     Timestamp,
     limit,
-    where
+    where,
+    doc
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
 import type { User } from 'firebase/auth';
+import type { FinanceLedger, MasterPartner } from '$lib/types/erp';
 
 export interface Category {
     id: string;
     name: string;
 }
-export interface Partner {
-    id: string;
-    name: string;
-}
-export interface ExpenseLog {
-    id: string;
-    code?: string;
-    date: { toDate: () => Date };
-    categoryName: string;
-    amount: number;
-    description: string;
-    supplier: string;
-    supplierId: string;
-    createdAt: { toDate: () => Date };
-}
+
+// Alias for UI compatibility
+export type Partner = MasterPartner;
+export type ExpenseLog = FinanceLedger;
 
 export const expenseService = {
     async addCategory(user: User, name: string) {
         if (!name.trim()) throw new Error('Tên danh mục không được để trống.');
 
-        await addDoc(collection(db, 'expense_categories'), {
+        await addDoc(collection(db, 'master_expense_categories'), {
             name: name.trim(),
             createdAt: serverTimestamp()
         });
-        await logAction(user, 'CREATE', 'expense_categories', `Thêm mới danh mục: ${name}`);
+        await logAction(user, 'CREATE', 'master_expense_categories', `Thêm mới danh mục: ${name}`);
     },
 
     async createExpense(
@@ -65,24 +56,37 @@ export const expenseService = {
         const selectedDate = new Date(data.date);
         const category = categories.find(c => c.id === data.categoryId);
         const supplier = suppliers.find(s => s.id === data.selectedSupplierId);
-        const code = await generateNextCode('expenses_log', 'CP');
 
-        await addDoc(collection(db, 'expenses_log'), {
-            code: code,
+        // Generate a CP code for reference, even though ID is auto-gen
+        const code = await generateNextCode('finance_ledger', 'CP');
+        // Note: finance_ledger might store mixed types, so prefixing code is important.
+        // Or we can just use ID. But for UI consistency, a short code is nice.
+
+        // We write to 'finance_ledger'
+        const ledgerRef = await addDoc(collection(db, 'finance_ledger'), {
             date: Timestamp.fromDate(selectedDate),
-            categoryId: data.categoryId,
-            categoryName: category?.name || 'N/A',
+            type: 'expense',
+            category: category?.name || 'N/A', // Store snapshot name
             amount: Number(data.amount),
             description: data.description || 'Không mô tả',
+            relatedDocId: data.selectedSupplierId, // Store Supplier ID here or in description?
+            // The FinanceLedger type has 'relatedDocId'.
+            // We should probably store extra metadata if possible, but Firestore is flexible.
+            // Let's stick to the interface defined in erp.ts as much as possible,
+            // but add custom fields if needed for "Supplier" tracking in Expenses.
             supplierId: data.selectedSupplierId,
-            supplier: supplier?.name || 'N/A',
-            createdBy: user.email,
+            supplierName: supplier?.name || 'N/A',
+            code: code, // Add code field
+
+            recordedBy: user.email,
             createdAt: serverTimestamp()
         });
 
         if (isAssetPurchase) {
             const assetCode = await generateNextCode('assets', 'TS');
-            await addDoc(collection(db, 'assets'), {
+            // 'assets' can be 'master_assets' if we want. Keeping 'assets' for now as it wasn't strictly Master Data in user list but looks like it.
+            // Let's use 'master_assets' to be consistent with "Fresh Start".
+            await addDoc(collection(db, 'master_assets'), {
                code: assetCode,
                name: data.description,
                category: category?.name || 'Tài sản chung',
@@ -93,10 +97,10 @@ export const expenseService = {
                createdBy: user.email,
                createdAt: serverTimestamp()
            });
-           await logAction(user, 'CREATE', 'assets', `Tự động tạo tài sản từ chi phí: ${data.description} (${assetCode})`);
+           await logAction(user, 'CREATE', 'master_assets', `Tự động tạo tài sản từ chi phí: ${data.description} (${assetCode})`);
        }
 
-       await logAction(user, 'TRANSACTION', 'expenses_log',
+       await logAction(user, 'TRANSACTION', 'finance_ledger',
            `Chi tiền: ${category?.name}, ${data.amount.toLocaleString()} đ từ NCC ${supplier?.name || 'N/A'} (${code})`
        );
 
@@ -104,23 +108,29 @@ export const expenseService = {
     },
 
     subscribeCategories(callback: (categories: Category[]) => void) {
-        const catQuery = query(collection(db, 'expense_categories'), orderBy('name'));
+        const catQuery = query(collection(db, 'master_expense_categories'), orderBy('name'));
         return onSnapshot(catQuery, (snapshot) => {
             callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
         });
     },
 
     subscribeSuppliers(callback: (suppliers: Partner[]) => void) {
-        const supplierQuery = query(collection(db, 'partners'), where('type', '==', 'supplier'), orderBy('name'));
+        const supplierQuery = query(collection(db, 'master_partners'), where('type', '==', 'supplier'), orderBy('name'));
         return onSnapshot(supplierQuery, (snapshot) => {
             callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Partner)));
         });
     },
 
-    subscribeHistory(limitCount: number, callback: (logs: ExpenseLog[]) => void) {
-        const logQuery = query(collection(db, 'expenses_log'), orderBy('date', 'desc'), limit(limitCount));
+    subscribeHistory(limitCount: number, callback: (logs: FinanceLedger[]) => void) {
+        // Filter by type 'expense'
+        const logQuery = query(
+            collection(db, 'finance_ledger'),
+            where('type', '==', 'expense'),
+            orderBy('date', 'desc'),
+            limit(limitCount)
+        );
         return onSnapshot(logQuery, (snapshot) => {
-            callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ExpenseLog)));
+            callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinanceLedger)));
         });
     }
 };

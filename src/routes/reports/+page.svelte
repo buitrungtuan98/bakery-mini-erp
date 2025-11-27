@@ -45,11 +45,12 @@
             end.setHours(23, 59, 59, 999);
             const endTs = Timestamp.fromDate(end);
 
+            // Refactored Queries for New Schema
             const [importSnap, prodSnap, orderSnap, expenseSnap] = await Promise.all([
                 getDocs(query(collection(db, 'imports'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc'))),
                 getDocs(query(collection(db, 'production_runs'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, 'orders'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc'))),
-                getDocs(query(collection(db, 'expenses_log'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc')))
+                getDocs(query(collection(db, 'sales_orders'), where('createdAt', '>=', startTs), where('createdAt', '<=', endTs), orderBy('createdAt', 'desc'))),
+                getDocs(query(collection(db, 'finance_ledger'), where('type', '==', 'expense'), where('date', '>=', startTs), where('date', '<=', endTs), orderBy('date', 'desc')))
             ]);
 
             transactions = [
@@ -60,8 +61,8 @@
             ];
 
             transactions.sort((a, b) => {
-                const dateA = a.data.createdAt?.toDate() || new Date(0);
-                const dateB = b.data.createdAt?.toDate() || new Date(0);
+                const dateA = a.data.createdAt?.toDate ? a.data.createdAt.toDate() : (a.data.date?.toDate ? a.data.date.toDate() : new Date(0));
+                const dateB = b.data.createdAt?.toDate ? b.data.createdAt.toDate() : (b.data.date?.toDate ? b.data.date.toDate() : new Date(0));
                 return dateB.getTime() - dateA.getTime();
             });
             showSuccessToast("Tải báo cáo thành công!");
@@ -77,44 +78,58 @@
         const ledger: any[] = [];
         
         txs.forEach((tx) => {
-            const date = tx.data.importDate?.toDate().toLocaleDateString('vi-VN') || tx.data.productionDate?.toDate().toLocaleDateString('vi-VN') || tx.data.date?.toDate().toLocaleDateString('vi-VN') || tx.data.createdAt?.toDate()?.toLocaleDateString('vi-VN') || 'N/A';
-            const docId = tx.id.substring(0, 8).toUpperCase();
+            // Determine Date
+            let date = 'N/A';
+            if (tx.data.importDate?.toDate) date = tx.data.importDate.toDate().toLocaleDateString('vi-VN');
+            else if (tx.data.productionDate?.toDate) date = tx.data.productionDate.toDate().toLocaleDateString('vi-VN');
+            else if (tx.data.date?.toDate) date = tx.data.date.toDate().toLocaleDateString('vi-VN');
+            else if (tx.data.createdAt?.toDate) date = tx.data.createdAt.toDate().toLocaleDateString('vi-VN');
+
+            const docId = (tx.data.code || tx.id.substring(0, 8)).toUpperCase();
             
             if (tx.type === 'IMPORT') {
                 tx.data.items.forEach((item: any) => {
                     ledger.push({
-                        date, docId: `NH-${docId}`, type: "Nhập NVL",
+                        date, docId: docId, type: "Nhập NVL",
                         desc: `Nhập ${item.quantity} ${item.ingredientName}`,
                         detail: item.ingredientName,
-                        amount: -item.totalPrice,
+                        amount: -item.totalPrice, // Spending
                         revenue: 0, cogs: 0, note: `NCC: ${tx.data.supplierName}`
                     });
                 });
 
             } else if (tx.type === 'PRODUCTION') {
                 ledger.push({
-                    date, docId: `SX-${docId}`, type: "Sản xuất TP",
+                    date, docId: docId, type: "Sản xuất TP",
                     desc: `SX ${tx.data.productName} - Yield: ${tx.data.actualYield?.toLocaleString() || 0}`,
                     detail: tx.data.productName,
                     amount: 0, revenue: 0, cogs: tx.data.totalActualCost,
                     note: `Giá vốn: ${Math.round(tx.data.actualCostPerUnit || 0).toLocaleString()}`
                 });
             } else if (tx.type === 'SALE') {
-                 tx.data.items.forEach((item: any, index: number) => {
-                     ledger.push({
-                        date, docId: `BH-${docId}`, type: "Bán hàng",
-                        desc: `Bán ${item.quantity} ${item.productName}`,
-                        detail: item.productName,
-                        amount: item.lineTotal, revenue: item.lineTotal, cogs: -item.lineCOGS,
-                        note: index === 0 ? `Khách: ${tx.data.customerInfo.name}` : ""
+                 // Sales Order Logic
+                 // If status is canceled, we might want to skip or show as canceled.
+                 // Assuming we show active sales.
+                 if (tx.data.status !== 'canceled') {
+                     tx.data.items.forEach((item: any, index: number) => {
+                         ledger.push({
+                            date, docId: docId, type: "Bán hàng",
+                            desc: `Bán ${item.quantity} ${item.productName}`,
+                            detail: item.productName,
+                            amount: item.total, // Cash In
+                            revenue: item.total,
+                            cogs: -(item.costPrice || 0),
+                            note: index === 0 ? `Khách: ${tx.data.customerName || 'Khách lẻ'}` : ""
+                        });
                     });
-                });
+                 }
             } else if (tx.type === 'EXPENSE') {
                 ledger.push({
-                    date, docId: `CP-${docId}`, type: "Chi phí khác",
+                    date, docId: docId, type: "Chi phí khác",
                     desc: `Chi: ${tx.data.description}`,
-                    detail: tx.data.categoryName,
-                    amount: -tx.data.amount, revenue: 0, cogs: 0, note: `NCC: ${tx.data.supplier}`
+                    detail: tx.data.category,
+                    amount: -tx.data.amount, revenue: 0, cogs: 0,
+                    note: `NCC: ${tx.data.supplierName || 'N/A'}`
                 });
             }
         });

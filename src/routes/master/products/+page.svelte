@@ -41,7 +41,7 @@
         id: '', code: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0, _searchTerm: '', _isOpen: false }]
     };
 
-    $: theoreticalCost = calculateCost(formData.items);
+    $: costPrice = calculateCost(formData.items);
 
     function calculateCost(items: any[]) {
         let total = 0;
@@ -133,7 +133,7 @@
                     const ing = ingredients.find(x => x.id === i.ingredientId);
                     return { ingredientId: i.ingredientId, quantity: Number(i.quantity), unit: ing?.baseUnit };
                 }),
-                theoreticalCost: theoreticalCost
+                costPrice: costPrice
             };
 
             if (isEditing) {
@@ -224,7 +224,7 @@
 
                                     {#if $permissionStore.userPermissions.has('view_finance')}
                                         <div class="text-base-content/60">Giá vốn (LT)</div>
-                                        <div class="font-mono text-right">{item.theoreticalCost?.toLocaleString()} đ</div>
+                                        <div class="font-mono text-right">{item.costPrice?.toLocaleString()} đ</div>
                                     {/if}
                                 </div>
 
@@ -280,10 +280,10 @@
                             <td class="font-mono text-primary text-right">{item.sellingPrice?.toLocaleString()} đ</td>
 
                             {#if $permissionStore.userPermissions.has('view_finance')}
-                                <td class="font-mono text-base-content/60 text-right">{item.theoreticalCost?.toLocaleString()} đ</td>
+                                <td class="font-mono text-base-content/60 text-right">{item.costPrice?.toLocaleString()} đ</td>
                                 <td class="text-center">
                                     {#if item.sellingPrice > 0}
-                                        {@const profitMargin = (((item.sellingPrice || 0) - (item.theoreticalCost || 0)) / item.sellingPrice) * 100}
+                                        {@const profitMargin = (((item.sellingPrice || 0) - (item.costPrice || 0)) / item.sellingPrice) * 100}
                                         <span class="badge badge-sm {profitMargin > 20 ? 'badge-success' : 'badge-warning'} text-white">
                                             {profitMargin?.toFixed(0)}%
                                         </span>
@@ -492,7 +492,7 @@
             <Plus class="h-4 w-4 mr-2" /> Thêm dòng
         </button>
         <div class="text-sm font-bold text-slate-600">
-            Giá vốn LT: {theoreticalCost.toLocaleString()} đ/sp
+            Giá vốn LT: {costPrice.toLocaleString()} đ/sp
         </div>
     </div>
 </Modal>
