@@ -8,6 +8,8 @@
 
     $: canSell = $permissionStore.userPermissions.has('view_sales');
     $: canProduce = $permissionStore.userPermissions.has('view_production');
+    $: canManageInventory = $permissionStore.userPermissions.has('view_inventory') || $permissionStore.userPermissions.has('manage_imports');
+    $: canViewFinance = $permissionStore.userPermissions.has('view_finance') || $permissionStore.userPermissions.has('manage_expenses');
     $: isAdmin = $permissionStore.userPermissions.has('view_users');
 
     let isMenuOpen = false;
@@ -27,28 +29,30 @@
 </script>
 
 <!-- Bottom Nav -->
-<div class="btm-nav btm-nav-lg lg:hidden bg-base-100/90 backdrop-blur-md border-t border-base-200 z-50 pb-safe shadow-[0_-4px_20px_-1px_rgba(0,0,0,0.05)]">
+<!-- Adjusted layout to fit 6 items: Home, Sales, Prod, Imports, Expenses, Menu -->
+<!-- Using 'btm-nav-sm' or just default size flexbox. DaisyUI handles it but text might wrap. -->
+<div class="btm-nav lg:hidden bg-base-100/90 backdrop-blur-md border-t border-base-200 z-50 pb-safe shadow-[0_-4px_20px_-1px_rgba(0,0,0,0.05)]">
 
   <!-- Home -->
   <a href="/" data-sveltekit-preload-data="hover"
-     class="active-press flex flex-col items-center justify-center gap-1 {isActive('/') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+     class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
      on:click={closeMenu}>
-    <Home size={24} strokeWidth={isActive('/') ? 2.5 : 2} />
-    <span class="text-[10px] font-medium">Home</span>
+    <Home size={20} strokeWidth={isActive('/') ? 2.5 : 2} />
+    <span class="text-[9px] font-medium truncate w-full text-center">Home</span>
     {#if isActive('/')}
-        <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-4 rounded-b-full" transition:fade></span>
+        <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
     {/if}
   </a>
 
   <!-- Sales -->
   {#if canSell}
       <a href="/sales" data-sveltekit-preload-data="hover"
-         class="active-press flex flex-col items-center justify-center gap-1 {isActive('/sales') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/sales') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
          on:click={closeMenu}>
-        <ShoppingCart size={24} strokeWidth={isActive('/sales') ? 2.5 : 2} />
-        <span class="text-[10px] font-medium">Bán hàng</span>
+        <ShoppingCart size={20} strokeWidth={isActive('/sales') ? 2.5 : 2} />
+        <span class="text-[9px] font-medium truncate w-full text-center">Bán hàng</span>
         {#if isActive('/sales')}
-            <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-4 rounded-b-full" transition:fade></span>
+            <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
         {/if}
       </a>
   {/if}
@@ -56,34 +60,49 @@
   <!-- Production -->
   {#if canProduce}
       <a href="/production" data-sveltekit-preload-data="hover"
-         class="active-press flex flex-col items-center justify-center gap-1 {isActive('/production') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/production') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
          on:click={closeMenu}>
-        <Factory size={24} strokeWidth={isActive('/production') ? 2.5 : 2} />
-        <span class="text-[10px] font-medium">Sản xuất</span>
+        <Factory size={20} strokeWidth={isActive('/production') ? 2.5 : 2} />
+        <span class="text-[9px] font-medium truncate w-full text-center">Sản xuất</span>
         {#if isActive('/production')}
-            <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-4 rounded-b-full" transition:fade></span>
+            <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
         {/if}
       </a>
   {/if}
 
-  <!-- Master Data (Replaced Products) -->
-  <a href="/master" data-sveltekit-preload-data="hover"
-     class="active-press flex flex-col items-center justify-center gap-1 {isActive('/master') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
-     on:click={closeMenu}>
-    <Database size={24} strokeWidth={isActive('/master') ? 2.5 : 2} />
-    <span class="text-[10px] font-medium">Dữ liệu</span>
-    {#if isActive('/master')}
-        <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-4 rounded-b-full" transition:fade></span>
-    {/if}
-  </a>
+  <!-- Imports -->
+  {#if canManageInventory}
+      <a href="/imports" data-sveltekit-preload-data="hover"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/imports') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         on:click={closeMenu}>
+        <Truck size={20} strokeWidth={isActive('/imports') ? 2.5 : 2} />
+        <span class="text-[9px] font-medium truncate w-full text-center">Nhập hàng</span>
+        {#if isActive('/imports')}
+            <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
+        {/if}
+      </a>
+  {/if}
+
+  <!-- Expenses -->
+  {#if canViewFinance}
+      <a href="/expenses" data-sveltekit-preload-data="hover"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/expenses') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         on:click={closeMenu}>
+        <Wallet size={20} strokeWidth={isActive('/expenses') ? 2.5 : 2} />
+        <span class="text-[9px] font-medium truncate w-full text-center">Chi phí</span>
+        {#if isActive('/expenses')}
+            <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
+        {/if}
+      </a>
+  {/if}
 
   <!-- MORE / MENU -->
   <button
-      class="active-press flex flex-col items-center justify-center gap-1 {isMenuOpen ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+      class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isMenuOpen ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
       on:click={toggleMenu}
   >
-    <MenuIcon size={24} strokeWidth={isMenuOpen ? 2.5 : 2} />
-    <span class="text-[10px] font-medium">Menu</span>
+    <MenuIcon size={20} strokeWidth={isMenuOpen ? 2.5 : 2} />
+    <span class="text-[9px] font-medium truncate w-full text-center">Menu</span>
   </button>
 </div>
 
@@ -111,31 +130,27 @@
             </div>
 
             <div class="grid grid-cols-1 gap-1">
-                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-2">Kho & Nhập liệu</div>
+                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-2">Quản lý Dữ liệu</div>
 
-                <!-- Removed Ingredients (moved to Master) -->
-                <a href="/imports" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                     <div class="p-2 rounded-lg bg-blue-100 text-blue-600"><Truck size={20} /></div>
-                    <span class="font-medium text-slate-700">Nhập hàng (Imports)</span>
+                <!-- Master Data (Moved to Menu) -->
+                <a href="/master" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
+                    <div class="p-2 rounded-lg bg-indigo-100 text-indigo-600"><Database size={20} /></div>
+                    <span class="font-medium text-slate-700">Dữ liệu Chủ (Master Data)</span>
                 </a>
+
+                <div class="h-4"></div>
+                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-2">Kho & Báo cáo</div>
+
                 <a href="/stocktake" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
                      <div class="p-2 rounded-lg bg-emerald-100 text-emerald-600"><ClipboardList size={20} /></div>
                     <span class="font-medium text-slate-700">Kiểm kho (Stocktake)</span>
                 </a>
 
-                <div class="h-4"></div>
-
-                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-2">Tài chính & Báo cáo</div>
-
-                <a href="/expenses" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                    <div class="p-2 rounded-lg bg-red-100 text-red-600"><Wallet size={20} /></div>
-                    <span class="font-medium text-slate-700">Chi phí (Expenses)</span>
-                </a>
                 <a href="/reports" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
-                     <div class="p-2 rounded-lg bg-indigo-100 text-indigo-600"><BarChart3 size={20} /></div>
+                     <div class="p-2 rounded-lg bg-blue-100 text-blue-600"><BarChart3 size={20} /></div>
                     <span class="font-medium text-slate-700">Báo cáo (Reports)</span>
                 </a>
-                <!-- Removed Partners (Moved to Master) -->
+
                  <a href="/history" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors">
                      <div class="p-2 rounded-lg bg-slate-100 text-slate-600"><History size={20} /></div>
                     <span class="font-medium text-slate-700">Lịch sử Hệ thống</span>
