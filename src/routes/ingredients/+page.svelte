@@ -9,12 +9,15 @@
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2 } from 'lucide-svelte';
+    import { fade } from 'svelte/transition';
 
     // Components
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
+    import SkeletonCard from '$lib/components/ui/SkeletonCard.svelte';
+    import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
     // --- State ---
     let ingredients: Ingredient[] = [];
@@ -166,50 +169,61 @@
     </div>
 
     {#if ingredients.length === 0}
-        <Loading />
+        <div class="space-y-4 md:hidden">
+            {#each { length: 3 } as _}
+                <SkeletonCard />
+            {/each}
+        </div>
+        <div class="hidden md:block">
+            <Loading />
+        </div>
     {:else}
         <ResponsiveTable>
              <svelte:fragment slot="mobile">
-                 {#each paginatedIngredients as item}
-                    <div class="card bg-base-100 shadow-sm border border-base-200">
-                        <div class="card-body p-4">
-                            <!-- Header -->
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h2 class="card-title text-base">{item.name}</h2>
-                                    <p class="text-xs text-base-content/60 font-mono">{item.code}</p>
-                                </div>
-                                <div class="badge badge-ghost badge-sm">{item.baseUnit}</div>
-                            </div>
-
-                            <div class="divider my-1"></div>
-
-                            <!-- Body -->
-                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                <div class="text-base-content/60">Tồn kho</div>
-                                <div class="font-mono font-medium text-right {item.currentStock < item.minStock ? 'text-error' : ''}">
-                                    {item.currentStock?.toLocaleString() || 0}
+                {#if paginatedIngredients.length > 0}
+                    {#each paginatedIngredients as item (item.id)}
+                        <div in:fade={{ duration: 200 }} class="card bg-base-100 shadow-sm border border-base-200">
+                            <div class="card-body p-4">
+                                <!-- Header -->
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h2 class="card-title text-base">{item.name}</h2>
+                                        <p class="text-xs text-base-content/60 font-mono">{item.code}</p>
+                                    </div>
+                                    <div class="badge badge-ghost badge-sm">{item.baseUnit}</div>
                                 </div>
 
-                                {#if $permissionStore.userPermissions.has('view_finance')}
-                                    <div class="text-base-content/60">Giá vốn</div>
-                                    <div class="font-mono text-right">{item.avgCost?.toLocaleString() || 0} đ</div>
-                                {/if}
+                                <div class="divider my-1"></div>
 
-                                <div class="text-base-content/60">Nhà SX</div>
-                                <div class="text-right truncate">{item.manufacturerName || 'N/A'}</div>
-                            </div>
+                                <!-- Body -->
+                                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                    <div class="text-base-content/60">Tồn kho</div>
+                                    <div class="font-mono font-medium text-right {item.currentStock < item.minStock ? 'text-error' : ''}">
+                                        {item.currentStock?.toLocaleString() || 0}
+                                    </div>
 
-                            <div class="divider my-1"></div>
+                                    {#if $permissionStore.userPermissions.has('view_finance')}
+                                        <div class="text-base-content/60">Giá vốn</div>
+                                        <div class="font-mono text-right">{item.avgCost?.toLocaleString() || 0} đ</div>
+                                    {/if}
 
-                            <!-- Footer Actions -->
-                            <div class="card-actions justify-end">
-                                <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                    <div class="text-base-content/60">Nhà SX</div>
+                                    <div class="text-right truncate">{item.manufacturerName || 'N/A'}</div>
+                                </div>
+
+                                <div class="divider my-1"></div>
+
+                                <!-- Footer Actions -->
+                                <div class="card-actions justify-end">
+                                    <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                    <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                 {/each}
+                    {/each}
+                {:else}
+                    <EmptyState message="Không tìm thấy nguyên liệu nào." />
+                {/if}
              </svelte:fragment>
 
              <svelte:fragment slot="desktop">
@@ -229,10 +243,10 @@
                 </thead>
                 <tbody>
                     {#if paginatedIngredients.length === 0}
-                        <tr><td colspan="8" class="text-center text-base-content/40 py-4">Không tìm thấy dữ liệu.</td></tr>
+                        <tr><td colspan="8"><EmptyState /></td></tr>
                     {:else}
                         {#each paginatedIngredients as item}
-                            <tr class="hover">
+                            <tr class="hover group">
                                 <td class="font-mono text-sm">{item.code}</td>
                                 <td>
                                     <div class="font-medium">{item.name}</div>
@@ -254,8 +268,10 @@
                                 {/if}
                                 <td class="text-xs text-base-content/60">{item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString('vi-VN') : 'N/A'}</td>
                                 <td class="text-center">
-                                    <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                    <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                    <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button class="btn btn-xs btn-ghost" on:click={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                        <button class="btn btn-xs btn-ghost text-error" on:click={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                    </div>
                                 </td>
                             </tr>
                         {/each}

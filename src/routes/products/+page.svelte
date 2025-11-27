@@ -9,11 +9,14 @@
     import { generateNextCode } from '$lib/utils';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Pencil, Trash2, ChevronRight } from 'lucide-svelte';
+    import { slide, fade } from 'svelte/transition';
 
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
+    import SkeletonCard from '$lib/components/ui/SkeletonCard.svelte';
+    import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
     // State
     let products: Product[] = [];
@@ -181,7 +184,14 @@
     </PageHeader>
 
     {#if products.length === 0}
-        <Loading />
+        <div class="space-y-4 md:hidden">
+            {#each { length: 3 } as _}
+                <SkeletonCard />
+            {/each}
+        </div>
+        <div class="hidden md:block">
+             <Loading />
+        </div>
     {:else}
         <div class="flex justify-end mb-2">
             <select bind:value={itemsPerPage} class="select select-bordered select-xs">
@@ -193,51 +203,55 @@
 
         <ResponsiveTable>
              <svelte:fragment slot="mobile">
-                 {#each paginatedProducts as item}
-                    <div class="card bg-base-100 shadow-sm border border-base-200">
-                        <div class="card-body p-4">
-                            <!-- Header -->
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <h2 class="card-title text-base">{item.name}</h2>
-                                    <p class="text-xs text-base-content/60 font-mono">{item.code || '-'}</p>
+                {#if paginatedProducts.length > 0}
+                    {#each paginatedProducts as item (item.id)}
+                        <div in:fade={{ duration: 200 }} class="card bg-base-100 shadow-sm border border-base-200">
+                            <div class="card-body p-4">
+                                <!-- Header -->
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <h2 class="card-title text-base">{item.name}</h2>
+                                        <p class="text-xs text-base-content/60 font-mono">{item.code || '-'}</p>
+                                    </div>
+                                    <div class="badge badge-primary badge-outline font-mono">
+                                        {item.sellingPrice?.toLocaleString()} đ
+                                    </div>
                                 </div>
-                                <div class="badge badge-primary badge-outline font-mono">
-                                    {item.sellingPrice?.toLocaleString()} đ
+
+                                <div class="divider my-1"></div>
+
+                                <!-- Body -->
+                                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                    <div class="text-base-content/60">Sản lượng (Yield)</div>
+                                    <div class="font-medium text-right">{item.estimatedYieldQty}</div>
+
+                                    <div class="text-base-content/60">Số NVL</div>
+                                    <div class="font-medium text-right">{item.items?.length || 0}</div>
+
+                                    {#if $permissionStore.userPermissions.has('view_finance')}
+                                        <div class="text-base-content/60">Giá vốn (LT)</div>
+                                        <div class="font-mono text-right">{item.theoreticalCost?.toLocaleString()} đ</div>
+                                    {/if}
                                 </div>
-                            </div>
 
-                            <div class="divider my-1"></div>
+                                <div class="divider my-1"></div>
 
-                            <!-- Body -->
-                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                                <div class="text-base-content/60">Sản lượng (Yield)</div>
-                                <div class="font-medium text-right">{item.estimatedYieldQty}</div>
-
-                                <div class="text-base-content/60">Số NVL</div>
-                                <div class="font-medium text-right">{item.items?.length || 0}</div>
-
-                                {#if $permissionStore.userPermissions.has('view_finance')}
-                                    <div class="text-base-content/60">Giá vốn (LT)</div>
-                                    <div class="font-mono text-right">{item.theoreticalCost?.toLocaleString()} đ</div>
-                                {/if}
-                            </div>
-
-                            <div class="divider my-1"></div>
-
-                            <!-- Footer Actions -->
-                            <div class="card-actions justify-between items-center">
-                                <div class="text-xs text-info cursor-pointer" on:click={() => openRecipeViewMobile(item)}>
-                                    Xem công thức
-                                </div>
-                                <div class="flex gap-2">
-                                    <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                    <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                <!-- Footer Actions -->
+                                <div class="card-actions justify-between items-center">
+                                    <div class="text-xs text-info cursor-pointer" on:click={() => openRecipeViewMobile(item)}>
+                                        Xem công thức
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                        <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                 {/each}
+                    {/each}
+                {:else}
+                    <EmptyState message="Không có sản phẩm nào." />
+                {/if}
              </svelte:fragment>
 
              <svelte:fragment slot="desktop">
@@ -256,9 +270,12 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {#each paginatedProducts as item}
-                        <tr class="hover cursor-pointer" on:click={() => toggleRecipeDetail(item.id)}>
-                            <td>
+                    {#if paginatedProducts.length === 0}
+                        <tr><td colspan="8"><EmptyState /></td></tr>
+                    {:else}
+                        {#each paginatedProducts as item}
+                            <tr class="hover cursor-pointer group" on:click={() => toggleRecipeDetail(item.id)}>
+                                <td>
                                 <button class="btn btn-xs btn-ghost btn-circle">
                                     <ChevronRight class="h-4 w-4 transform transition-transform {openRecipeId === item.id ? 'rotate-90' : ''}" />
                                 </button>
@@ -281,13 +298,15 @@
                             {/if}
 
                             <td class="text-center">
-                                <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
-                                <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button class="btn btn-xs btn-ghost" on:click|stopPropagation={() => openEditModal(item)}><Pencil class="h-4 w-4" /></button>
+                                    <button class="btn btn-xs btn-ghost text-error" on:click|stopPropagation={() => handleDelete(item.id)}><Trash2 class="h-4 w-4" /></button>
+                                </div>
                             </td>
                         </tr>
 
                         {#if openRecipeId === item.id}
-                            <tr class="bg-base-200">
+                            <tr transition:slide class="bg-base-200">
                                 <td colspan={8} class="p-0">
                                     <div class="p-4 pl-12">
                                         <h4 class="text-xs font-bold uppercase mb-2">Chi tiết Công thức (BOM)</h4>
@@ -319,6 +338,7 @@
                             </tr>
                         {/if}
                     {/each}
+                    {/if}
                 </tbody>
              </svelte:fragment>
         </ResponsiveTable>
