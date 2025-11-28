@@ -8,13 +8,15 @@
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
-	import { Plus, User, Clock, CheckCircle, Truck, Package, Trash2, Printer, Calendar, Tag, ChevronRight } from 'lucide-svelte';
+	import { Plus, User, Clock, CheckCircle, Truck, Package, Trash2, Printer, Calendar, Tag, ChevronRight, History, ShoppingCart } from 'lucide-svelte';
     import Bill from '$lib/components/ui/Bill.svelte';
     import { tick } from 'svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { orderService } from '$lib/services/orderService';
     import ResponsiveTable from '$lib/components/ui/ResponsiveTable.svelte';
     import { fade } from 'svelte/transition';
+    import SwipeableTabs from '$lib/components/ui/SwipeableTabs.svelte';
+    import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
 
 	// --- State ---
 	let products: MasterProduct[] = [];
@@ -25,7 +27,12 @@
 	let errorMsg = '';
     
     // UI State
-    let activeTab: 'create' | 'history' | 'plan' = 'create';
+    let activeTab: string = 'create';
+    const tabs = [
+        { id: 'create', label: 'Bán hàng', icon: ShoppingCart },
+        { id: 'plan', label: 'Kế hoạch', icon: Clock },
+        { id: 'history', label: 'Lịch sử', icon: History }
+    ];
 
     // UI State for Mobile
     let isProductModalOpen = false;
@@ -330,334 +337,333 @@
     }
 </script>
 
-<div class="pb-safe max-w-7xl mx-auto">
+<div class="h-full flex flex-col pb-safe max-w-7xl mx-auto">
     <PageHeader>
         <div slot="title" class="flex items-center gap-2">
             <span class="text-2xl font-bold tracking-tight text-slate-800">Bán hàng</span>
         </div>
-        <div slot="actions">
-             {#if activeTab === 'create'}
-                <button class="btn btn-primary btn-sm shadow-lg shadow-primary/20" on:click={openProductSelector}>
-                    <Plus class="h-4 w-4 mr-1" />
-                    Thêm món
-                </button>
-             {/if}
-        </div>
+        <!-- Actions Removed: Moved to FAB -->
     </PageHeader>
 
-    <!-- TABS -->
-    <div role="tablist" class="tabs tabs-boxed mx-2 mb-4 bg-slate-100 p-1 rounded-xl">
-        <a role="tab" class="tab {activeTab === 'create' ? 'bg-white shadow-sm text-primary font-bold' : 'text-slate-500'}" on:click={() => activeTab = 'create'}>Tạo Đơn</a>
-        <a role="tab" class="tab {activeTab === 'plan' ? 'bg-white shadow-sm text-primary font-bold' : 'text-slate-500'}" on:click={() => activeTab = 'plan'}>Kế hoạch</a>
-        <a role="tab" class="tab {activeTab === 'history' ? 'bg-white shadow-sm text-primary font-bold' : 'text-slate-500'}" on:click={() => activeTab = 'history'}>Lịch sử</a>
-    </div>
-
-    {#if activeTab === 'create'}
-        {#if errorMsg}
-            <div role="alert" class="alert alert-error mb-4 mx-2 text-sm text-white shadow-lg">
-                <span>{errorMsg}</span>
-            </div>
-        {/if}
-
-        <!-- 1. Customer Selection (Card) -->
-        <div class="card bg-white shadow-sm border border-slate-100 p-4 mb-4 mx-2 active-press" on:click={() => isCustomerModalOpen = true}>
-            <div class="flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                    <div class="bg-primary/10 p-3 rounded-full text-primary">
-                        <User size={20} />
+    <SwipeableTabs
+        tabs={tabs}
+        bind:activeTab={activeTab}
+        on:change={(e) => activeTab = e.detail}
+    >
+        <div class="p-2 h-full">
+            {#if activeTab === 'create'}
+                {#if errorMsg}
+                    <div role="alert" class="alert alert-error mb-4 text-sm text-white shadow-lg">
+                        <span>{errorMsg}</span>
                     </div>
-                    <div>
-                        {#if customer}
-                            <h2 class="font-bold text-lg text-slate-800">{customer.name}</h2>
-                            <p class="text-sm text-slate-500">{customer.phone || 'Chưa có SĐT'}</p>
-                        {:else}
-                            <h2 class="font-bold text-lg text-slate-400">Chọn Khách hàng...</h2>
-                            <p class="text-xs text-slate-400">Chạm để chọn</p>
-                        {/if}
-                    </div>
-                </div>
-                {#if customer}
-                     <div class="text-xs text-slate-400 max-w-[100px] text-right truncate">{shippingAddress}</div>
                 {/if}
-            </div>
-        </div>
 
-        <!-- 2. Delivery Info & Status (Updated UI) -->
-        <div class="grid grid-cols-2 gap-3 mx-2 mb-4">
-             <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-col gap-1">
-                <label class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
-                    <Calendar size={14} /> Ngày giao
-                </label>
-                <input
-                    type="datetime-local"
-                    bind:value={deliveryDateInput}
-                    class="input input-sm input-ghost w-full px-0 font-bold text-slate-800 focus:bg-transparent"
-                />
-            </div>
-
-            <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-col gap-1">
-                <label class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
-                    <Tag size={14} /> Trạng thái
-                </label>
-                <select
-                    bind:value={selectedStatus}
-                    class="select select-sm select-ghost w-full px-0 font-bold text-primary focus:bg-transparent"
-                >
-                    <option value="open">Mới (Open)</option>
-                    <option value="cooking">Đang làm</option>
-                    <option value="delivering">Đang giao</option>
-                    <option value="delivered">Đã giao</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- 3. Cart Items List (Simplified) -->
-        <div class="flex flex-col mx-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[200px]">
-            {#each orderItems as item, i}
-                {@const prodStock = products.find(p => p.id === item.productId)?.currentStock || 0}
-                {@const isMissing = item.quantity > prodStock}
-                <div
-                    class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50 transition-colors"
-                    on:click={() => openEditItem(i)}
-                >
-                    <div class="flex items-center gap-3">
-                         <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
-                             {item.quantity}
-                         </div>
-                        <div>
-                            <div class="font-bold text-slate-800 text-sm">{item.productName}</div>
-                            <div class="text-xs text-slate-400">
-                                {item.unitPrice.toLocaleString()} đ/cái
+                <!-- 1. Customer Selection (Card) -->
+                <div class="card bg-white shadow-sm border border-slate-100 p-4 mb-4 active-press" on:click={() => isCustomerModalOpen = true}>
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-primary/10 p-3 rounded-full text-primary">
+                                <User size={20} />
                             </div>
-                            {#if isMissing}
-                                <div class="text-[10px] text-red-500 font-bold mt-1 bg-red-50 px-2 py-0.5 rounded-full inline-block">
-                                    ⚠️ Thiếu: {item.quantity - prodStock}
-                                </div>
-                            {/if}
+                            <div>
+                                {#if customer}
+                                    <h2 class="font-bold text-lg text-slate-800">{customer.name}</h2>
+                                    <p class="text-sm text-slate-500">{customer.phone || 'Chưa có SĐT'}</p>
+                                {:else}
+                                    <h2 class="font-bold text-lg text-slate-400">Chọn Khách hàng...</h2>
+                                    <p class="text-xs text-slate-400">Chạm để chọn</p>
+                                {/if}
+                            </div>
                         </div>
-                    </div>
-                    <div class="text-right">
-                        <div class="font-bold text-slate-800 text-base">{item.total.toLocaleString()} đ</div>
-                        {#if item.unitPrice !== item.originalPrice}
-                            <div class="text-[9px] text-orange-500 font-bold bg-orange-50 px-1 rounded">CUSTOM</div>
+                        {#if customer}
+                            <div class="text-xs text-slate-400 max-w-[100px] text-right truncate">{shippingAddress}</div>
                         {/if}
                     </div>
                 </div>
-            {/each}
 
-            {#if orderItems.length === 0}
-                <div class="flex flex-col items-center justify-center py-16 text-slate-300 gap-2">
-                    <Package size={48} strokeWidth={1} />
-                    <span class="text-sm">Giỏ hàng trống</span>
+                <!-- 2. Delivery Info & Status (Updated UI) -->
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-col gap-1">
+                        <label class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
+                            <Calendar size={14} /> Ngày giao
+                        </label>
+                        <input
+                            type="datetime-local"
+                            bind:value={deliveryDateInput}
+                            class="input input-sm input-ghost w-full px-0 font-bold text-slate-800 focus:bg-transparent"
+                        />
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-col gap-1">
+                        <label class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase">
+                            <Tag size={14} /> Trạng thái
+                        </label>
+                        <select
+                            bind:value={selectedStatus}
+                            class="select select-sm select-ghost w-full px-0 font-bold text-primary focus:bg-transparent"
+                        >
+                            <option value="open">Mới (Open)</option>
+                            <option value="cooking">Đang làm</option>
+                            <option value="delivering">Đang giao</option>
+                            <option value="delivered">Đã giao</option>
+                        </select>
+                    </div>
                 </div>
-            {/if}
-        </div>
 
-        <!-- 4. Sticky Footer Checkout -->
-        <!-- REFACTOR: Changed bottom-[60px] to bottom-[var(--btm-nav-height)] to respect BottomNav -->
-        <div class="fixed bottom-[80px] lg:bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-100 p-4 shadow-[0_-8px_30px_rgba(0,0,0,0.04)] z-30">
-            <div class="max-w-7xl mx-auto flex justify-between items-center gap-4">
-                <div class="flex flex-col">
-                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Tổng cộng</span>
-                    <span class="text-2xl font-bold text-slate-800">{totalRevenue.toLocaleString()} <span class="text-sm font-normal text-slate-500">đ</span></span>
-                </div>
-                <button
-                    class="btn btn-primary flex-1 max-w-[200px] shadow-lg shadow-primary/30 rounded-xl text-lg h-12"
-                    disabled={processing || orderItems.length === 0}
-                    on:click={handleSale}
-                >
-                    {processing ? 'Đang xử lý...' : 'THANH TOÁN'}
-                </button>
-            </div>
-        </div>
-
-        <div class="h-24"></div> <!-- Spacer for footer -->
-    {/if} <!-- End Create Tab -->
-
-    {#if activeTab === 'plan'}
-        <div class="px-2">
-            <div class="flex flex-col gap-2 mb-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                 <h3 class="font-bold text-slate-700 flex items-center gap-2"><Clock size={16}/> Kế hoạch sản xuất</h3>
-                 <div class="flex gap-2 mt-2">
-                     <input type="date" bind:value={planDate} class="input input-sm input-bordered flex-1 bg-slate-50" />
-                     <select bind:value={planStatusFilter} class="select select-sm select-bordered flex-1 bg-slate-50">
-                         <option value="all_active">Tất cả</option>
-                         <option value="open">Mới</option>
-                         <option value="cooking">Đang làm</option>
-                         <option value="delivering">Đang giao</option>
-                         <option value="delivered">Đã giao</option>
-                     </select>
-                 </div>
-            </div>
-
-            {#if loadingPlan}
-                <Loading />
-            {:else if dailyPlanItems.length === 0}
-                <EmptyState message="Không có đơn hàng nào cho ngày này." />
-            {:else}
-                <div class="overflow-hidden bg-white rounded-xl shadow-sm border border-slate-100">
-                    <table class="table table-sm w-full">
-                        <thead class="bg-slate-50 text-slate-500">
-                            <tr>
-                                <th>Sản phẩm</th>
-                                <th class="text-center">Đã đặt</th>
-                                <th class="text-center">Tồn kho</th>
-                                <th class="text-center">Cần làm</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#each dailyPlanItems as item}
-                                <tr class="border-b border-slate-50 last:border-0">
-                                    <td class="font-medium text-sm text-slate-700 py-3">{item.name}</td>
-                                    <td class="text-center font-bold text-primary">{item.ordered}</td>
-                                    <td class="text-center {item.stock < 0 ? 'text-red-500 font-bold' : 'text-slate-500'}">
-                                        {item.stock}
-                                    </td>
-                                    <td class="text-center">
-                                        {#if item.stock < 0}
-                                            <span class="badge badge-error badge-sm text-white font-bold">{Math.abs(item.stock)}</span>
-                                        {:else}
-                                            <span class="text-slate-200">-</span>
-                                        {/if}
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </table>
-                </div>
-            {/if}
-        </div>
-    {/if}
-
-    {#if activeTab === 'history'}
-        <!-- History Section (Bottom with Pagination) -->
-        <div class="mt-4 px-2 pb-24">
-            <div class="flex justify-between items-center mb-3 px-1">
-                <h3 class="font-bold text-slate-700">Gần đây</h3>
-                <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost text-slate-400">
-                    <option value={10}>10 dòng</option>
-                    <option value={20}>20 dòng</option>
-                    <option value={30}>30 dòng</option>
-                </select>
-            </div>
-
-            {#if loading}
-                <Loading />
-            {:else if ordersHistory.length === 0}
-                <EmptyState message="Chưa có đơn hàng nào." />
-            {:else}
-                <ResponsiveTable>
-                    <svelte:fragment slot="mobile">
-                        <div class="space-y-3">
-                            {#each ordersHistory as order}
-                                <div class="flex flex-col p-4 bg-white rounded-xl border border-slate-100 shadow-sm transition-all active:scale-[0.99] {order.status === 'canceled' ? 'opacity-60 grayscale bg-slate-50' : ''}">
-                                    <div class="flex justify-between items-start mb-3">
-                                        <div class="flex items-center gap-3">
-                                            <div class="bg-slate-100 p-2 rounded-lg text-slate-500">
-                                                {#if order.status === 'delivered'}<CheckCircle size={16}/>
-                                                {:else if order.status === 'delivering'}<Truck size={16}/>
-                                                {:else if order.status === 'cooking'}<Clock size={16}/>
-                                                {:else}<Package size={16}/>{/if}
-                                            </div>
-                                            <div>
-                                                <div class="font-bold text-sm text-slate-800">{order.customerName}</div>
-                                                <div class="text-xs text-slate-400 font-mono mt-0.5">{order.code || order.id.slice(0,8)}</div>
-                                            </div>
-                                        </div>
-                                        <div class="text-right">
-                                            <div class="font-bold text-base text-primary">{order.totalAmount.toLocaleString()}</div>
-                                            <span class="badge badge-xs mt-1 font-medium border-0 py-2
-                                                {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
-                                                 order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
-                                                 order.status === 'delivering' ? 'bg-indigo-50 text-indigo-600' :
-                                                 order.status === 'delivered' || order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-200 text-slate-500'}">
-                                                {order.status === 'open' ? 'Mới' :
-                                                 order.status === 'cooking' ? 'Đang làm' :
-                                                 order.status === 'delivering' ? 'Đang giao' :
-                                                 order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div class="flex justify-between items-center border-t border-slate-50 pt-3 mt-1">
-                                        <span class="text-[10px] text-slate-400">
-                                            {order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
-                                        </span>
-
-                                        <div class="flex gap-2">
-                                            <!-- Status Update Actions (Quick) -->
-                                            {#if order.status !== 'canceled' && order.status !== 'delivered' && order.status !== 'completed'}
-                                                {#if order.status === 'open'}
-                                                    <button class="btn btn-xs btn-circle btn-ghost text-orange-500 bg-orange-50" on:click={() => updateStatus(order, 'cooking')}><Clock size={14}/></button>
-                                                {:else if order.status === 'cooking'}
-                                                    <button class="btn btn-xs btn-circle btn-ghost text-indigo-500 bg-indigo-50" on:click={() => updateStatus(order, 'delivering')}><Truck size={14}/></button>
-                                                {:else if order.status === 'delivering'}
-                                                    <button class="btn btn-xs btn-circle btn-ghost text-green-500 bg-green-50" on:click={() => updateStatus(order, 'delivered')}><CheckCircle size={14}/></button>
-                                                {/if}
-                                            {/if}
-
-                                            <button class="btn btn-xs btn-ghost gap-1" on:click|stopPropagation={() => handlePrint(order)}>
-                                                <Printer size={14} />
-                                            </button>
-
-                                            {#if order.status !== 'canceled'}
-                                            <button class="btn btn-xs btn-ghost text-red-400 hover:bg-red-50" on:click|stopPropagation={() => handleCancelOrder(order)}>
-                                                <Trash2 size={14} />
-                                            </button>
-                                            {/if}
-                                        </div>
-                                    </div>
+                <!-- 3. Cart Items List (Simplified) -->
+                <div class="flex flex-col bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[200px] mb-24">
+                    {#each orderItems as item, i}
+                        {@const prodStock = products.find(p => p.id === item.productId)?.currentStock || 0}
+                        {@const isMissing = item.quantity > prodStock}
+                        <div
+                            class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50 transition-colors"
+                            on:click={() => openEditItem(i)}
+                        >
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600">
+                                    {item.quantity}
                                 </div>
-                            {/each}
-                        </div>
-                    </svelte:fragment>
-
-                    <svelte:fragment slot="desktop">
-                        <thead>
-                            <tr>
-                                <th>Mã ĐH</th>
-                                <th>Khách hàng</th>
-                                <th>Ngày giao</th>
-                                <th>Trạng thái</th>
-                                <th class="text-right">Tổng tiền</th>
-                                <th class="text-center">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {#each ordersHistory as order}
-                                <tr class="hover group {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
-                                    <td class="font-mono text-sm">{order.code || order.id.slice(0,8)}</td>
-                                    <td class="font-bold">{order.customerName}</td>
-                                    <td class="text-sm">{order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}</td>
-                                    <td>
-                                        <span class="badge badge-sm border-0 py-2
-                                            {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
-                                             order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
-                                             order.status === 'delivering' ? 'bg-indigo-50 text-indigo-600' :
-                                             order.status === 'delivered' || order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-200 text-slate-500'}">
-                                            {order.status === 'open' ? 'Mới' :
-                                             order.status === 'cooking' ? 'Đang làm' :
-                                             order.status === 'delivering' ? 'Đang giao' :
-                                             order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
-                                        </span>
-                                    </td>
-                                    <td class="text-right font-bold text-primary">{order.totalAmount.toLocaleString()}</td>
-                                    <td class="text-center">
-                                        <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button class="btn btn-xs btn-ghost" on:click={() => handlePrint(order)}><Printer size={14} /></button>
-                                            {#if order.status !== 'canceled'}
-                                                <button class="btn btn-xs btn-ghost text-error" on:click={() => handleCancelOrder(order)}><Trash2 size={14} /></button>
-                                            {/if}
+                                <div>
+                                    <div class="font-bold text-slate-800 text-sm">{item.productName}</div>
+                                    <div class="text-xs text-slate-400">
+                                        {item.unitPrice.toLocaleString()} đ/cái
+                                    </div>
+                                    {#if isMissing}
+                                        <div class="text-[10px] text-red-500 font-bold mt-1 bg-red-50 px-2 py-0.5 rounded-full inline-block">
+                                            ⚠️ Thiếu: {item.quantity - prodStock}
                                         </div>
-                                    </td>
-                                </tr>
-                            {/each}
-                        </tbody>
-                    </svelte:fragment>
-                </ResponsiveTable>
+                                    {/if}
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-bold text-slate-800 text-base">{item.total.toLocaleString()} đ</div>
+                                {#if item.unitPrice !== item.originalPrice}
+                                    <div class="text-[9px] text-orange-500 font-bold bg-orange-50 px-1 rounded">CUSTOM</div>
+                                {/if}
+                            </div>
+                        </div>
+                    {/each}
+
+                    {#if orderItems.length === 0}
+                        <div class="flex flex-col items-center justify-center py-16 text-slate-300 gap-2">
+                            <Package size={48} strokeWidth={1} />
+                            <span class="text-sm">Giỏ hàng trống</span>
+                        </div>
+                    {/if}
+                </div>
+
+                <!-- 4. Sticky Footer Checkout -->
+                <div class="fixed bottom-[var(--btm-nav-height)] left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-100 p-4 shadow-[0_-8px_30px_rgba(0,0,0,0.04)] z-30">
+                    <div class="max-w-7xl mx-auto flex justify-between items-center gap-4">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Tổng cộng</span>
+                            <span class="text-2xl font-bold text-slate-800">{totalRevenue.toLocaleString()} <span class="text-sm font-normal text-slate-500">đ</span></span>
+                        </div>
+                        <button
+                            class="btn btn-primary flex-1 max-w-[200px] shadow-lg shadow-primary/30 rounded-xl text-lg h-12"
+                            disabled={processing || orderItems.length === 0}
+                            on:click={handleSale}
+                        >
+                            {processing ? 'Đang xử lý...' : 'THANH TOÁN'}
+                        </button>
+                    </div>
+                </div>
+            {/if} <!-- End Create Tab -->
+
+            {#if activeTab === 'plan'}
+                <div class="">
+                    <div class="flex flex-col gap-2 mb-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><Clock size={16}/> Kế hoạch sản xuất</h3>
+                        <div class="flex gap-2 mt-2">
+                            <input type="date" bind:value={planDate} class="input input-sm input-bordered flex-1 bg-slate-50" />
+                            <select bind:value={planStatusFilter} class="select select-sm select-bordered flex-1 bg-slate-50">
+                                <option value="all_active">Tất cả</option>
+                                <option value="open">Mới</option>
+                                <option value="cooking">Đang làm</option>
+                                <option value="delivering">Đang giao</option>
+                                <option value="delivered">Đã giao</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {#if loadingPlan}
+                        <Loading />
+                    {:else if dailyPlanItems.length === 0}
+                        <EmptyState message="Không có đơn hàng nào cho ngày này." />
+                    {:else}
+                        <div class="overflow-hidden bg-white rounded-xl shadow-sm border border-slate-100">
+                            <table class="table table-sm w-full">
+                                <thead class="bg-slate-50 text-slate-500">
+                                    <tr>
+                                        <th>Sản phẩm</th>
+                                        <th class="text-center">Đã đặt</th>
+                                        <th class="text-center">Tồn kho</th>
+                                        <th class="text-center">Cần làm</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {#each dailyPlanItems as item}
+                                        <tr class="border-b border-slate-50 last:border-0">
+                                            <td class="font-medium text-sm text-slate-700 py-3">{item.name}</td>
+                                            <td class="text-center font-bold text-primary">{item.ordered}</td>
+                                            <td class="text-center {item.stock < 0 ? 'text-red-500 font-bold' : 'text-slate-500'}">
+                                                {item.stock}
+                                            </td>
+                                            <td class="text-center">
+                                                {#if item.stock < 0}
+                                                    <span class="badge badge-error badge-sm text-white font-bold">{Math.abs(item.stock)}</span>
+                                                {:else}
+                                                    <span class="text-slate-200">-</span>
+                                                {/if}
+                                            </td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </table>
+                        </div>
+                    {/if}
+                </div>
             {/if}
+
+            {#if activeTab === 'history'}
+                <!-- History Section (Bottom with Pagination) -->
+                <div class="pb-24">
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <h3 class="font-bold text-slate-700">Gần đây</h3>
+                        <select bind:value={historyLimit} on:change={() => fetchHistory(historyLimit)} class="select select-xs select-ghost text-slate-400">
+                            <option value={10}>10 dòng</option>
+                            <option value={20}>20 dòng</option>
+                            <option value={30}>30 dòng</option>
+                        </select>
+                    </div>
+
+                    {#if loading}
+                        <Loading />
+                    {:else if ordersHistory.length === 0}
+                        <EmptyState message="Chưa có đơn hàng nào." />
+                    {:else}
+                        <ResponsiveTable>
+                            <svelte:fragment slot="mobile">
+                                <div class="space-y-3">
+                                    {#each ordersHistory as order}
+                                        <div class="flex flex-col p-4 bg-white rounded-xl border border-slate-100 shadow-sm transition-all active:scale-[0.99] {order.status === 'canceled' ? 'opacity-60 grayscale bg-slate-50' : ''}">
+                                            <div class="flex justify-between items-start mb-3">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="bg-slate-100 p-2 rounded-lg text-slate-500">
+                                                        {#if order.status === 'delivered'}<CheckCircle size={16}/>
+                                                        {:else if order.status === 'delivering'}<Truck size={16}/>
+                                                        {:else if order.status === 'cooking'}<Clock size={16}/>
+                                                        {:else}<Package size={16}/>{/if}
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-bold text-sm text-slate-800">{order.customerName}</div>
+                                                        <div class="text-xs text-slate-400 font-mono mt-0.5">{order.code || order.id.slice(0,8)}</div>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right">
+                                                    <div class="font-bold text-base text-primary">{order.totalAmount.toLocaleString()}</div>
+                                                    <span class="badge badge-xs mt-1 font-medium border-0 py-2
+                                                        {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
+                                                        order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
+                                                        order.status === 'delivering' ? 'bg-indigo-50 text-indigo-600' :
+                                                        order.status === 'delivered' || order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-200 text-slate-500'}">
+                                                        {order.status === 'open' ? 'Mới' :
+                                                        order.status === 'cooking' ? 'Đang làm' :
+                                                        order.status === 'delivering' ? 'Đang giao' :
+                                                        order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div class="flex justify-between items-center border-t border-slate-50 pt-3 mt-1">
+                                                <span class="text-[10px] text-slate-400">
+                                                    {order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
+                                                </span>
+
+                                                <div class="flex gap-2">
+                                                    <!-- Status Update Actions (Quick) -->
+                                                    {#if order.status !== 'canceled' && order.status !== 'delivered' && order.status !== 'completed'}
+                                                        {#if order.status === 'open'}
+                                                            <button class="btn btn-xs btn-circle btn-ghost text-orange-500 bg-orange-50" on:click={() => updateStatus(order, 'cooking')}><Clock size={14}/></button>
+                                                        {:else if order.status === 'cooking'}
+                                                            <button class="btn btn-xs btn-circle btn-ghost text-indigo-500 bg-indigo-50" on:click={() => updateStatus(order, 'delivering')}><Truck size={14}/></button>
+                                                        {:else if order.status === 'delivering'}
+                                                            <button class="btn btn-xs btn-circle btn-ghost text-green-500 bg-green-50" on:click={() => updateStatus(order, 'delivered')}><CheckCircle size={14}/></button>
+                                                        {/if}
+                                                    {/if}
+
+                                                    <button class="btn btn-xs btn-ghost gap-1" on:click|stopPropagation={() => handlePrint(order)}>
+                                                        <Printer size={14} />
+                                                    </button>
+
+                                                    {#if order.status !== 'canceled'}
+                                                    <button class="btn btn-xs btn-ghost text-red-400 hover:bg-red-50" on:click|stopPropagation={() => handleCancelOrder(order)}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                    {/if}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {/each}
+                                </div>
+                            </svelte:fragment>
+
+                            <svelte:fragment slot="desktop">
+                                <thead>
+                                    <tr>
+                                        <th>Mã ĐH</th>
+                                        <th>Khách hàng</th>
+                                        <th>Ngày giao</th>
+                                        <th>Trạng thái</th>
+                                        <th class="text-right">Tổng tiền</th>
+                                        <th class="text-center">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {#each ordersHistory as order}
+                                        <tr class="hover group {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                                            <td class="font-mono text-sm">{order.code || order.id.slice(0,8)}</td>
+                                            <td class="font-bold">{order.customerName}</td>
+                                            <td class="text-sm">{order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}</td>
+                                            <td>
+                                                <span class="badge badge-sm border-0 py-2
+                                                    {order.status === 'open' ? 'bg-blue-50 text-blue-600' :
+                                                    order.status === 'cooking' ? 'bg-orange-50 text-orange-600' :
+                                                    order.status === 'delivering' ? 'bg-indigo-50 text-indigo-600' :
+                                                    order.status === 'delivered' || order.status === 'completed' ? 'bg-green-50 text-green-600' : 'bg-slate-200 text-slate-500'}">
+                                                    {order.status === 'open' ? 'Mới' :
+                                                    order.status === 'cooking' ? 'Đang làm' :
+                                                    order.status === 'delivering' ? 'Đang giao' :
+                                                    order.status === 'delivered' || order.status === 'completed' ? 'Đã giao' : 'Đã hủy'}
+                                                </span>
+                                            </td>
+                                            <td class="text-right font-bold text-primary">{order.totalAmount.toLocaleString()}</td>
+                                            <td class="text-center">
+                                                <div class="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button class="btn btn-xs btn-ghost" on:click={() => handlePrint(order)}><Printer size={14} /></button>
+                                                    {#if order.status !== 'canceled'}
+                                                        <button class="btn btn-xs btn-ghost text-error" on:click={() => handleCancelOrder(order)}><Trash2 size={14} /></button>
+                                                    {/if}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {/each}
+                                </tbody>
+                            </svelte:fragment>
+                        </ResponsiveTable>
+                    {/if}
+                </div>
+            {/if} <!-- End History Tab -->
         </div>
-    {/if} <!-- End History Tab -->
+    </SwipeableTabs>
+
+    <!-- Floating Action Button for Add Item -->
+    <FloatingActionButton
+        visible={activeTab === 'create'}
+        onClick={openProductSelector}
+        label="Thêm món"
+        bottomOffset="140px"
+    />
 
 </div>
 
