@@ -8,11 +8,15 @@
     import { expenseService, type Category } from '$lib/services/expenseService';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
+    import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
+    import Modal from '$lib/components/ui/Modal.svelte';
 
     let categories: Category[] = [];
     let loading = true;
     let newCategoryName = '';
     let unsubscribe: () => void;
+    let isModalOpen = false;
+    let processing = false;
 
     onMount(() => {
         loading = true;
@@ -26,45 +30,33 @@
         if (unsubscribe) unsubscribe();
     });
 
-    async function handleAddCategory() {
+    function openAddModal() {
         if (!checkPermission('manage_expenses')) return showErrorToast("Bạn không có quyền thêm danh mục.");
-        if (!newCategoryName.trim()) return;
+        newCategoryName = '';
+        isModalOpen = true;
+    }
+
+    async function handleAddCategory() {
+        if (!newCategoryName.trim()) return showErrorToast("Tên danh mục không được trống");
+        processing = true;
 
         try {
             await expenseService.addCategory($authStore.user!, newCategoryName);
             showSuccessToast("Thêm danh mục thành công!");
-            newCategoryName = '';
+            isModalOpen = false;
         } catch (e: any) {
             showErrorToast("Lỗi thêm danh mục: " + e.message);
+        } finally {
+            processing = false;
         }
     }
-
-    // Note: expenseService currently doesn't have deleteCategory.
-    // If needed, we should add it. For now, just View/Create.
 </script>
 
-<PageHeader>
-    <div slot="title">Danh mục Chi phí</div>
-</PageHeader>
-
-<div class="max-w-3xl mx-auto">
-    <div class="card bg-white shadow-sm border border-slate-200 mb-6">
-        <div class="card-body p-4">
-            <h3 class="font-bold text-sm mb-2">Thêm danh mục mới</h3>
-            <div class="flex gap-2">
-                <input
-                    type="text"
-                    bind:value={newCategoryName}
-                    class="input input-bordered w-full"
-                    placeholder="VD: Tiền điện, Tiền nhà, Lương..."
-                    on:keydown={(e) => e.key === 'Enter' && handleAddCategory()}
-                />
-                <button class="btn btn-primary" on:click={handleAddCategory}>
-                    <Plus class="h-4 w-4 mr-2" /> Thêm
-                </button>
-            </div>
-        </div>
-    </div>
+<div class="max-w-7xl mx-auto pb-20">
+    <PageHeader>
+        <div slot="title">Danh mục Chi phí</div>
+        <!-- FAB used instead -->
+    </PageHeader>
 
     {#if loading}
         <Loading />
@@ -80,4 +72,30 @@
             {/each}
         </div>
     {/if}
+
+    <FloatingActionButton
+        visible={checkPermission('manage_expenses')}
+        onClick={openAddModal}
+        label="Thêm Danh mục"
+    />
 </div>
+
+<Modal
+    title="Thêm Danh mục Chi phí"
+    isOpen={isModalOpen}
+    onClose={() => isModalOpen = false}
+    onConfirm={handleAddCategory}
+    loading={processing}
+>
+    <div class="form-control w-full">
+        <label class="label">Tên danh mục</label>
+        <input
+            type="text"
+            bind:value={newCategoryName}
+            class="input input-bordered w-full"
+            placeholder="VD: Tiền điện, Tiền nhà, Lương..."
+            on:keydown={(e) => e.key === 'Enter' && handleAddCategory()}
+            autofocus
+        />
+    </div>
+</Modal>

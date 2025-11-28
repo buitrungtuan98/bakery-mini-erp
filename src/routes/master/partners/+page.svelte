@@ -14,6 +14,7 @@
     import Loading from '$lib/components/ui/Loading.svelte';
     import SkeletonCard from '$lib/components/ui/SkeletonCard.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
+    import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
 
     // State
     let partners: Partner[] = [];
@@ -88,17 +89,10 @@
     }
 </script>
 
-<div class="max-w-7xl mx-auto">
+<div class="max-w-7xl mx-auto pb-20">
     <PageHeader>
         <div slot="title">Đối tác</div>
-        <div slot="actions">
-            {#if $permissionStore.userPermissions.has('manage_partners')}
-                <button class="btn btn-primary btn-sm" on:click={openAddModal}>
-                    <Plus class="h-4 w-4 mr-1" />
-                    Thêm mới
-                </button>
-            {/if}
-        </div>
+        <!-- Actions moved to FAB -->
     </PageHeader>
 
     <div class="mb-4">
@@ -213,6 +207,12 @@
              </svelte:fragment>
         </ResponsiveTable>
     {/if}
+
+    <FloatingActionButton
+        visible={$permissionStore.userPermissions.has('manage_partners')}
+        onClick={openAddModal}
+        label="Thêm Đối tác"
+    />
 </div>
 
 <Modal
