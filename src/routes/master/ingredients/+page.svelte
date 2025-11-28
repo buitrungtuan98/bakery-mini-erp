@@ -15,6 +15,7 @@
     import Loading from '$lib/components/ui/Loading.svelte';
     import SkeletonCard from '$lib/components/ui/SkeletonCard.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
+    import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
 
     // --- State ---
     let ingredients: Ingredient[] = [];
@@ -132,14 +133,7 @@
 <div class="max-w-7xl mx-auto pb-20">
     <PageHeader>
         <div slot="title">Nguyên liệu</div>
-        <div slot="actions">
-            {#if $permissionStore.userPermissions.has('edit_inventory')}
-                <button class="btn btn-primary btn-sm shadow-lg shadow-primary/20" on:click={openAddModal}>
-                    <Plus class="h-4 w-4 mr-1" />
-                    Thêm mới
-                </button>
-            {/if}
-        </div>
+        <!-- Actions moved to FAB -->
     </PageHeader>
     
     <!-- Filter Bar: Updated to be cleaner -->
@@ -285,6 +279,12 @@
             </div>
         {/if}
     {/if}
+
+    <FloatingActionButton
+        visible={$permissionStore.userPermissions.has('edit_inventory')}
+        onClick={openAddModal}
+        label="Thêm NVL"
+    />
 </div>
 
 <Modal
