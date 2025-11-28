@@ -15,6 +15,7 @@
     import SkeletonCard from '$lib/components/ui/SkeletonCard.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
+    import SearchableSelect from '$lib/components/ui/SearchableSelect.svelte';
 
     // State
     let products: Product[] = [];
@@ -23,6 +24,9 @@
     $: products = $productStore;
     const { loading: productLoading } = productStore;
     $: ingredients = $ingredientStore;
+
+    // Derived options for SearchableSelect
+    $: ingredientOptions = ingredients.map(i => ({ value: i.id, label: i.name, subLabel: i.code }));
 
     let isModalOpen = false;
     let isRecipeViewOpen = false; // Separate modal for Recipe View
@@ -39,7 +43,7 @@
 
     // Form
     let formData: any = {
-        id: '', code: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0, _searchTerm: '', _isOpen: false }]
+        id: '', code: '', name: '', sellingPrice: 0, estimatedYieldQty: 1, items: [{ ingredientId: '', quantity: 0 }]
     };
 
     $: costPrice = calculateCost(formData.items);
@@ -75,12 +79,9 @@
     function openEditModal(item: Product) {
         if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         isEditing = true;
-        // Populate _searchTerm for existing items
-        const itemsWithUI = (item.items || []).map((i: any) => {
-             const ing = ingredients.find(x => x.id === i.ingredientId);
-             return { ...i, _searchTerm: ing ? ing.name : '', _isOpen: false };
-        });
-        if (itemsWithUI.length === 0) itemsWithUI.push({ ingredientId: '', quantity: 0, _searchTerm: '', _isOpen: false });
+        // Populate items
+        const itemsWithUI = (item.items || []).map((i: any) => ({ ...i }));
+        if (itemsWithUI.length === 0) itemsWithUI.push({ ingredientId: '', quantity: 0 });
 
         formData = { ...item, items: itemsWithUI };
         isModalOpen = true;
@@ -94,32 +95,6 @@
         if (formData.items.length > 1) {
             formData.items = formData.items.filter((_: any, i: number) => i !== index);
         }
-    }
-
-    function selectIngredient(index: number, ing: Ingredient) {
-        formData.items[index].ingredientId = ing.id;
-        formData.items[index]._searchTerm = ing.name;
-        formData.items[index]._isOpen = false;
-        // Trigger reactivity
-        formData.items = [...formData.items];
-    }
-
-    function handleInputFocus(index: number) {
-        formData.items[index]._isOpen = true;
-        formData.items = [...formData.items];
-    }
-
-    function handleInputBlur(index: number) {
-        // Small delay to allow click event to fire
-        setTimeout(() => {
-            formData.items[index]._isOpen = false;
-            formData.items = [...formData.items];
-        }, 200);
-    }
-
-    function handleSearchInput(index: number) {
-        formData.items[index].ingredientId = ''; // Clear selection on type
-        formData.items[index]._isOpen = true;
     }
 
     async function handleSubmit() {
@@ -434,40 +409,11 @@
             <div class="flex gap-2 items-start">
                 <div class="form-control flex-grow relative">
                     <label class="label py-0"><span class="label-text text-xs">Nguyên liệu</span></label>
-                    <input
-                        type="text"
-                        class="input input-bordered input-sm w-full"
+                    <SearchableSelect
+                        options={ingredientOptions}
+                        bind:value={item.ingredientId}
                         placeholder="Tìm NVL..."
-                        bind:value={item._searchTerm}
-                        on:focus={() => handleInputFocus(i)}
-                        on:blur={() => handleInputBlur(i)}
-                        on:input={() => handleSearchInput(i)}
                     />
-
-                    <!-- Dropdown List -->
-                    {#if item._isOpen}
-                        {@const filtered = ingredients.filter(ing =>
-                            !item._searchTerm ||
-                            ing.name.toLowerCase().includes(item._searchTerm.toLowerCase()) ||
-                            ing.code.toLowerCase().includes(item._searchTerm.toLowerCase())
-                        )}
-                        <ul class="absolute top-full left-0 right-0 bg-white border border-slate-200 shadow-lg rounded-b-lg max-h-48 overflow-y-auto z-50 mt-1">
-                            {#each filtered as ing}
-                                <li>
-                                    <button
-                                        class="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-b border-slate-50 last:border-none"
-                                        on:mousedown|preventDefault={() => selectIngredient(i, ing)}
-                                    >
-                                        {ing.name}
-                                    </button>
-                                </li>
-                            {/each}
-
-                            {#if filtered.length === 0}
-                                <li class="px-3 py-2 text-xs text-slate-400 italic">Không tìm thấy</li>
-                            {/if}
-                        </ul>
-                    {/if}
                 </div>
 
                 <div class="form-control w-24">

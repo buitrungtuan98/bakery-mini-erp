@@ -24,7 +24,10 @@
 
     // Helper to check active state more cleanly
     function isActive(path: string) {
-        return activeRoute === path || (path !== '/' && activeRoute.startsWith(path));
+        if (path === '/') {
+            return activeRoute === '/';
+        }
+        return activeRoute.startsWith(path);
     }
 </script>
 
