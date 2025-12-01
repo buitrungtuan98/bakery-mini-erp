@@ -7,6 +7,7 @@
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
     import Loading from '$lib/components/ui/Loading.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
+    import SearchableSelect from '$lib/components/ui/SearchableSelect.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save, Trash2, Import, History, Download } from 'lucide-svelte';
     import { inventoryService, type Partner, type Ingredient, type ImportReceipt, type ImportItem } from '$lib/services/inventoryService';
@@ -22,7 +23,7 @@
 
     // Dữ liệu phiếu nhập hiện tại
     let importDate: string = new Date().toISOString().split('T')[0];
-	let selectedSupplierId = ''; 
+	let selectedSupplierId: string | number | null = null;
 	let importItems: ImportItem[] = [];
 
     // UI State
@@ -118,8 +119,19 @@
 
     $: totalAmount = importItems.reduce((sum, item) => sum + (item.price || 0), 0);
 
+    // --- Computeds for Selects ---
+    $: supplierOptions = suppliers.map(s => ({ value: s.id, label: s.name }));
+    $: ingredientOptions = ingredients.map(i => ({
+        value: i.id,
+        label: i.name,
+        subLabel: `${i.code} (${i.baseUnit})`
+    }));
+
 	// --- Submit Logic ---
 	async function handleImport() {
+        if (!selectedSupplierId) {
+            return showErrorToast('Vui lòng chọn nhà cung cấp');
+        }
         if (!confirm(`Xác nhận nhập kho với tổng tiền: ${totalAmount.toLocaleString()} đ?`)) return;
 
 		processing = true;
@@ -127,7 +139,7 @@
 		try {
             const code = await inventoryService.createImportReceipt(
                 $authStore.user!,
-                selectedSupplierId,
+                selectedSupplierId as string,
                 importDate,
                 importItems,
                 suppliers,
@@ -135,7 +147,7 @@
             );
 
             showSuccessToast(`Nhập kho thành công! Mã: ${code}`);
-            selectedSupplierId = '';
+            selectedSupplierId = null;
             importItems = [];
 
 		} catch (error: any) {
@@ -177,16 +189,11 @@
 
                         <div class="form-control w-full">
                             <label class="label"><span class="label-text">Nhà cung cấp</span></label>
-                            <select
+                            <SearchableSelect
+                                options={supplierOptions}
                                 bind:value={selectedSupplierId}
-                                class="select select-bordered w-full"
-                                disabled={loading}
-                            >
-                                <option value="" disabled selected>-- Chọn Nhà cung cấp --</option>
-                                {#each suppliers as partner}
-                                    <option value={partner.id}>{partner.name}</option>
-                                {/each}
-                            </select>
+                                placeholder="-- Chọn Nhà cung cấp --"
+                            />
                         </div>
                     </div>
 
@@ -317,12 +324,11 @@
 <Modal title="Chi tiết Dòng hàng" isOpen={isItemModalOpen} onClose={() => isItemModalOpen = false} onConfirm={saveItem}>
     <div class="form-control w-full mb-4">
         <label class="label">Nguyên liệu</label>
-        <select bind:value={editingItem.ingredientId} class="select select-bordered w-full">
-            <option value="" disabled selected>-- Chọn NVL --</option>
-            {#each ingredients as ing}
-                <option value={ing.id}>{ing.code} - {ing.name} ({ing.baseUnit})</option>
-            {/each}
-        </select>
+        <SearchableSelect
+            options={ingredientOptions}
+            bind:value={editingItem.ingredientId}
+            placeholder="-- Chọn NVL --"
+        />
     </div>
 
     <div class="grid grid-cols-2 gap-4">
