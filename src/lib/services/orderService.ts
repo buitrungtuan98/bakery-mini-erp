@@ -10,11 +10,12 @@ import {
     orderBy,
     limit,
     onSnapshot,
-    updateDoc
+    updateDoc,
+    type DocumentReference
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
-import { recordInventoryTransaction } from '$lib/services/inventoryService';
+import { getInventoryItemState, calculateAndCommitInventoryChange, recordInventoryTransaction } from '$lib/services/inventoryService';
 import type { User } from 'firebase/auth';
 import type { SalesOrder, SalesOrderItem, MasterProduct, MasterPartner } from '$lib/types/erp';
 
@@ -55,7 +56,17 @@ export const orderService = {
 
         await runTransaction(db, async (transaction) => {
 
-            // 1. Create Sales Order
+            // 1. READ PHASE: Fetch all Product States
+            const productStates = new Map<string, { ref: DocumentReference; data: any }>();
+            for (const item of validItems) {
+                if (!productStates.has(item.productId)) {
+                    const state = await getInventoryItemState(transaction, item.productId, 'product');
+                    productStates.set(item.productId, state);
+                }
+            }
+
+            // 2. WRITE PHASE
+            // Create Sales Order
             const orderRef = doc(collection(db, 'sales_orders'));
             const deliveryTimestamp = deliveryDateInput ? Timestamp.fromDate(new Date(deliveryDateInput)) : serverTimestamp();
 
@@ -93,24 +104,27 @@ export const orderService = {
                 createdAt: serverTimestamp()
             });
 
-            // 2. Inventory Transaction (OUT - Allocation)
+            // Inventory Transaction (OUT - Allocation)
             // We deduct stock immediately upon creation as per "Reservation" logic.
             for (const item of validItems) {
-                await recordInventoryTransaction(transaction, {
-                    type: 'sale',
-                    itemId: item.productId,
-                    itemType: 'product',
-                    quantityChange: -item.quantity, // Deduct
-                    unitCost: item.costPrice / item.quantity, // Approx Unit Cost
-                    relatedDocId: orderRef.id,
-                    relatedDocCode: code,
-                    performer: { uid: user.uid, email: user.email || 'unknown' },
-                    timestamp: new Date()
-                });
+                const state = productStates.get(item.productId);
+                if (state) {
+                    calculateAndCommitInventoryChange(transaction, {
+                        type: 'sale',
+                        itemId: item.productId,
+                        itemType: 'product',
+                        quantityChange: -item.quantity, // Deduct
+                        unitCost: item.costPrice / item.quantity, // Approx Unit Cost
+                        relatedDocId: orderRef.id,
+                        relatedDocCode: code,
+                        performer: { uid: user.uid, email: user.email || 'unknown' },
+                        timestamp: new Date()
+                    }, state);
+                }
             }
-
-            await logAction(user, 'TRANSACTION', 'sales_orders', `Tạo đơn hàng ${code}`);
         });
+
+        await logAction(user, 'TRANSACTION', 'sales_orders', `Tạo đơn hàng ${code}`);
 
         return code;
     },
@@ -126,21 +140,42 @@ export const orderService = {
             const orderRef = doc(db, 'sales_orders', order.id);
 
             // Revert Stock (IN)
+            // NOTE: Since we are updating order status (Write) we should Read products first?
+            // `recordInventoryTransaction` reads, then writes.
+            // `transaction.update(orderRef)` is a Write.
+            // If we loop `recordInventoryTransaction` (Read-Write, Read-Write), then Update Order (Write),
+            // The sequence is: R, W, R, W, W. This is FAIL.
+            // We must use the split pattern here too.
+
+            // 1. READ PHASE
+            const productStates = new Map<string, { ref: DocumentReference; data: any }>();
+            for (const item of order.items) {
+                 if (!productStates.has(item.productId)) {
+                    const state = await getInventoryItemState(transaction, item.productId, 'product');
+                    productStates.set(item.productId, state);
+                }
+            }
+
+            // 2. WRITE PHASE
+            // Revert Stock
             for (const item of order.items) {
                 // Determine unit cost for reversal? Use stored costPrice.
                 const unitCost = item.quantity > 0 ? (item.costPrice / item.quantity) : 0;
+                const state = productStates.get(item.productId);
 
-                await recordInventoryTransaction(transaction, {
-                    type: 'adjustment', // Reversal
-                    itemId: item.productId,
-                    itemType: 'product',
-                    quantityChange: item.quantity, // Add back
-                    unitCost: unitCost,
-                    relatedDocId: order.id,
-                    relatedDocCode: order.code,
-                    performer: { uid: user.uid, email: user.email || 'unknown' },
-                    timestamp: new Date()
-                });
+                if (state) {
+                    calculateAndCommitInventoryChange(transaction, {
+                        type: 'adjustment', // Reversal
+                        itemId: item.productId,
+                        itemType: 'product',
+                        quantityChange: item.quantity, // Add back
+                        unitCost: unitCost,
+                        relatedDocId: order.id,
+                        relatedDocCode: order.code,
+                        performer: { uid: user.uid, email: user.email || 'unknown' },
+                        timestamp: new Date()
+                    }, state);
+                }
             }
 
             // Update Status

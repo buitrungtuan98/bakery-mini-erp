@@ -9,11 +9,12 @@ import {
     orderBy,
     limit,
     onSnapshot,
-    deleteDoc
+    deleteDoc,
+    type DocumentReference
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
-import { recordInventoryTransaction } from '$lib/services/inventoryService';
+import { getInventoryItemState, calculateAndCommitInventoryChange, recordInventoryTransaction } from '$lib/services/inventoryService';
 import type { User } from 'firebase/auth';
 import type { MasterProduct, MasterIngredient } from '$lib/types/erp';
 
@@ -76,7 +77,19 @@ export const productionService = {
 
         await runTransaction(db, async (transaction) => {
 
-            // 1. Create Production Log
+            // 1. READ PHASE: Fetch Product (In) and Ingredients (Out) States
+            const productState = await getInventoryItemState(transaction, product.id, 'product');
+
+            const ingredientStates = new Map<string, { ref: DocumentReference; data: any }>();
+            for (const input of inputs) {
+                if (input.actualQuantityUsed > 0 && !ingredientStates.has(input.ingredientId)) {
+                    const state = await getInventoryItemState(transaction, input.ingredientId, 'ingredient');
+                    ingredientStates.set(input.ingredientId, state);
+                }
+            }
+
+            // 2. WRITE PHASE
+            // Create Production Log
             const productionLogRef = doc(collection(db, 'production_runs'));
             transaction.set(productionLogRef, {
                 code: code,
@@ -97,25 +110,28 @@ export const productionService = {
                 createdAt: serverTimestamp()
             });
 
-            // 2. OUT Transactions for Ingredients
+            // OUT Transactions for Ingredients
             for (const input of inputs) {
                 if (input.actualQuantityUsed > 0) {
-                    await recordInventoryTransaction(transaction, {
-                        type: 'production_out',
-                        itemId: input.ingredientId,
-                        itemType: 'ingredient',
-                        quantityChange: -input.actualQuantityUsed, // Negative for Usage
-                        unitCost: input.snapshotCost,
-                        relatedDocId: productionLogRef.id,
-                        relatedDocCode: code,
-                        performer: { uid: user.uid, email: user.email || 'unknown' },
-                        timestamp: selectedDate
-                    });
+                    const state = ingredientStates.get(input.ingredientId);
+                    if (state) {
+                        calculateAndCommitInventoryChange(transaction, {
+                            type: 'production_out',
+                            itemId: input.ingredientId,
+                            itemType: 'ingredient',
+                            quantityChange: -input.actualQuantityUsed, // Negative for Usage
+                            unitCost: input.snapshotCost,
+                            relatedDocId: productionLogRef.id,
+                            relatedDocCode: code,
+                            performer: { uid: user.uid, email: user.email || 'unknown' },
+                            timestamp: selectedDate
+                        }, state);
+                    }
                 }
             }
 
-            // 3. IN Transaction for Product (Finished Good)
-            await recordInventoryTransaction(transaction, {
+            // IN Transaction for Product (Finished Good)
+            calculateAndCommitInventoryChange(transaction, {
                 type: 'production_in',
                 itemId: product.id,
                 itemType: 'product',
@@ -125,10 +141,10 @@ export const productionService = {
                 relatedDocCode: code,
                 performer: { uid: user.uid, email: user.email || 'unknown' },
                 timestamp: selectedDate
-            });
-
-            await logAction(user, 'TRANSACTION', 'production_runs', `SX ${product.name}, Yield: ${actualYield} (${code})`);
+            }, productState);
         });
+
+        await logAction(user, 'TRANSACTION', 'production_runs', `SX ${product.name}, Yield: ${actualYield} (${code})`);
 
         return code;
     },
@@ -142,8 +158,21 @@ export const productionService = {
         // But we will implement a basic reversal logic.
 
         await runTransaction(db, async (transaction) => {
+            // 1. READ PHASE
+            const productState = await getInventoryItemState(transaction, run.productId, 'product');
+
+            const ingredientStates = new Map<string, { ref: DocumentReference; data: any }>();
+            for (const input of run.consumedInputs) {
+                if (!ingredientStates.has(input.ingredientId)) {
+                     const state = await getInventoryItemState(transaction, input.ingredientId, 'ingredient');
+                     ingredientStates.set(input.ingredientId, state);
+                }
+            }
+
+            // 2. WRITE PHASE
+
             // Revert Product (OUT)
-            await recordInventoryTransaction(transaction, {
+            calculateAndCommitInventoryChange(transaction, {
                 type: 'adjustment', // Or 'production_void'
                 itemId: run.productId,
                 itemType: 'product',
@@ -153,21 +182,24 @@ export const productionService = {
                 relatedDocCode: run.code,
                 performer: { uid: user.uid, email: user.email || 'unknown' },
                 timestamp: new Date()
-            });
+            }, productState);
 
             // Revert Ingredients (IN)
             for (const input of run.consumedInputs) {
-                 await recordInventoryTransaction(transaction, {
-                    type: 'adjustment',
-                    itemId: input.ingredientId,
-                    itemType: 'ingredient',
-                    quantityChange: input.actualQuantityUsed,
-                    unitCost: input.snapshotCost,
-                    relatedDocId: run.id,
-                    relatedDocCode: run.code,
-                    performer: { uid: user.uid, email: user.email || 'unknown' },
-                    timestamp: new Date()
-                });
+                 const state = ingredientStates.get(input.ingredientId);
+                 if (state) {
+                     calculateAndCommitInventoryChange(transaction, {
+                        type: 'adjustment',
+                        itemId: input.ingredientId,
+                        itemType: 'ingredient',
+                        quantityChange: input.actualQuantityUsed,
+                        unitCost: input.snapshotCost,
+                        relatedDocId: run.id,
+                        relatedDocCode: run.code,
+                        performer: { uid: user.uid, email: user.email || 'unknown' },
+                        timestamp: new Date()
+                    }, state);
+                 }
             }
 
             transaction.delete(doc(db, 'production_runs', run.id));

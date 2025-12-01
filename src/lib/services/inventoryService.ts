@@ -11,7 +11,8 @@ import {
     deleteDoc,
     getDocs,
     where,
-    type DocumentReference
+    type DocumentReference,
+    type DocumentSnapshot
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
@@ -42,13 +43,93 @@ export interface ImportReceipt {
 // --- CORE INVENTORY ENGINE ---
 
 /**
+ * Helper to fetch the current state of an inventory item (Product or Ingredient)
+ * Used to ensure all Reads are done before Writes in a Transaction.
+ */
+export async function getInventoryItemState(
+    t: any,
+    itemId: string,
+    itemType: 'product' | 'ingredient'
+): Promise<{ ref: DocumentReference; data: any; snap: DocumentSnapshot }> {
+    const collectionName = itemType === 'product' ? 'master_products' : 'master_ingredients';
+    const itemRef = doc(db, collectionName, itemId);
+    const itemSnap = await t.get(itemRef);
+
+    if (!itemSnap.exists()) {
+        throw new Error(`Item ${itemId} not found in ${collectionName}`);
+    }
+
+    return { ref: itemRef, data: itemSnap.data(), snap: itemSnap };
+}
+
+/**
+ * Calculates new stock/cost and performs the update (Write).
+ * Must be called after all reads are complete.
+ */
+export function calculateAndCommitInventoryChange(
+    t: any,
+    details: {
+        type: InventoryTransaction['type'];
+        itemId: string;
+        itemType: 'product' | 'ingredient';
+        quantityChange: number;
+        unitCost: number;
+        relatedDocId?: string;
+        relatedDocCode?: string;
+        performer: { uid: string; email: string };
+        timestamp: Date;
+    },
+    currentState: { ref: DocumentReference; data: any }
+) {
+    const itemData = currentState.data;
+    const currentStock = Number(itemData.currentStock || 0);
+    const currentAvgCost = Number(itemData.avgCost || 0);
+
+    // Calculate New State
+    let newStock = currentStock + details.quantityChange;
+    let newAvgCost = currentAvgCost;
+
+    // Weighted Average Cost Logic (Only for Imports/Positive Adjustments of Ingredients)
+    if (details.itemType === 'ingredient' && details.quantityChange > 0 && details.unitCost > 0) {
+        const oldValue = currentStock * currentAvgCost;
+        const incomingValue = details.quantityChange * details.unitCost;
+        if (newStock > 0) {
+            newAvgCost = (oldValue + incomingValue) / newStock;
+        }
+    }
+
+    // Update Master Data Snapshot
+    t.update(currentState.ref, {
+        currentStock: newStock,
+        ...(details.itemType === 'ingredient' ? { avgCost: Math.round(newAvgCost) } : {})
+    });
+
+    // Create Transaction Log
+    const logRef = doc(collection(db, 'inventory_transactions'));
+    const logData: InventoryTransaction = {
+        id: logRef.id,
+        type: details.type,
+        date: Timestamp.fromDate(details.timestamp),
+        itemId: details.itemId,
+        itemType: details.itemType,
+        itemName: itemData.name,
+        quantity: details.quantityChange,
+        unitCost: details.unitCost,
+        totalValue: details.quantityChange * details.unitCost,
+        relatedDocId: details.relatedDocId,
+        relatedDocCode: details.relatedDocCode,
+        performerId: details.performer.uid,
+        performerName: details.performer.email || 'System'
+    };
+    t.set(logRef, logData);
+}
+
+/**
  * Validates and records a single inventory transaction atomically.
  * Updates the Master Data (Snapshot) and creates a Log entry.
- * NOTE: This must be called INSIDE a Transaction context if part of a larger batch,
- * but here we expose a helper that CAN run inside a transaction or standalone.
- *
- * However, since Firestore `runTransaction` takes a callback, we can't easily compose it
- * like `await record(...)`. We need to pass the `transaction` object into this function.
+ * NOTE: This calls Read then Write immediately.
+ * DO NOT use this inside a loop if you have other writes before this function.
+ * Use `getInventoryItemState` and `calculateAndCommitInventoryChange` separately for batch ops.
  */
 export async function recordInventoryTransaction(
     t: any, // Firestore Transaction Object
@@ -64,58 +145,8 @@ export async function recordInventoryTransaction(
         timestamp: Date;
     }
 ) {
-    // 1. Determine Collection
-    const collectionName = details.itemType === 'product' ? 'master_products' : 'master_ingredients';
-    const itemRef = doc(db, collectionName, details.itemId);
-
-    // 2. Read current state
-    const itemSnap = await t.get(itemRef);
-    if (!itemSnap.exists()) throw new Error(`Item ${details.itemId} not found in ${collectionName}`);
-
-    const itemData = itemSnap.data();
-    const currentStock = Number(itemData.currentStock || 0);
-    const currentAvgCost = Number(itemData.avgCost || 0); // Only relevant for Ingredients usually
-
-    // 3. Calculate New State
-    let newStock = currentStock + details.quantityChange;
-    let newAvgCost = currentAvgCost;
-
-    // Weighted Average Cost Logic (Only for Imports/Positive Adjustments of Ingredients)
-    // Products usually have "Theoretical Cost" from Recipe, not dynamic AvgCost, unless we track batch cost.
-    // For simplicity, we apply AvgCost logic only to Ingredients for now.
-    if (details.itemType === 'ingredient' && details.quantityChange > 0 && details.unitCost > 0) {
-        const oldValue = currentStock * currentAvgCost;
-        const incomingValue = details.quantityChange * details.unitCost;
-        // Prevent divide by zero if newStock is 0 (unlikely here if adding)
-        if (newStock > 0) {
-            newAvgCost = (oldValue + incomingValue) / newStock;
-        }
-    }
-
-    // 4. Update Master Data Snapshot
-    t.update(itemRef, {
-        currentStock: newStock,
-        ...(details.itemType === 'ingredient' ? { avgCost: Math.round(newAvgCost) } : {})
-    });
-
-    // 5. Create Transaction Log
-    const logRef = doc(collection(db, 'inventory_transactions'));
-    const logData: InventoryTransaction = {
-        id: logRef.id,
-        type: details.type,
-        date: Timestamp.fromDate(details.timestamp),
-        itemId: details.itemId,
-        itemType: details.itemType,
-        itemName: itemData.name, // Snapshot Name
-        quantity: details.quantityChange,
-        unitCost: details.unitCost, // Store the cost used for this tx
-        totalValue: details.quantityChange * details.unitCost,
-        relatedDocId: details.relatedDocId,
-        relatedDocCode: details.relatedDocCode,
-        performerId: details.performer.uid,
-        performerName: details.performer.email || 'System'
-    };
-    t.set(logRef, logData);
+    const state = await getInventoryItemState(t, details.itemId, details.itemType);
+    calculateAndCommitInventoryChange(t, details, state);
 }
 
 // --- SERVICE ---
@@ -145,9 +176,19 @@ export const inventoryService = {
         await runTransaction(db, async (transaction) => {
             const supplierSnapshot = suppliers.find(s => s.id === supplierId);
 
+            // 1. READ PHASE: Fetch all ingredient states first
+            const ingredientStates = new Map<string, { ref: DocumentReference; data: any }>();
+            for (const item of validItems) {
+                // Deduplicate reads if same ingredient appears multiple times (rare but possible)
+                if (!ingredientStates.has(item.ingredientId)) {
+                    const state = await getInventoryItemState(transaction, item.ingredientId, 'ingredient');
+                    ingredientStates.set(item.ingredientId, state);
+                }
+            }
+
+            // 2. WRITE PHASE
             // Create Import Record
             const importRef = doc(collection(db, 'imports'));
-            // Note: We still keep the "Import Receipt" document for grouping/UI display
             transaction.set(importRef, {
                 code: code,
                 supplierId: supplierId,
@@ -165,26 +206,29 @@ export const inventoryService = {
                 createdAt: serverTimestamp()
             });
 
-            // Process each item using Inventory Engine
+            // Update Stock for each item using pre-fetched state
             for (const item of validItems) {
                 const unitCost = item.quantity > 0 ? (item.price / item.quantity) : 0;
+                const state = ingredientStates.get(item.ingredientId);
 
-                await recordInventoryTransaction(transaction, {
-                    type: 'import',
-                    itemId: item.ingredientId,
-                    itemType: 'ingredient',
-                    quantityChange: item.quantity,
-                    unitCost: unitCost,
-                    relatedDocId: importRef.id,
-                    relatedDocCode: code,
-                    performer: { uid: user.uid, email: user.email || 'unknown' },
-                    timestamp: selectedDate
-                });
+                if (state) {
+                    calculateAndCommitInventoryChange(transaction, {
+                        type: 'import',
+                        itemId: item.ingredientId,
+                        itemType: 'ingredient',
+                        quantityChange: item.quantity,
+                        unitCost: unitCost,
+                        relatedDocId: importRef.id,
+                        relatedDocCode: code,
+                        performer: { uid: user.uid, email: user.email || 'unknown' },
+                        timestamp: selectedDate
+                    }, state);
+                }
             }
-
-            // Log Action (Legacy)
-            await logAction(user, 'TRANSACTION', 'imports', `Tạo phiếu nhập ${code}`);
         });
+
+        // Log Action (Moved outside transaction)
+        await logAction(user, 'TRANSACTION', 'imports', `Tạo phiếu nhập ${code}`);
 
         return code;
     },
