@@ -138,7 +138,7 @@
 
 		try {
             const code = await inventoryService.createImportReceipt(
-                $authStore.user!,
+                $authStore.user as any,
                 selectedSupplierId as string,
                 importDate,
                 importItems,
@@ -158,12 +158,12 @@
 		}
 	}
     
-    async function deleteReceipt(id: string) {
+    async function deleteReceipt(receipt: ImportReceipt) {
         if (!checkPermission('manage_imports')) return showErrorToast("Không có quyền xóa.");
-        if(!confirm("Xóa phiếu nhập có thể làm sai lệch tồn kho. Chắc chắn?")) return;
+        if(!confirm(`Xóa phiếu nhập ${receipt.code} sẽ đảo ngược tồn kho. Chắc chắn?`)) return;
         try {
-            await inventoryService.deleteImportReceipt($authStore.user!, id);
-            showSuccessToast("Đã xóa phiếu nhập.");
+            await inventoryService.deleteImportReceipt($authStore.user as any, receipt);
+            showSuccessToast("Đã xóa phiếu nhập và hoàn tác kho.");
         } catch (error: any) { showErrorToast("Lỗi xóa: " + error.message); }
     }
 </script>
@@ -247,13 +247,16 @@
                     <ResponsiveTable>
                         <svelte:fragment slot="mobile">
                             {#each importHistory as receipt}
-                                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 mb-3">
+                                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-100 mb-3 {receipt.status === 'canceled' ? 'opacity-60 grayscale bg-slate-50' : ''}">
                                     <div class="flex justify-between items-start mb-2">
                                         <div>
                                             <div class="font-bold">{receipt.supplierName}</div>
                                             <div class="flex gap-2 items-center">
                                                 {#if receipt.code}
                                                     <span class="badge badge-xs badge-ghost font-mono">{receipt.code}</span>
+                                                {/if}
+                                                {#if receipt.status === 'canceled'}
+                                                    <span class="badge badge-xs badge-error">Đã hủy</span>
                                                 {/if}
                                                 <div class="text-xs text-gray-400">{receipt.importDate?.toDate().toLocaleDateString('vi-VN')}</div>
                                             </div>
@@ -265,9 +268,9 @@
                                             <span>{idx > 0 ? ', ' : ''}{item.quantity} {item.ingredientName}</span>
                                         {/each}
                                     </div>
-                                    {#if $userPermissions.has('manage_imports')}
+                                    {#if $userPermissions.has('manage_imports') && receipt.status !== 'canceled'}
                                         <div class="text-right">
-                                            <button class="btn btn-xs btn-ghost text-error" on:click={() => deleteReceipt(receipt.id)}>
+                                            <button class="btn btn-xs btn-ghost text-error" on:click={() => deleteReceipt(receipt)}>
                                                 <Trash2 class="h-4 w-4" />
                                             </button>
                                         </div>
@@ -288,8 +291,13 @@
                             </thead>
                             <tbody>
                                 {#each importHistory as receipt}
-                                    <tr class="hover group">
-                                        <td>{receipt.importDate?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
+                                    <tr class="hover group {receipt.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                                        <td>
+                                            {receipt.importDate?.toDate().toLocaleDateString('vi-VN') || 'N/A'}
+                                            {#if receipt.status === 'canceled'}
+                                                <span class="badge badge-xs badge-error ml-2">Đã hủy</span>
+                                            {/if}
+                                        </td>
                                         <td>{receipt.supplierName}</td>
                                         <td>
                                             <div class="text-xs truncate max-w-xs">
@@ -300,10 +308,10 @@
                                         </td>
                                         <td class="text-right font-mono text-success">{receipt.totalAmount.toLocaleString()} đ</td>
                                         <td>
-                                            {#if $userPermissions.has('manage_imports')}
+                                            {#if $userPermissions.has('manage_imports') && receipt.status !== 'canceled'}
                                                 <button
                                                     class="btn btn-xs btn-ghost text-error opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    on:click={() => deleteReceipt(receipt.id)}
+                                                    on:click={() => deleteReceipt(receipt)}
                                                 >
                                                     <Trash2 class="h-4 w-4" />
                                                 </button>

@@ -71,6 +71,7 @@ export interface InventoryTransaction {
 
     performerId: string; // User ID
     performerName: string;
+    status?: 'active' | 'canceled';
 }
 
 export interface SalesOrder {
@@ -122,4 +123,5 @@ export interface FinanceLedger {
     description: string;
     relatedDocId?: string;
     recordedBy: string;
+    status?: 'active' | 'canceled';
 }
