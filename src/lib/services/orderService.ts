@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
+import { financeService } from '$lib/services/financeService';
 import { getInventoryItemState, calculateAndCommitInventoryChange, recordInventoryTransaction } from '$lib/services/inventoryService';
 import type { User } from 'firebase/auth';
 import type { SalesOrder, SalesOrderItem, MasterProduct, MasterPartner } from '$lib/types/erp';
@@ -185,6 +186,9 @@ export const orderService = {
 
             // Log cancellation details if needed in a separate log or audit trail
         });
+
+        // Cancel Finance Entries (if any exist)
+        await financeService.cancelEntriesByRelatedDoc(order.id);
 
         const displayId = order.code || order.id.substring(0, 8);
         await logAction(user, 'UPDATE', 'sales_orders', `Hủy đơn hàng: ${displayId}`);

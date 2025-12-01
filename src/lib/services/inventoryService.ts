@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
+import { financeService } from '$lib/services/financeService';
 import type { User } from 'firebase/auth';
 import type { MasterIngredient, InventoryTransaction, MasterPartner, MasterProduct } from '$lib/types/erp';
 
@@ -38,6 +39,7 @@ export interface ImportReceipt {
     createdAt: { toDate: () => Date };
     importDate: { toDate: () => Date };
     items: any[];
+    status?: 'active' | 'canceled';
 }
 
 // --- CORE INVENTORY ENGINE ---
@@ -74,6 +76,7 @@ export function calculateAndCommitInventoryChange(
         itemType: 'product' | 'ingredient';
         quantityChange: number;
         unitCost: number;
+        valueChange?: number; // Optional: Explicit value change for Reversals/Corrections
         relatedDocId?: string;
         relatedDocCode?: string;
         performer: { uid: string; email: string };
@@ -89,12 +92,21 @@ export function calculateAndCommitInventoryChange(
     let newStock = currentStock + details.quantityChange;
     let newAvgCost = currentAvgCost;
 
-    // Weighted Average Cost Logic (Only for Imports/Positive Adjustments of Ingredients)
-    if (details.itemType === 'ingredient' && details.quantityChange > 0 && details.unitCost > 0) {
-        const oldValue = currentStock * currentAvgCost;
-        const incomingValue = details.quantityChange * details.unitCost;
-        if (newStock > 0) {
-            newAvgCost = (oldValue + incomingValue) / newStock;
+    // Weighted Average Cost Logic
+    // Applied if it's an Ingredient AND (it's an Import OR we are explicitly reversing value)
+    if (details.itemType === 'ingredient') {
+        const valueChange = details.valueChange !== undefined
+            ? details.valueChange
+            : (details.quantityChange > 0 ? details.quantityChange * details.unitCost : 0);
+
+        // If valueChange is explicitly provided OR it's a standard positive import
+        if (details.valueChange !== undefined || details.quantityChange > 0) {
+            const oldValue = currentStock * currentAvgCost;
+            if (newStock > 0) {
+                newAvgCost = (oldValue + valueChange) / newStock;
+            } else {
+                 newAvgCost = 0; // Reset if stock hits 0
+            }
         }
     }
 
@@ -233,18 +245,55 @@ export const inventoryService = {
         return code;
     },
 
-    async deleteImportReceipt(user: User, id: string) {
-        // Warning: Deleting an import should logically REVERSE the inventory transaction.
-        // For now, we just delete the receipt doc as requested in original code?
-        // NO, strict ERP shouldn't allow simple delete without reversal.
-        // But for "Fresh Start" refactor, let's keep it simple or disable delete.
-        // User asked for "Refactor", let's leave it as is but point to new collection if needed.
-        // Since we are writing to `inventory_transactions`, deleting the parent `imports` doc
-        // creates an inconsistency.
-        // TODO: Implement "Void" logic instead of Delete. For now, we will throw error or just delete the receipt (Audit risk).
+    async deleteImportReceipt(user: User, importReceipt: ImportReceipt) {
+        // Soft Delete and Rollback Inventory + Finance
 
-        await deleteDoc(doc(db, 'imports', id));
-        await logAction(user, 'DELETE', 'imports', `Xóa phiếu nhập ID: ${id}`);
+        await runTransaction(db, async (transaction) => {
+             // 1. Read Import Doc to check status (if needed, but we trust input for now)
+             const importRef = doc(db, 'imports', importReceipt.id);
+
+             // 2. Read Ingredient States
+             const ingredientStates = new Map<string, { ref: DocumentReference; data: any }>();
+             for (const item of importReceipt.items) {
+                 if (!ingredientStates.has(item.ingredientId)) {
+                     const state = await getInventoryItemState(transaction, item.ingredientId, 'ingredient');
+                     ingredientStates.set(item.ingredientId, state);
+                 }
+             }
+
+             // 3. Revert Inventory (Stock OUT, Value OUT)
+             for (const item of importReceipt.items) {
+                 const state = ingredientStates.get(item.ingredientId);
+                 if (state) {
+                     // Reverse Quantity: -item.quantity
+                     // Reverse Value: -item.totalPrice
+                     // Calculate unitCost for log purposes (though valueChange overrides logic)
+                     const unitCost = item.quantity > 0 ? (item.totalPrice / item.quantity) : 0;
+
+                     calculateAndCommitInventoryChange(transaction, {
+                        type: 'adjustment', // or 'import_void'
+                        itemId: item.ingredientId,
+                        itemType: 'ingredient',
+                        quantityChange: -item.quantity,
+                        unitCost: unitCost,
+                        valueChange: -item.totalPrice, // Force Value Reversal
+                        relatedDocId: importReceipt.id,
+                        relatedDocCode: importReceipt.code,
+                        performer: { uid: user.uid, email: user.email || 'unknown' },
+                        timestamp: new Date()
+                    }, state);
+                 }
+             }
+
+             // 4. Update Import Status
+             transaction.update(importRef, { status: 'canceled' });
+        });
+
+        // 5. Cancel Finance Entries (Outside Transaction as it runs its own batch)
+        await financeService.cancelEntriesByRelatedDoc(importReceipt.id);
+
+        const displayId = importReceipt.code || importReceipt.id;
+        await logAction(user, 'DELETE', 'imports', `Hủy phiếu nhập và hoàn tác kho: ${displayId}`);
     },
 
     subscribeHistory(callback: (receipts: ImportReceipt[]) => void) {

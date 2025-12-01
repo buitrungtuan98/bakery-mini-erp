@@ -9,17 +9,27 @@
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import { stockService, type StockItem } from '$lib/services/stockService';
     import { fade } from 'svelte/transition';
+    import type { InventoryTransaction } from '$lib/types/erp';
+    import { Trash2, History } from 'lucide-svelte';
 
-    let activeTab: 'ingredients' | 'assets' = 'ingredients';
+    let activeTab: 'ingredients' | 'assets' | 'history' = 'ingredients';
     let loading = true;
     let processing = false;
 
     let ingredients: StockItem[] = [];
     let assets: StockItem[] = [];
+    let history: InventoryTransaction[] = [];
+    let unsubscribeHistory: () => void;
 
     onMount(async () => {
         if (!checkPermission('view_inventory')) return;
         await loadData();
+        fetchHistory();
+    });
+
+    import { onDestroy } from 'svelte';
+    onDestroy(() => {
+        if (unsubscribeHistory) unsubscribeHistory();
     });
 
     async function loadData() {
@@ -39,11 +49,18 @@
         }
     }
 
+    function fetchHistory() {
+        if (unsubscribeHistory) unsubscribeHistory();
+        unsubscribeHistory = stockService.subscribeAdjustments(20, (data) => {
+            history = data;
+        });
+    }
+
     async function handleStocktakeIngredient(item: StockItem) {
         if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         processing = true;
         try {
-            await stockService.adjustIngredientStock($authStore.user!, item);
+            await stockService.adjustIngredientStock($authStore.user as any, item);
             item.currentStock = item.actualStock; // Optimistic update
             item.difference = 0;
             showSuccessToast(`Đã cập nhật ${item.name}`);
@@ -58,7 +75,7 @@
         if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         processing = true;
         try {
-            await stockService.adjustAssetStock($authStore.user!, item);
+            await stockService.adjustAssetStock($authStore.user as any, item);
             // Optimistic update
             if (item.quantity) {
                 item.quantity.good = item.actualGood || 0;
@@ -73,6 +90,16 @@
             processing = false;
         }
     }
+
+    async function handleCancelAdjustment(tx: InventoryTransaction) {
+        if (!confirm(`Bạn có chắc muốn hủy điều chỉnh ${tx.itemName} (${tx.quantity > 0 ? '+' : ''}${tx.quantity})?`)) return;
+        try {
+            await stockService.cancelAdjustment($authStore.user as any, tx.id);
+            showSuccessToast("Đã hủy và hoàn tác điều chỉnh kho.");
+        } catch (e: any) {
+            showErrorToast("Lỗi: " + e.message);
+        }
+    }
 </script>
 
 <div class="max-w-5xl mx-auto pb-20">
@@ -83,6 +110,7 @@
     <div class="tabs tabs-boxed mb-4">
         <button class="tab {activeTab === 'ingredients' ? 'tab-active' : ''}" on:click={() => activeTab = 'ingredients'}>Nguyên liệu</button>
         <button class="tab {activeTab === 'assets' ? 'tab-active' : ''}" on:click={() => activeTab = 'assets'}>Công cụ & Tài sản</button>
+        <button class="tab {activeTab === 'history' ? 'tab-active' : ''}" on:click={() => activeTab = 'history'}><History class="w-4 h-4 mr-1"/> Lịch sử</button>
     </div>
 
     {#if loading}
@@ -167,6 +195,84 @@
                     </tbody>
                 </svelte:fragment>
             </ResponsiveTable>
+        {/if}
+
+        {#if activeTab === 'history'}
+             <ResponsiveTable>
+                <svelte:fragment slot="mobile">
+                    {#if history.length === 0}
+                        <EmptyState message="Chưa có lịch sử kiểm kê." />
+                    {:else}
+                         <div class="space-y-3">
+                            {#each history as tx}
+                                <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 {tx.status === 'canceled' ? 'opacity-60 grayscale bg-slate-50' : ''}">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div class="font-bold text-slate-800">{tx.itemName}</div>
+                                            <div class="text-xs text-slate-400">
+                                                {tx.date ? (typeof (tx.date as any).toDate === 'function' ? (tx.date as any).toDate() : new Date(tx.date as any)).toLocaleString('vi-VN') : 'N/A'}
+                                            </div>
+                                            {#if tx.status === 'canceled'}
+                                                <span class="badge badge-xs badge-error mt-1">Đã hủy</span>
+                                            {/if}
+                                        </div>
+                                        <div class="font-bold {tx.quantity >= 0 ? 'text-success' : 'text-error'}">
+                                            {tx.quantity > 0 ? '+' : ''}{tx.quantity}
+                                        </div>
+                                    </div>
+                                    <div class="flex justify-between items-center text-xs text-slate-500">
+                                        <span>Người kiểm: {tx.performerName}</span>
+                                        {#if tx.status !== 'canceled'}
+                                            <button class="btn btn-xs btn-ghost text-red-400" on:click={() => handleCancelAdjustment(tx)}>
+                                                <Trash2 class="w-4 h-4" /> Hủy
+                                            </button>
+                                        {/if}
+                                    </div>
+                                </div>
+                            {/each}
+                         </div>
+                    {/if}
+                </svelte:fragment>
+                <svelte:fragment slot="desktop">
+                    <thead>
+                        <tr>
+                            <th>Ngày</th>
+                            <th>Mặt hàng</th>
+                            <th class="text-right">Thay đổi</th>
+                            <th>Người thực hiện</th>
+                            <th class="text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {#if history.length === 0}
+                             <tr><td colspan="5"><EmptyState /></td></tr>
+                        {:else}
+                            {#each history as tx}
+                                <tr class="hover {tx.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                                    <td class="text-sm">
+                                        {tx.date ? (typeof (tx.date as any).toDate === 'function' ? (tx.date as any).toDate() : new Date(tx.date as any)).toLocaleString('vi-VN') : 'N/A'}
+                                        {#if tx.status === 'canceled'}
+                                            <span class="badge badge-xs badge-error ml-2">Đã hủy</span>
+                                        {/if}
+                                    </td>
+                                    <td class="font-bold">{tx.itemName}</td>
+                                    <td class="text-right font-bold {tx.quantity >= 0 ? 'text-success' : 'text-error'}">
+                                        {tx.quantity > 0 ? '+' : ''}{tx.quantity}
+                                    </td>
+                                    <td>{tx.performerName}</td>
+                                    <td class="text-center">
+                                        {#if tx.status !== 'canceled'}
+                                            <button class="btn btn-xs btn-ghost text-red-400" on:click={() => handleCancelAdjustment(tx)}>
+                                                <Trash2 class="w-4 h-4" />
+                                            </button>
+                                        {/if}
+                                    </td>
+                                </tr>
+                            {/each}
+                        {/if}
+                    </tbody>
+                </svelte:fragment>
+             </ResponsiveTable>
         {/if}
 
         {#if activeTab === 'assets'}

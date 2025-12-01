@@ -8,7 +8,10 @@ import {
     query,
     orderBy,
     limit,
-    onSnapshot
+    onSnapshot,
+    where,
+    getDocs,
+    writeBatch
 } from 'firebase/firestore';
 import type { FinanceLedger } from '$lib/types/erp';
 import type { User } from 'firebase/auth';
@@ -55,5 +58,23 @@ export const financeService = {
             const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FinanceLedger));
             callback(entries);
         });
+    },
+
+    /**
+     * Cancel (Soft Delete) all finance entries related to a document
+     */
+    async cancelEntriesByRelatedDoc(relatedDocId: string) {
+        if (!relatedDocId) return;
+
+        const q = query(collection(db, 'finance_ledger'), where('relatedDocId', '==', relatedDocId));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) return;
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { status: 'canceled' });
+        });
+        await batch.commit();
     }
 };

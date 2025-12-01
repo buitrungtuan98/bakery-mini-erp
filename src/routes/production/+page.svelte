@@ -145,7 +145,7 @@
         if (!confirm(`Xác nhận xóa lệnh sản xuất "${run.productName}" ngày ${run.productionDate.toDate().toLocaleDateString()}? Hành động này sẽ đảo ngược tồn kho.`)) return;
 
         try {
-            await productionService.deleteProductionRun($authStore.user!, run);
+            await productionService.deleteProductionRun($authStore.user as any, run);
             showSuccessToast("Đảo ngược lệnh sản xuất thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
@@ -168,7 +168,7 @@
 
 		try {
             const code = await productionService.createProductionRun(
-                $authStore.user!,
+                $authStore.user as any,
                 prod!,
                 productionDate,
                 actualYield,
@@ -334,12 +334,15 @@
                             <svelte:fragment slot="mobile">
                                 <div class="space-y-2">
                                     {#each productionHistory as run}
-                                        <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center">
+                                        <div class="bg-white p-3 rounded-lg border border-slate-100 shadow-sm flex justify-between items-center {run.status === 'canceled' ? 'opacity-60 grayscale bg-slate-50' : ''}">
                                             <div>
                                                 <div class="flex items-center gap-2">
                                                     <div class="font-bold text-sm text-slate-800">{run.productName}</div>
                                                     {#if run.code}
                                                         <span class="badge badge-xs badge-ghost font-mono">{run.code}</span>
+                                                    {/if}
+                                                    {#if run.status === 'canceled'}
+                                                        <span class="badge badge-xs badge-error">Đã hủy</span>
                                                     {/if}
                                                 </div>
                                                 <div class="text-xs text-slate-400 mt-1">
@@ -348,10 +351,12 @@
                                                     <span class="text-emerald-600 font-bold">+{run.actualYield} SP</span>
                                                 </div>
                                             </div>
-                                            <button
-                                                class="btn btn-xs btn-ghost text-red-400"
-                                                on:click={() => handleDeleteRun(run)}
-                                            ><Trash2 class="h-4 w-4" /></button>
+                                            {#if run.status !== 'canceled'}
+                                                <button
+                                                    class="btn btn-xs btn-ghost text-red-400"
+                                                    on:click={() => handleDeleteRun(run)}
+                                                ><Trash2 class="h-4 w-4" /></button>
+                                            {/if}
                                         </div>
                                     {/each}
                                 </div>
@@ -370,16 +375,23 @@
                                 </thead>
                                 <tbody>
                                     {#each productionHistory as run}
-                                        <tr class="hover group">
-                                            <td class="font-mono text-sm">{run.code || run.id.slice(0,8)}</td>
+                                        <tr class="hover group {run.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
+                                            <td class="font-mono text-sm">
+                                                {run.code || run.id.slice(0,8)}
+                                                {#if run.status === 'canceled'}
+                                                    <span class="badge badge-xs badge-error ml-2">Đã hủy</span>
+                                                {/if}
+                                            </td>
                                             <td class="font-bold">{run.productName}</td>
                                             <td>{run.productionDate?.toDate().toLocaleDateString('vi-VN')}</td>
                                             <td class="text-right font-bold text-emerald-600">{run.actualYield}</td>
                                             <td class="text-right font-mono text-error">{run.totalActualCost.toLocaleString()} đ</td>
                                             <td class="text-center">
-                                                <button class="btn btn-xs btn-ghost text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" on:click={() => handleDeleteRun(run)}>
-                                                    <Trash2 size={14} />
-                                                </button>
+                                                {#if run.status !== 'canceled'}
+                                                    <button class="btn btn-xs btn-ghost text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" on:click={() => handleDeleteRun(run)}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                {/if}
                                             </td>
                                         </tr>
                                     {/each}

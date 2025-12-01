@@ -219,7 +219,7 @@
         
         processing = true;
         try {
-            await orderService.cancelOrder($authStore.user!, order);
+            await orderService.cancelOrder($authStore.user as any, order);
             showSuccessToast("Hủy đơn hàng thành công!");
         } catch (e: any) {
             console.error("Lỗi đảo ngược:", e);
@@ -233,7 +233,7 @@
         if (!confirm(`Cập nhật trạng thái đơn hàng ${order.code} thành '${newStatus}'?`)) return;
 
         try {
-            await orderService.updateStatus($authStore.user!, order, newStatus);
+            await orderService.updateStatus($authStore.user as any, order, newStatus);
             showSuccessToast("Cập nhật trạng thái thành công!");
         } catch (e: any) {
             console.error(e);
@@ -252,7 +252,7 @@
 
 		try {
             const code = await orderService.createOrder(
-                $authStore.user!,
+                $authStore.user as any,
                 customer,
                 orderItems,
                 selectedStatus,
@@ -577,7 +577,7 @@
 
                                             <div class="flex justify-between items-center border-t border-slate-50 pt-3 mt-1">
                                                 <span class="text-[10px] text-slate-400">
-                                                    {order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
+                                                    {order.deliveryDate ? (typeof (order.deliveryDate as any).toDate === 'function' ? (order.deliveryDate as any).toDate() : new Date(order.deliveryDate as any)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}
                                                 </span>
 
                                                 <div class="flex gap-2">
@@ -624,7 +624,7 @@
                                         <tr class="hover group {order.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
                                             <td class="font-mono text-sm">{order.code || order.id.slice(0,8)}</td>
                                             <td class="font-bold">{order.customerName}</td>
-                                            <td class="text-sm">{order.deliveryDate?.toDate ? (typeof order.deliveryDate.toDate === 'function' ? order.deliveryDate.toDate() : new Date(order.deliveryDate)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}</td>
+                                            <td class="text-sm">{order.deliveryDate ? (typeof (order.deliveryDate as any).toDate === 'function' ? (order.deliveryDate as any).toDate() : new Date(order.deliveryDate as any)).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day: 'numeric', month: 'numeric' }) : 'N/A'}</td>
                                             <td>
                                                 <span class="badge badge-sm border-0 py-2
                                                     {order.status === 'open' ? 'bg-blue-50 text-blue-600' :

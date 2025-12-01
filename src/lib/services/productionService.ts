@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
+import { financeService } from '$lib/services/financeService';
 import { getInventoryItemState, calculateAndCommitInventoryChange, recordInventoryTransaction } from '$lib/services/inventoryService';
 import type { User } from 'firebase/auth';
 import type { MasterProduct, MasterIngredient } from '$lib/types/erp';
@@ -38,6 +39,7 @@ export interface ProductionRun {
     createdBy: string;
     createdAt: { toDate: () => Date };
     consumedInputs: any[];
+    status?: 'active' | 'canceled';
 }
 
 export const productionService = {
@@ -151,14 +153,14 @@ export const productionService = {
 
     /**
      * Delete/Reverse a production run
-     * (Re-implemented using transactions)
+     * (Soft Delete and Reversal)
      */
     async deleteProductionRun(user: User, run: ProductionRun) {
-        // Just like Import, deleting creates Audit holes.
-        // But we will implement a basic reversal logic.
+        // Soft Delete and Rollback Inventory + Finance
 
         await runTransaction(db, async (transaction) => {
             // 1. READ PHASE
+            const productionRef = doc(db, 'production_runs', run.id);
             const productState = await getInventoryItemState(transaction, run.productId, 'product');
 
             const ingredientStates = new Map<string, { ref: DocumentReference; data: any }>();
@@ -171,7 +173,7 @@ export const productionService = {
 
             // 2. WRITE PHASE
 
-            // Revert Product (OUT)
+            // Revert Product (OUT) - Deduct the finished good we added
             calculateAndCommitInventoryChange(transaction, {
                 type: 'adjustment', // Or 'production_void'
                 itemId: run.productId,
@@ -184,7 +186,7 @@ export const productionService = {
                 timestamp: new Date()
             }, productState);
 
-            // Revert Ingredients (IN)
+            // Revert Ingredients (IN) - Return ingredients to stock
             for (const input of run.consumedInputs) {
                  const state = ingredientStates.get(input.ingredientId);
                  if (state) {
@@ -194,6 +196,8 @@ export const productionService = {
                         itemType: 'ingredient',
                         quantityChange: input.actualQuantityUsed,
                         unitCost: input.snapshotCost,
+                        // Note: Standard 'Stock IN' logic correctly handles Avg Cost (Input Weighted Avg).
+                        // Since this is a reversal of usage, returning it at snapshot cost is correct behavior.
                         relatedDocId: run.id,
                         relatedDocCode: run.code,
                         performer: { uid: user.uid, email: user.email || 'unknown' },
@@ -202,8 +206,12 @@ export const productionService = {
                  }
             }
 
-            transaction.delete(doc(db, 'production_runs', run.id));
+            // Soft Delete Status
+            transaction.update(productionRef, { status: 'canceled' });
         });
+
+        // Cancel Finance Entries (if any exist)
+        await financeService.cancelEntriesByRelatedDoc(run.id);
 
         const displayId = run.code || run.id.substring(0, 8).toUpperCase();
         await logAction(user, 'DELETE', 'production_runs', `Đảo ngược và xóa lệnh SX: ${displayId}`);
