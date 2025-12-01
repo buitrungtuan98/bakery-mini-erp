@@ -74,7 +74,8 @@
              if (!tabs.find(t => t.id === 'create')) {
                  tabs = [{ id: 'create', label: 'Tạo Phiếu Nhập', icon: Download }, ...tabs];
              }
-             if (activeTab === 'history' && !isDataFetched) {
+             // Prioritize Create tab if permission exists
+             if (activeTab === 'history') {
                  activeTab = 'create';
              }
          } else {

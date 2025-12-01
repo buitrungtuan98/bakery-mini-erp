@@ -23,11 +23,11 @@
     }
 
     // Helper to check active state more cleanly
-    function isActive(path: string) {
+    function isActive(path: string, currentRoute: string) {
         if (path === '/') {
-            return activeRoute === '/';
+            return currentRoute === '/';
         }
-        return activeRoute.startsWith(path);
+        return currentRoute.startsWith(path);
     }
 </script>
 
@@ -38,11 +38,11 @@
 
   <!-- Home -->
   <a href="/" data-sveltekit-preload-data="hover"
-     class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+     class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/', activeRoute) ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
      on:click={closeMenu}>
-    <Home size={20} strokeWidth={isActive('/') ? 2.5 : 2} />
+    <Home size={20} strokeWidth={isActive('/', activeRoute) ? 2.5 : 2} />
     <span class="text-[9px] font-medium truncate w-full text-center">Home</span>
-    {#if isActive('/')}
+    {#if isActive('/', activeRoute)}
         <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
     {/if}
   </a>
@@ -50,11 +50,11 @@
   <!-- Sales -->
   {#if canSell}
       <a href="/sales" data-sveltekit-preload-data="hover"
-         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/sales') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/sales', activeRoute) ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
          on:click={closeMenu}>
-        <ShoppingCart size={20} strokeWidth={isActive('/sales') ? 2.5 : 2} />
+        <ShoppingCart size={20} strokeWidth={isActive('/sales', activeRoute) ? 2.5 : 2} />
         <span class="text-[9px] font-medium truncate w-full text-center">Bán hàng</span>
-        {#if isActive('/sales')}
+        {#if isActive('/sales', activeRoute)}
             <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
         {/if}
       </a>
@@ -63,11 +63,11 @@
   <!-- Production -->
   {#if canProduce}
       <a href="/production" data-sveltekit-preload-data="hover"
-         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/production') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/production', activeRoute) ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
          on:click={closeMenu}>
-        <Factory size={20} strokeWidth={isActive('/production') ? 2.5 : 2} />
+        <Factory size={20} strokeWidth={isActive('/production', activeRoute) ? 2.5 : 2} />
         <span class="text-[9px] font-medium truncate w-full text-center">Sản xuất</span>
-        {#if isActive('/production')}
+        {#if isActive('/production', activeRoute)}
             <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
         {/if}
       </a>
@@ -76,11 +76,11 @@
   <!-- Imports -->
   {#if canManageInventory}
       <a href="/imports" data-sveltekit-preload-data="hover"
-         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/imports') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/imports', activeRoute) ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
          on:click={closeMenu}>
-        <Truck size={20} strokeWidth={isActive('/imports') ? 2.5 : 2} />
+        <Truck size={20} strokeWidth={isActive('/imports', activeRoute) ? 2.5 : 2} />
         <span class="text-[9px] font-medium truncate w-full text-center">Nhập hàng</span>
-        {#if isActive('/imports')}
+        {#if isActive('/imports', activeRoute)}
             <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
         {/if}
       </a>
@@ -89,11 +89,11 @@
   <!-- Expenses -->
   {#if canViewFinance}
       <a href="/expenses" data-sveltekit-preload-data="hover"
-         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/expenses') ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
+         class="active-press flex flex-col items-center justify-center gap-0.5 min-w-[3rem] px-1 {isActive('/expenses', activeRoute) ? 'text-primary' : 'text-slate-400 hover:text-slate-600'}"
          on:click={closeMenu}>
-        <Wallet size={20} strokeWidth={isActive('/expenses') ? 2.5 : 2} />
+        <Wallet size={20} strokeWidth={isActive('/expenses', activeRoute) ? 2.5 : 2} />
         <span class="text-[9px] font-medium truncate w-full text-center">Chi phí</span>
-        {#if isActive('/expenses')}
+        {#if isActive('/expenses', activeRoute)}
             <span class="absolute top-0 inset-x-0 h-0.5 bg-primary mx-2 rounded-b-full" transition:fade></span>
         {/if}
       </a>
