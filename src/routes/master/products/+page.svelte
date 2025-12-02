@@ -113,10 +113,10 @@
             };
 
             if (isEditing) {
-                await catalogService.updateProduct($authStore.user!, formData.id, dataToSave);
+                await catalogService.updateProduct($authStore.user as any, formData.id, dataToSave);
                 showSuccessToast("Cập nhật sản phẩm thành công!");
             } else {
-                await catalogService.createProduct($authStore.user!, dataToSave);
+                await catalogService.createProduct($authStore.user as any, dataToSave);
                 showSuccessToast("Thêm sản phẩm thành công!");
             }
             isModalOpen = false;
@@ -130,9 +130,9 @@
         if (!checkPermission('edit_inventory')) return showErrorToast("Không có quyền.");
         if (!confirm("Xóa sản phẩm này?")) return;
         try {
-            await catalogService.deleteProduct($authStore.user!, id);
+            await catalogService.deleteProduct($authStore.user as any, id);
             showSuccessToast("Đã xóa sản phẩm.");
-        } catch (error) {
+        } catch (error: any) {
             showErrorToast("Lỗi xóa sản phẩm: " + error.message);
         }
     }

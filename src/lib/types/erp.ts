@@ -13,6 +13,7 @@ export interface MasterEntity {
 export interface MasterProduct extends MasterEntity {
     sellingPrice: number;
     costPrice: number; // Theoretical cost based on recipe
+    avgCost?: number; // Weighted Average Cost (Real Production Cost)
     currentStock: number;
     estimatedYieldQty?: number; // Standard yield per batch
     minStock: number;

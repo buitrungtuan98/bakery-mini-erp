@@ -66,10 +66,10 @@
             };
 
             if (isEditing) {
-                await catalogService.updatePartner($authStore.user!, formData.id, dataToSave);
+                await catalogService.updatePartner($authStore.user as any, formData.id, dataToSave);
                 showSuccessToast("Cập nhật đối tác thành công!");
             } else {
-                await catalogService.createPartner($authStore.user!, dataToSave);
+                await catalogService.createPartner($authStore.user as any, dataToSave);
                 showSuccessToast("Thêm đối tác thành công!");
             }
             isModalOpen = false;
@@ -81,7 +81,7 @@
         if (!checkPermission('manage_partners')) return showErrorToast("Không có quyền.");
         if (!confirm("Xóa đối tác này?")) return;
         try {
-            await catalogService.deletePartner($authStore.user!, id);
+            await catalogService.deletePartner($authStore.user as any, id);
             showSuccessToast("Đã xóa đối tác.");
         } catch (error: any) {
             showErrorToast("Lỗi xóa đối tác: " + error.message);
