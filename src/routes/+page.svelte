@@ -30,6 +30,16 @@
 
 
     // --- Helpers cho Bộ lọc Thời gian (Xử lý Start/End Date) ---
+    function getDate(t: any): Date {
+        if (!t) return new Date(0);
+        if (t instanceof Date) return t;
+        // Check if it's a Firestore Timestamp (has toDate method)
+        if (typeof t.toDate === 'function') {
+            return t.toDate();
+        }
+        return new Date(0);
+    }
+
     function getStartEndDate(period: typeof selectedPeriod, startStr?: string, endStr?: string): { startDate: Date, endDate: Date } {
         const today = new Date();
         const year = today.getFullYear();
@@ -107,7 +117,7 @@
                 // Ignore canceled? Assuming yes.
                 if (order.status === 'canceled') return;
 
-                const orderDate = order.createdAt?.toDate ? order.createdAt.toDate() : new Date(0);
+                const orderDate = getDate(order.createdAt);
                 if (orderDate >= startDate && orderDate <= endDate) {
                     revenuePeriod += (order.totalAmount || 0); // Sales
                     const cogs = order.totalCost || 0;
@@ -117,7 +127,7 @@
 
             // Lọc và tính Expenses
             expensesData.forEach(expense => {
-                const expenseDate = expense.date?.toDate ? expense.date.toDate() : new Date(0);
+                const expenseDate = getDate(expense.date);
                 if (expenseDate >= startDate && expenseDate <= endDate) {
                     expensesPeriod += expense.amount;
                 }

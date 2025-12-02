@@ -10,7 +10,7 @@
     import SearchableSelect from '$lib/components/ui/SearchableSelect.svelte';
     import { showSuccessToast, showErrorToast } from '$lib/utils/notifications';
     import { Plus, Save, Trash2, Import, History, Download } from 'lucide-svelte';
-    import { inventoryService, type Partner, type Ingredient, type ImportReceipt, type ImportItem } from '$lib/services/inventoryService';
+    import { inventoryService, type MasterPartner as Partner, type MasterIngredient as Ingredient, type ImportReceipt, type ImportItem } from '$lib/services/inventoryService';
     import SwipeableTabs from '$lib/components/ui/SwipeableTabs.svelte';
 
 	// --- State ---
