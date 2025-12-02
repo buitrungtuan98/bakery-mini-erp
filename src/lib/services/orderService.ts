@@ -82,22 +82,37 @@ export const orderService = {
                 shippingAddress: shippingAddress,
                 status: status as any,
                 paymentStatus: 'unpaid', // Default
-                items: validItems.map(i => ({
-                    productId: i.productId,
-                    productName: products.find(p => p.id === i.productId)?.name || 'Unknown',
-                    quantity: i.quantity,
-                    unitPrice: i.unitPrice,
-                    originalPrice: i.originalPrice,
-                    total: i.total,
-                    costPrice: i.costPrice
-                })),
+                items: validItems.map(i => {
+                    // Calculate Real COGS using WAC from DB state if available, else fallback to Theoretical Cost
+                    const productState = productStates.get(i.productId)?.data;
+                    const realUnitCost = productState?.avgCost || productState?.costPrice || 0;
+                    const lineRealCOGS = realUnitCost * i.quantity;
+
+                    return {
+                        productId: i.productId,
+                        productName: products.find(p => p.id === i.productId)?.name || 'Unknown',
+                        quantity: i.quantity,
+                        unitPrice: i.unitPrice,
+                        originalPrice: i.originalPrice,
+                        total: i.total,
+                        costPrice: lineRealCOGS // Updated to use Real COGS (Line Total)
+                    };
+                }),
                 subTotal: subTotal,
                 discountAmount: 0, // Item level discount assumed baked into total for now
                 shippingFee: shippingFee,
                 totalAmount: totalRevenue,
-                totalCost: totalCOGS,
+                // Recalculate Total Cost based on the new item costs
+                // Note: We cannot rely on `totalCOGS` variable calculated before this block anymore
+                // because we just updated the logic inside the map.
+                // However, we can't easily reduce the map result inside this object literal definition.
+                // We will let the map run, but we need to calculate totalCost correctly.
+                // To avoid complexity, let's pre-map the items.
                 createdBy: user.email || 'system'
             };
+
+            // Recalculate Total Cost from the mapped items
+            newOrder.totalCost = newOrder.items.reduce((sum, item) => sum + item.costPrice, 0);
 
             // Firestore needs plain objects, ensure no undefined
             transaction.set(orderRef, {
