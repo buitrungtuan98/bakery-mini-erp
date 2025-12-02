@@ -89,7 +89,7 @@
 
         try {
             const code = await expenseService.createExpense(
-                $authStore.user!,
+                $authStore.user as any,
                 expenseData,
                 categories,
                 suppliers,

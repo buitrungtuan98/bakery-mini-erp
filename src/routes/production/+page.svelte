@@ -207,8 +207,11 @@
 
                 <!-- 1. Select Product & Date -->
                 <div class="bg-white p-4 rounded-lg shadow-sm border border-slate-200 mb-4">
-                    <div class="form-control mb-4" on:click={() => isProductModalOpen = true}>
-                        <label class="label"><span class="label-text">Sản phẩm (Công thức)</span></label>
+                    <button
+                        class="form-control w-full text-left mb-4"
+                        on:click={() => isProductModalOpen = true}
+                    >
+                        <label class="label pointer-events-none"><span class="label-text">Sản phẩm (Công thức)</span></label>
                         <div class="flex items-center justify-between border rounded-lg p-3 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors">
                             {#if selectedProduct}
                                 <span class="font-bold">{selectedProduct.name}</span>
@@ -217,7 +220,7 @@
                             {/if}
                             <Search size={18} class="text-slate-400" />
                         </div>
-                    </div>
+                    </button>
 
                     <div class="form-control">
                         <label class="label"><span class="label-text">Ngày SX</span></label>

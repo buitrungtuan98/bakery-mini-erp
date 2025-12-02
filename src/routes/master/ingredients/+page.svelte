@@ -108,10 +108,10 @@
             };
 
             if (isEditing) {
-                await catalogService.updateIngredient($authStore.user!, formData.id, baseData);
+                await catalogService.updateIngredient($authStore.user as any, formData.id, baseData);
                 showSuccessToast("Cập nhật nguyên liệu thành công!");
             } else {
-                await catalogService.createIngredient($authStore.user!, baseData);
+                await catalogService.createIngredient($authStore.user as any, baseData);
                 showSuccessToast("Thêm nguyên liệu thành công!");
             }
             isModalOpen = false;
@@ -124,7 +124,7 @@
         if(!confirm("Xóa nguyên liệu này?")) return;
         
         try {
-            await catalogService.deleteIngredient($authStore.user!, id);
+            await catalogService.deleteIngredient($authStore.user as any, id);
             showSuccessToast("Đã xóa nguyên liệu.");
         } catch (error: any) { showErrorToast("Lỗi xóa: " + error.message); }
     }

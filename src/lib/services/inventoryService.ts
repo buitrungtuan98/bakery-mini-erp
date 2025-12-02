@@ -93,13 +93,13 @@ export function calculateAndCommitInventoryChange(
     let newAvgCost = currentAvgCost;
 
     // Weighted Average Cost Logic
-    // Applied if it's an Ingredient AND (it's an Import OR we are explicitly reversing value)
-    if (details.itemType === 'ingredient') {
+    // Applied if it's an Ingredient OR Product AND (it's an Import/Production IN OR we are explicitly reversing value)
+    if (details.itemType === 'ingredient' || details.itemType === 'product') {
         const valueChange = details.valueChange !== undefined
             ? details.valueChange
             : (details.quantityChange > 0 ? details.quantityChange * details.unitCost : 0);
 
-        // If valueChange is explicitly provided OR it's a standard positive import
+        // If valueChange is explicitly provided OR it's a standard positive import/production in
         if (details.valueChange !== undefined || details.quantityChange > 0) {
             const oldValue = currentStock * currentAvgCost;
             if (newStock > 0) {
@@ -113,7 +113,7 @@ export function calculateAndCommitInventoryChange(
     // Update Master Data Snapshot
     t.update(currentState.ref, {
         currentStock: newStock,
-        ...(details.itemType === 'ingredient' ? { avgCost: Math.round(newAvgCost) } : {})
+        avgCost: Math.round(newAvgCost)
     });
 
     // Create Transaction Log

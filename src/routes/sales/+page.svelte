@@ -359,7 +359,10 @@
                 {/if}
 
                 <!-- 1. Customer Selection (Card) -->
-                <div class="card bg-white shadow-sm border border-slate-100 p-4 mb-4 active-press" on:click={() => isCustomerModalOpen = true}>
+                <button
+                    class="w-full text-left card bg-white shadow-sm border border-slate-100 p-4 mb-4 active-press"
+                    on:click={() => isCustomerModalOpen = true}
+                >
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-3">
                             <div class="bg-primary/10 p-3 rounded-full text-primary">
@@ -379,7 +382,7 @@
                             <div class="text-xs text-slate-400 max-w-[100px] text-right truncate">{shippingAddress}</div>
                         {/if}
                     </div>
-                </div>
+                </button>
 
                 <!-- 2. Delivery Info & Status (Updated UI) -->
                 <div class="grid grid-cols-2 gap-3 mb-4">
@@ -415,8 +418,8 @@
                     {#each orderItems as item, i}
                         {@const prodStock = products.find(p => p.id === item.productId)?.currentStock || 0}
                         {@const isMissing = item.quantity > prodStock}
-                        <div
-                            class="p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50 transition-colors"
+                        <button
+                            class="w-full text-left p-4 border-b border-slate-50 flex justify-between items-center active:bg-slate-50 transition-colors"
                             on:click={() => openEditItem(i)}
                         >
                             <div class="flex items-center gap-3">
@@ -441,7 +444,7 @@
                                     <div class="text-[9px] text-orange-500 font-bold bg-orange-50 px-1 rounded">CUSTOM</div>
                                 {/if}
                             </div>
-                        </div>
+                        </button>
                     {/each}
 
                     {#if orderItems.length === 0}
