@@ -123,6 +123,7 @@ export interface FinanceLedger {
     amount: number;
     description: string;
     relatedDocId?: string;
+    supplierName?: string;
     recordedBy: string;
     status?: 'active' | 'canceled';
 }
