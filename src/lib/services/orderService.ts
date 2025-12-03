@@ -37,13 +37,14 @@ export const orderService = {
         products: MasterProduct[],
         shippingFee: number = 0,
         shippingAddress: string = '',
-        shippingPhone: string = ''
+        shippingPhone: string = '',
+        options?: { forceCode?: string; forceId?: string; forceCreatedAt?: Date }
     ) {
         if (!customer) throw new Error('Vui lòng chọn khách hàng.');
         const validItems = items.filter(i => i.productId && i.quantity > 0);
         if (validItems.length === 0) throw new Error('Phiếu bán hàng trống.');
 
-        const code = await generateNextCode('sales_orders', 'DH');
+        const code = options?.forceCode || await generateNextCode('sales_orders', 'DH');
 
         // Calculate totals
         // NOTE: SalesOrderItem now has costPrice (COGS)
@@ -68,13 +69,16 @@ export const orderService = {
 
             // 2. WRITE PHASE
             // Create Sales Order
-            const orderRef = doc(collection(db, 'sales_orders'));
+            const orderRef = options?.forceId
+                ? doc(db, 'sales_orders', options.forceId)
+                : doc(collection(db, 'sales_orders'));
             const deliveryTimestamp = deliveryDateInput ? Timestamp.fromDate(new Date(deliveryDateInput)) : serverTimestamp();
+            const createdTimestamp = options?.forceCreatedAt ? Timestamp.fromDate(options.forceCreatedAt) : Timestamp.now();
 
             const newOrder: SalesOrder = {
                 id: orderRef.id,
                 code: code,
-                createdAt: Timestamp.now(), // Will be overwritten by serverTimestamp() effectively
+                createdAt: createdTimestamp, // Will be overwritten by serverTimestamp() effectively if not forced? No, see below
                 deliveryDate: deliveryTimestamp,
                 customerId: customer.id,
                 customerName: customer.name,
@@ -117,7 +121,7 @@ export const orderService = {
             // Firestore needs plain objects, ensure no undefined
             transaction.set(orderRef, {
                 ...newOrder,
-                createdAt: serverTimestamp()
+                createdAt: options?.forceCreatedAt ? Timestamp.fromDate(options.forceCreatedAt) : serverTimestamp()
             });
 
             // Inventory Transaction (OUT - Allocation)
