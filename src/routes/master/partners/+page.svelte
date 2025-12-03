@@ -15,6 +15,7 @@
     import SkeletonCard from '$lib/components/ui/SkeletonCard.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
     // State
     let partners: Partner[] = [];
@@ -92,7 +93,11 @@
 <div class="max-w-7xl mx-auto pb-20">
     <PageHeader>
         <div slot="title">Đối tác</div>
-        <!-- Actions moved to FAB -->
+        <div slot="actions">
+             {#if $permissionStore.userPermissions.has('manage_partners')}
+                 <SyncButton type="partners" label="Sync Đối Tác" />
+            {/if}
+        </div>
     </PageHeader>
 
     <div class="mb-4">
