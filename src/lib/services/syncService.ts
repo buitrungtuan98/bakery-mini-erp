@@ -1,10 +1,10 @@
-import { db } from '$lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 import { googleSheetService } from './googleSheetService';
 import { catalogService } from './catalogService';
 import { orderService } from './orderService';
-import { auth } from '$lib/firebase';
-import type { MasterPartner, MasterProduct, MasterIngredient, SalesOrder, SalesOrderItem } from '$lib/types/erp';
+import { expenseService } from './expenseService';
+import { auth, db } from '$lib/firebase';
+import { collection, doc, setDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import type { MasterPartner, MasterProduct, MasterIngredient, SalesOrder, SalesOrderItem, FinanceLedger } from '$lib/types/erp';
 
 interface SyncLog {
     timestamp: Date;
@@ -47,9 +47,9 @@ class SyncService {
     }
 
     /**
-     * SYNC MASTER DATA (Products, Ingredients, Partners)
+     * SYNC MASTER DATA (Products, Ingredients, Partners, Categories, Assets)
      */
-    async syncMasterData(type: 'products' | 'ingredients' | 'partners') {
+    async syncMasterData(type: 'products' | 'ingredients' | 'partners' | 'categories' | 'assets') {
         if (!this.spreadsheetId) {
              this.log(type, 'No Spreadsheet ID provided', 'error');
              return;
@@ -74,6 +74,14 @@ class SyncService {
                 collectionName = 'master_partners';
                 sheetName = 'Partners';
                 headers = ['ID', 'Code', 'Name', 'Type', 'Phone', 'Address', 'Email', 'CustomerType'];
+            } else if (type === 'categories') {
+                collectionName = 'master_expense_categories';
+                sheetName = 'ExpenseCategories';
+                headers = ['ID', 'Name'];
+            } else if (type === 'assets') {
+                collectionName = 'master_assets';
+                sheetName = 'Assets';
+                headers = ['ID', 'Code', 'Name', 'Category', 'Status', 'OriginalPrice', 'PurchaseDate'];
             }
 
             // 1. Ensure Sheet Exists
@@ -121,6 +129,18 @@ class SyncService {
                             item.address || '',
                             item.email || '',
                             item.customerType || ''
+                        ];
+                    } else if (type === 'categories') {
+                        row = [item.id, item.name];
+                    } else if (type === 'assets') {
+                        row = [
+                            item.id,
+                            item.code,
+                            item.name,
+                            item.category,
+                            item.status,
+                            item.originalPrice || 0,
+                            item.purchaseDate?.toDate ? item.purchaseDate.toDate().toISOString() : (item.purchaseDate || '')
                         ];
                     }
                     rowsToAdd.push(row);
@@ -173,6 +193,24 @@ class SyncService {
                                 customerType: row[7]
                             };
                             await catalogService.createPartner(user, data, { forceId: id, forceCode: code });
+                        } else if (type === 'categories') {
+                            // code is name effectively for categories in some systems, but here id is key.
+                            // Name is row[1]. Code (row[1] in loop) is Name actually for this type?
+                            // Wait, headers are ID, Name. So code variable (row[1]) is Name.
+                            await expenseService.addCategory(user, row[1], { forceId: id });
+                        } else if (type === 'assets') {
+                            // Manual asset creation via setDoc since no dedicated service method for "createAsset" with overrides easily accessible yet
+                            // Or adapt logic.
+                             await setDoc(doc(db, 'master_assets', id), {
+                                code: code, // row[1]
+                                name: row[2],
+                                category: row[3],
+                                status: row[4],
+                                originalPrice: Number(row[5]),
+                                purchaseDate: row[6] ? new Date(row[6]) : new Date(),
+                                createdAt: serverTimestamp(),
+                                createdBy: user.email
+                            });
                         }
                         addedToFirestore++;
                     } catch (e: any) {
@@ -190,6 +228,116 @@ class SyncService {
 
         } catch (error: any) {
             this.log(type, `Fatal Error: ${error.message}`, 'error');
+        }
+    }
+
+    /**
+     * SYNC FINANCE (Expenses)
+     */
+    async syncFinance() {
+         if (!this.spreadsheetId) {
+             this.log('finance', 'No Spreadsheet ID provided', 'error');
+             return;
+        }
+
+        try {
+            this.log('finance', 'Starting Finance Sync...');
+            const user = this.getCurrentUser();
+
+            // 1. Prepare
+            const categories = await this.fetchFirestoreData<{id: string, name: string}>('master_expense_categories');
+            const suppliers = await this.fetchFirestoreData<MasterPartner>('master_partners');
+            const catMap = new Map(categories.map(c => [c.id, c]));
+            const supMap = new Map(suppliers.map(s => [s.id, s]));
+
+            await googleSheetService.ensureSheet(this.spreadsheetId, 'Finance', ['ID', 'Code', 'Date', 'Type', 'Amount', 'Category', 'Description', 'SupplierID']);
+
+            const sheetRows = await googleSheetService.readSheet(this.spreadsheetId, 'Finance!A2:H');
+            const firestoreLogs = await this.fetchFirestoreData<FinanceLedger>('finance_ledger');
+
+            const firestoreMap = new Map(firestoreLogs.map(l => [l.id, l]));
+            const sheetMap = new Map(sheetRows.map(r => [r[0], r]));
+
+            // 2. FILL GAP: Firestore -> Sheet
+            const rowsToAdd: any[][] = [];
+            for (const log of firestoreLogs) {
+                if (!sheetMap.has(log.id) && log.type === 'expense') {
+                     rowsToAdd.push([
+                        log.id,
+                        (log as any).code || '',
+                        (log.date as any).toDate ? (log.date as any).toDate().toISOString() : new Date(log.date as any).toISOString(),
+                        log.type,
+                        log.amount,
+                        log.category,
+                        log.description,
+                        log.supplierId || ''
+                    ]);
+                }
+            }
+             if (rowsToAdd.length > 0) {
+                await googleSheetService.appendData(this.spreadsheetId, 'Finance', rowsToAdd);
+                this.log('finance', `Exported ${rowsToAdd.length} expenses to Sheet`, 'success');
+            } else {
+                 this.log('finance', `No missing expenses in Sheet`);
+            }
+
+            // 3. FILL GAP: Sheet -> Firestore
+            let importedCount = 0;
+            for (const row of sheetRows) {
+                const id = row[0];
+                if (!id) continue;
+                if (!firestoreMap.has(id)) {
+                    // Import
+                    const code = row[1];
+                    const dateStr = row[2];
+                    const amount = Number(row[4]);
+                    const catName = row[5];
+                    const desc = row[6];
+                    const supId = row[7];
+
+                    // Find Category ID by Name (approx match) or just use name
+                    // Service requires ID.
+                    const cat = categories.find(c => c.name === catName);
+                    if (!cat) {
+                         this.log('finance', `Skipping ${code}: Category ${catName} not found`, 'error');
+                         continue;
+                    }
+
+                    try {
+                        await expenseService.createExpense(
+                            user,
+                            {
+                                date: dateStr,
+                                categoryId: cat.id,
+                                amount,
+                                description: desc,
+                                selectedSupplierId: supId
+                            },
+                            categories,
+                            suppliers,
+                            false,
+                            {
+                                forceId: id,
+                                forceCode: code,
+                                forceCreatedAt: new Date(dateStr)
+                            }
+                        );
+                        importedCount++;
+                    } catch (e: any) {
+                         this.log('finance', `Failed to import ${code}: ${e.message}`, 'error');
+                    }
+                }
+            }
+
+            if (importedCount > 0) {
+                this.log('finance', `Imported ${importedCount} expenses to Firestore`, 'success');
+            } else {
+                this.log('finance', `No missing expenses in Firestore`);
+            }
+            this.log('finance', 'Finance Sync Complete', 'success');
+
+        } catch (error: any) {
+             this.log('finance', `Fatal Error: ${error.message}`, 'error');
         }
     }
 

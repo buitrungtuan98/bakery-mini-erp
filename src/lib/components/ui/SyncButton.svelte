@@ -5,7 +5,7 @@
     import { toast } from 'svelte-sonner';
     import { onMount } from 'svelte';
 
-    export let type: 'products' | 'ingredients' | 'partners' | 'sales';
+    export let type: 'products' | 'ingredients' | 'partners' | 'sales' | 'categories' | 'assets' | 'finance';
     export let label: string = 'Sync';
 
     let isSyncing = false;
@@ -44,8 +44,10 @@
         try {
             if (type === 'sales') {
                 await syncService.syncSales();
+            } else if (type === 'finance') {
+                await syncService.syncFinance();
             } else {
-                await syncService.syncMasterData(type);
+                await syncService.syncMasterData(type as any);
             }
             toast.success(`Đồng bộ ${label} hoàn tất`);
         } catch (e: any) {

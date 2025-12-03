@@ -40,7 +40,7 @@
         }
     }
 
-    async function handleSync(type: 'products' | 'ingredients' | 'partners' | 'sales') {
+    async function handleSync(type: 'products' | 'ingredients' | 'partners' | 'sales' | 'categories' | 'assets' | 'finance') {
         if (!isConnected) {
             toast.error('Vui lòng kết nối Google Sheets trước');
             return;
@@ -57,8 +57,10 @@
         try {
             if (type === 'sales') {
                 await syncService.syncSales();
+            } else if (type === 'finance') {
+                await syncService.syncFinance();
             } else {
-                await syncService.syncMasterData(type);
+                await syncService.syncMasterData(type as any);
             }
             toast.success('Đồng bộ hoàn tất');
         } catch (e: any) {
@@ -147,8 +149,17 @@
                 <button class="btn btn-neutral" disabled={isSyncing || !isConnected} on:click={() => handleSync('partners')}>
                     Sync Đối Tác
                 </button>
+                <button class="btn btn-neutral" disabled={isSyncing || !isConnected} on:click={() => handleSync('categories')}>
+                    Sync Danh mục CP
+                </button>
+                <button class="btn btn-neutral" disabled={isSyncing || !isConnected} on:click={() => handleSync('assets')}>
+                    Sync Tài sản
+                </button>
                 <button class="btn btn-error text-white" disabled={isSyncing || !isConnected} on:click={() => handleSync('sales')}>
                     Sync Đơn Hàng
+                </button>
+                <button class="btn btn-error text-white" disabled={isSyncing || !isConnected} on:click={() => handleSync('finance')}>
+                    Sync Chi Phí
                 </button>
             </div>
         </div>
