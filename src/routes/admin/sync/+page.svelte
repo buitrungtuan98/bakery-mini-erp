@@ -40,7 +40,7 @@
         }
     }
 
-    async function handleSync(type: 'products' | 'ingredients' | 'partners' | 'sales' | 'categories' | 'assets' | 'finance' | 'imports' | 'production') {
+    async function handleSync(type: 'products' | 'ingredients' | 'partners' | 'sales' | 'categories' | 'assets' | 'finance' | 'imports' | 'production', keepLogs = false) {
         if (!isConnected) {
             toast.error('Vui lòng kết nối Google Sheets trước');
             return;
@@ -51,8 +51,10 @@
         }
 
         isSyncing = true;
-        syncService.clearLogs();
-        logs = [];
+        if (!keepLogs) {
+            syncService.clearLogs();
+            logs = [];
+        }
 
         try {
             if (type === 'sales') {
@@ -66,11 +68,34 @@
             } else {
                 await syncService.syncMasterData(type as any);
             }
-            toast.success('Đồng bộ hoàn tất');
+            if (!keepLogs) toast.success('Đồng bộ hoàn tất');
         } catch (e: any) {
             toast.error('Lỗi: ' + e.message);
         } finally {
             logs = syncService.getLogs();
+            if (!keepLogs) isSyncing = false;
+        }
+    }
+
+    async function handleSyncAll() {
+        if (!isConnected || !spreadsheetId) {
+             return handleSync('products'); // Let validation run
+        }
+
+        isSyncing = true;
+        syncService.clearLogs();
+        logs = [];
+
+        try {
+            const types = ['products', 'ingredients', 'partners', 'categories', 'assets', 'imports', 'production', 'sales', 'finance'] as const;
+
+            for (const type of types) {
+                await handleSync(type, true);
+            }
+            toast.success('Đồng bộ TẤT CẢ hoàn tất!');
+        } catch(e: any) {
+            toast.error('Lỗi Sync All: ' + e.message);
+        } finally {
             isSyncing = false;
         }
     }
@@ -144,6 +169,10 @@
             </p>
 
             <div class="grid grid-cols-2 gap-4">
+                <button class="btn btn-primary col-span-2 shadow-lg font-bold" disabled={isSyncing || !isConnected} on:click={handleSyncAll}>
+                    SYNC ALL (TẤT CẢ)
+                </button>
+
                 <button class="btn btn-neutral" disabled={isSyncing || !isConnected} on:click={() => handleSync('products')}>
                     Sync Sản Phẩm
                 </button>
