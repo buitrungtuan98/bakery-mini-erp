@@ -10,6 +10,7 @@
     import Loading from '$lib/components/ui/Loading.svelte';
     import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
     let categories: Category[] = [];
     let loading = true;
@@ -55,7 +56,11 @@
 <div class="max-w-7xl mx-auto pb-20">
     <PageHeader>
         <div slot="title">Danh mục Chi phí</div>
-        <!-- FAB used instead -->
+        <div slot="actions">
+            {#if checkPermission('manage_expenses')}
+                 <SyncButton type="categories" label="Sync Danh Mục" />
+            {/if}
+        </div>
     </PageHeader>
 
     {#if loading}
