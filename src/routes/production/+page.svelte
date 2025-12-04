@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/authStore';
-    import { checkPermission } from '$lib/stores/permissionStore';
+    import { checkPermission, permissionStore } from '$lib/stores/permissionStore';
     import { productStore, ingredientStore, type Product, type Ingredient } from '$lib/stores/masterDataStore';
 	import { onMount, onDestroy } from 'svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
