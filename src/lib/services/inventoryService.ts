@@ -173,7 +173,8 @@ export const inventoryService = {
         importDateStr: string,
         items: ImportItem[],
         suppliers: MasterPartner[],
-        ingredients: MasterIngredient[]
+        ingredients: MasterIngredient[],
+        options?: { forceId?: string; forceCode?: string; forceCreatedAt?: Date }
     ) {
         if (!supplierId) throw new Error('Chưa chọn Nhà cung cấp');
         const validItems = items.filter(i => i.ingredientId && i.quantity > 0);
@@ -183,7 +184,7 @@ export const inventoryService = {
         if (isNaN(selectedDate.getTime())) throw new Error('Ngày nhập không hợp lệ!');
 
         const totalAmount = validItems.reduce((sum, item) => sum + (item.price || 0), 0);
-        const code = await generateNextCode('imports', 'NK');
+        const code = options?.forceCode || await generateNextCode('imports', 'NK');
 
         await runTransaction(db, async (transaction) => {
             const supplierSnapshot = suppliers.find(s => s.id === supplierId);
@@ -200,7 +201,10 @@ export const inventoryService = {
 
             // 2. WRITE PHASE
             // Create Import Record
-            const importRef = doc(collection(db, 'imports'));
+            const importRef = options?.forceId
+                ? doc(db, 'imports', options.forceId)
+                : doc(collection(db, 'imports'));
+
             transaction.set(importRef, {
                 code: code,
                 supplierId: supplierId,
@@ -215,7 +219,7 @@ export const inventoryService = {
                 })),
                 totalAmount: totalAmount,
                 createdBy: user.email,
-                createdAt: serverTimestamp()
+                createdAt: options?.forceCreatedAt ? Timestamp.fromDate(options.forceCreatedAt) : serverTimestamp()
             });
 
             // Update Stock for each item using pre-fetched state

@@ -40,7 +40,7 @@
         }
     }
 
-    async function handleSync(type: 'products' | 'ingredients' | 'partners' | 'sales' | 'categories' | 'assets' | 'finance') {
+    async function handleSync(type: 'products' | 'ingredients' | 'partners' | 'sales' | 'categories' | 'assets' | 'finance' | 'imports' | 'production') {
         if (!isConnected) {
             toast.error('Vui lòng kết nối Google Sheets trước');
             return;
@@ -59,6 +59,10 @@
                 await syncService.syncSales();
             } else if (type === 'finance') {
                 await syncService.syncFinance();
+            } else if (type === 'imports') {
+                await syncService.syncImports();
+            } else if (type === 'production') {
+                await syncService.syncProduction();
             } else {
                 await syncService.syncMasterData(type as any);
             }
@@ -160,6 +164,12 @@
                 </button>
                 <button class="btn btn-error text-white" disabled={isSyncing || !isConnected} on:click={() => handleSync('finance')}>
                     Sync Chi Phí
+                </button>
+                <button class="btn btn-warning text-white" disabled={isSyncing || !isConnected} on:click={() => handleSync('imports')}>
+                    Sync Nhập Kho
+                </button>
+                <button class="btn btn-warning text-white" disabled={isSyncing || !isConnected} on:click={() => handleSync('production')}>
+                    Sync Sản Xuất
                 </button>
             </div>
         </div>

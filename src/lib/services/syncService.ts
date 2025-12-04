@@ -2,9 +2,12 @@ import { googleSheetService } from './googleSheetService';
 import { catalogService } from './catalogService';
 import { orderService } from './orderService';
 import { expenseService } from './expenseService';
+import { inventoryService } from './inventoryService';
+import { productionService } from './productionService';
 import { auth, db } from '$lib/firebase';
 import { collection, doc, setDoc, serverTimestamp, getDocs } from 'firebase/firestore';
-import type { MasterPartner, MasterProduct, MasterIngredient, SalesOrder, SalesOrderItem, FinanceLedger } from '$lib/types/erp';
+import type { MasterPartner, MasterProduct, MasterIngredient, SalesOrder, SalesOrderItem, FinanceLedger, ImportReceipt, ImportItem } from '$lib/types/erp';
+import type { ProductionRun, ProductionInput } from '$lib/services/productionService'; // Explicit type import
 
 interface SyncLog {
     timestamp: Date;
@@ -338,6 +341,264 @@ class SyncService {
 
         } catch (error: any) {
              this.log('finance', `Fatal Error: ${error.message}`, 'error');
+        }
+    }
+
+    /**
+     * SYNC IMPORTS (Inventory In)
+     */
+    async syncImports() {
+        if (!this.spreadsheetId) {
+             this.log('imports', 'No Spreadsheet ID provided', 'error');
+             return;
+        }
+
+        try {
+            this.log('imports', 'Starting Import Sync...');
+            const user = this.getCurrentUser();
+
+            // 1. Prepare
+            const ingredients = await this.fetchFirestoreData<MasterIngredient>('master_ingredients');
+            const suppliers = await this.fetchFirestoreData<MasterPartner>('master_partners');
+            const ingMap = new Map(ingredients.map(i => [i.id, i]));
+            const supMap = new Map(suppliers.map(s => [s.id, s]));
+
+            await googleSheetService.ensureSheet(this.spreadsheetId, 'Imports', ['ID', 'Code', 'Date', 'SupplierID', 'TotalAmount']);
+            await googleSheetService.ensureSheet(this.spreadsheetId, 'ImportItems', ['ImportID', 'IngredientID', 'Quantity', 'Price']);
+
+            const sheetImports = await googleSheetService.readSheet(this.spreadsheetId, 'Imports!A2:E');
+            const sheetItems = await googleSheetService.readSheet(this.spreadsheetId, 'ImportItems!A2:D');
+            const firestoreImports = await this.fetchFirestoreData<ImportReceipt>('imports');
+
+            const firestoreMap = new Map(firestoreImports.map(i => [i.id, i]));
+            const sheetMap = new Map(sheetImports.map(r => [r[0], r]));
+
+            const sheetItemsMap = new Map<string, any[]>();
+            for (const row of sheetItems) {
+                const id = row[0];
+                if (!sheetItemsMap.has(id)) sheetItemsMap.set(id, []);
+                sheetItemsMap.get(id)?.push(row);
+            }
+
+            // 2. FILL GAP: Firestore -> Sheet
+            const importsToAdd: any[][] = [];
+            const itemsToAdd: any[][] = [];
+
+            for (const doc of firestoreImports) {
+                if (!sheetMap.has(doc.id)) {
+                    importsToAdd.push([
+                        doc.id,
+                        (doc as any).code || '',
+                        (doc.importDate as any).toDate ? (doc.importDate as any).toDate().toISOString() : new Date(doc.importDate as any).toISOString(),
+                        (doc as any).supplierId || '',
+                        doc.totalAmount
+                    ]);
+                    for (const item of doc.items) {
+                        itemsToAdd.push([
+                            doc.id,
+                            item.ingredientId,
+                            item.quantity,
+                            item.totalPrice // Note: Field in DB is totalPrice for imports? Check inventoryService.
+                            // inventoryService: totalPrice: i.price (which is total value of line? No, createImportReceipt: price is total amount)
+                            // Wait, ImportItem interface has price. createImportReceipt sums price. So item.price IS Line Total.
+                        ]);
+                    }
+                }
+            }
+
+            if (importsToAdd.length > 0) {
+                await googleSheetService.appendData(this.spreadsheetId, 'Imports', importsToAdd);
+                await googleSheetService.appendData(this.spreadsheetId, 'ImportItems', itemsToAdd);
+                this.log('imports', `Exported ${importsToAdd.length} imports to Sheet`, 'success');
+            } else {
+                 this.log('imports', `No missing imports in Sheet`);
+            }
+
+            // 3. FILL GAP: Sheet -> Firestore
+            let importedCount = 0;
+            for (const row of sheetImports) {
+                const id = row[0];
+                if (!id) continue;
+                if (!firestoreMap.has(id)) {
+                    const code = row[1];
+                    const dateStr = row[2];
+                    const supplierId = row[3];
+                    // const total = row[4];
+
+                    const rawItems = sheetItemsMap.get(id) || [];
+                    if (rawItems.length === 0) continue;
+
+                    const importItems: ImportItem[] = [];
+                    for (const iRow of rawItems) {
+                        const ingId = iRow[1];
+                        const qty = Number(iRow[2]);
+                        const price = Number(iRow[3]); // Line total
+
+                        importItems.push({
+                            ingredientId: ingId,
+                            quantity: qty,
+                            price: price
+                        });
+                    }
+
+                    try {
+                        await inventoryService.createImportReceipt(
+                            user,
+                            supplierId,
+                            dateStr,
+                            importItems,
+                            suppliers,
+                            ingredients,
+                            {
+                                forceId: id,
+                                forceCode: code,
+                                forceCreatedAt: new Date(dateStr)
+                            }
+                        );
+                        importedCount++;
+                    } catch (e: any) {
+                         this.log('imports', `Failed to import ${code}: ${e.message}`, 'error');
+                    }
+                }
+            }
+            if (importedCount > 0) {
+                this.log('imports', `Imported ${importedCount} imports to Firestore`, 'success');
+            } else {
+                this.log('imports', `No missing imports in Firestore`);
+            }
+            this.log('imports', 'Import Sync Complete', 'success');
+
+        } catch (e: any) {
+            this.log('imports', `Error: ${e.message}`, 'error');
+        }
+    }
+
+    /**
+     * SYNC PRODUCTION (Inventory Conversion)
+     */
+    async syncProduction() {
+        if (!this.spreadsheetId) {
+             this.log('production', 'No Spreadsheet ID provided', 'error');
+             return;
+        }
+
+        try {
+            this.log('production', 'Starting Production Sync...');
+            const user = this.getCurrentUser();
+
+            // 1. Prepare
+            const products = await this.fetchFirestoreData<MasterProduct>('master_products');
+            const ingredients = await this.fetchFirestoreData<MasterIngredient>('master_ingredients');
+            // const prodMap = new Map(products.map(p => [p.id, p]));
+            // const ingMap = new Map(ingredients.map(i => [i.id, i]));
+
+            await googleSheetService.ensureSheet(this.spreadsheetId, 'Production', ['ID', 'Code', 'Date', 'ProductID', 'Yield']);
+            await googleSheetService.ensureSheet(this.spreadsheetId, 'ProductionInputs', ['ProductionID', 'IngredientID', 'Quantity', 'Cost']);
+
+            const sheetRuns = await googleSheetService.readSheet(this.spreadsheetId, 'Production!A2:E');
+            const sheetInputs = await googleSheetService.readSheet(this.spreadsheetId, 'ProductionInputs!A2:D');
+            const firestoreRuns = await this.fetchFirestoreData<ProductionRun>('production_runs');
+
+            const firestoreMap = new Map(firestoreRuns.map(r => [r.id, r]));
+            const sheetMap = new Map(sheetRuns.map(r => [r[0], r]));
+            const sheetInputMap = new Map<string, any[]>();
+            for (const row of sheetInputs) {
+                const id = row[0];
+                if (!sheetInputMap.has(id)) sheetInputMap.set(id, []);
+                sheetInputMap.get(id)?.push(row);
+            }
+
+            // 2. FILL GAP: Firestore -> Sheet
+            const runsToAdd: any[][] = [];
+            const inputsToAdd: any[][] = [];
+
+            for (const run of firestoreRuns) {
+                if (!sheetMap.has(run.id)) {
+                    runsToAdd.push([
+                        run.id,
+                        run.code || '',
+                        (run.productionDate as any).toDate ? (run.productionDate as any).toDate().toISOString() : new Date(run.productionDate as any).toISOString(),
+                        run.productId,
+                        run.actualYield
+                    ]);
+                    for (const input of run.consumedInputs) {
+                        inputsToAdd.push([
+                            run.id,
+                            input.ingredientId,
+                            input.actualQuantityUsed,
+                            input.snapshotCost
+                        ]);
+                    }
+                }
+            }
+
+            if (runsToAdd.length > 0) {
+                await googleSheetService.appendData(this.spreadsheetId, 'Production', runsToAdd);
+                await googleSheetService.appendData(this.spreadsheetId, 'ProductionInputs', inputsToAdd);
+                this.log('production', `Exported ${runsToAdd.length} runs to Sheet`, 'success');
+            } else {
+                 this.log('production', `No missing runs in Sheet`);
+            }
+
+            // 3. FILL GAP: Sheet -> Firestore
+            let importedCount = 0;
+            for (const row of sheetRuns) {
+                const id = row[0];
+                if (!id) continue;
+                if (!firestoreMap.has(id)) {
+                    const code = row[1];
+                    const dateStr = row[2];
+                    const productId = row[3];
+                    const yieldQty = Number(row[4]);
+
+                    const rawInputs = sheetInputMap.get(id) || [];
+                    if (rawInputs.length === 0) continue;
+
+                    const inputs: ProductionInput[] = [];
+                    for (const iRow of rawInputs) {
+                        inputs.push({
+                            ingredientId: iRow[1],
+                            actualQuantityUsed: Number(iRow[2]),
+                            snapshotCost: Number(iRow[3]),
+                            theoreticalQuantity: 0 // Not synced, recalc? or ignore. Service uses snapshotCost.
+                        });
+                    }
+
+                    const product = products.find(p => p.id === productId);
+                    if (!product) {
+                        this.log('production', `Skipping ${code}: Product ${productId} not found`, 'error');
+                        continue;
+                    }
+
+                    try {
+                        await productionService.createProductionRun(
+                            user,
+                            product,
+                            dateStr,
+                            yieldQty,
+                            inputs,
+                            ingredients,
+                            {
+                                forceId: id,
+                                forceCode: code,
+                                forceCreatedAt: new Date(dateStr)
+                            }
+                        );
+                        importedCount++;
+                    } catch (e: any) {
+                         this.log('production', `Failed to import ${code}: ${e.message}`, 'error');
+                    }
+                }
+            }
+            if (importedCount > 0) {
+                this.log('production', `Imported ${importedCount} runs to Firestore`, 'success');
+            } else {
+                this.log('production', `No missing runs in Firestore`);
+            }
+            this.log('production', 'Production Sync Complete', 'success');
+
+        } catch (e: any) {
+            this.log('production', `Error: ${e.message}`, 'error');
         }
     }
 
