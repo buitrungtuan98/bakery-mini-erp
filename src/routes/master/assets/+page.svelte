@@ -14,6 +14,7 @@
     import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
     import Modal from '$lib/components/ui/Modal.svelte';
     import PageHeader from '$lib/components/ui/PageHeader.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
 	interface Asset {
 		id: string;
@@ -109,7 +110,11 @@
 <div class="max-w-7xl mx-auto pb-20">
 	<PageHeader>
         <div slot="title">Kho Công cụ & Tài sản</div>
-        <!-- Actions moved to FAB -->
+        <div slot="actions">
+            {#if checkPermission('manage_assets')}
+                 <SyncButton type="assets" label="Sync Tài Sản" />
+            {/if}
+        </div>
     </PageHeader>
 
 	{#if loading}

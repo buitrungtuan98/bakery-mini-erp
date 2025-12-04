@@ -16,6 +16,7 @@
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
     import SearchableSelect from '$lib/components/ui/SearchableSelect.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
     // State
     let products: Product[] = [];
@@ -141,7 +142,11 @@
 <div class="max-w-7xl mx-auto pb-20">
     <PageHeader>
         <div slot="title">Sản phẩm & Công thức</div>
-        <!-- Actions moved to FAB -->
+        <div slot="actions">
+            {#if $permissionStore.userPermissions.has('edit_inventory')}
+                 <SyncButton type="products" label="Sync SP" />
+            {/if}
+        </div>
     </PageHeader>
 
     {#if $productLoading}
