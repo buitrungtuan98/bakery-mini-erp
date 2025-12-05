@@ -16,6 +16,7 @@
     import SkeletonCard from '$lib/components/ui/SkeletonCard.svelte';
     import EmptyState from '$lib/components/ui/EmptyState.svelte';
     import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
     // --- State ---
     let ingredients: Ingredient[] = [];
@@ -133,7 +134,11 @@
 <div class="max-w-7xl mx-auto pb-20">
     <PageHeader>
         <div slot="title">Nguyên liệu</div>
-        <!-- Actions moved to FAB -->
+        <div slot="actions">
+             {#if $permissionStore.userPermissions.has('edit_inventory')}
+                 <SyncButton type="ingredients" label="Sync NVL" />
+            {/if}
+        </div>
     </PageHeader>
     
     <!-- Filter Bar: Updated to be cleaner -->

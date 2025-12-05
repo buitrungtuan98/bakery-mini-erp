@@ -52,7 +52,8 @@ export const productionService = {
         productionDateStr: string,
         actualYield: number,
         inputs: ProductionInput[],
-        ingredients: MasterIngredient[]
+        ingredients: MasterIngredient[],
+        options?: { forceId?: string; forceCode?: string; forceCreatedAt?: Date }
     ) {
         if (!product) throw new Error("Sản phẩm không hợp lệ.");
         if (actualYield <= 0) throw new Error("Sản lượng phải lớn hơn 0.");
@@ -75,7 +76,7 @@ export const productionService = {
 
         const totalActualCost = inputs.reduce((sum, input) => sum + (input.actualQuantityUsed * input.snapshotCost), 0);
         const actualCostPerUnit = (actualYield > 0 && totalActualCost > 0) ? totalActualCost / actualYield : 0;
-        const code = await generateNextCode('production_runs', 'SX');
+        const code = options?.forceCode || await generateNextCode('production_runs', 'SX');
 
         await runTransaction(db, async (transaction) => {
 
@@ -92,7 +93,10 @@ export const productionService = {
 
             // 2. WRITE PHASE
             // Create Production Log
-            const productionLogRef = doc(collection(db, 'production_runs'));
+            const productionLogRef = options?.forceId
+                ? doc(db, 'production_runs', options.forceId)
+                : doc(collection(db, 'production_runs'));
+
             transaction.set(productionLogRef, {
                 code: code,
                 productId: product.id,
@@ -109,7 +113,7 @@ export const productionService = {
                     snapshotCost: input.snapshotCost
                 })),
                 createdBy: user.email,
-                createdAt: serverTimestamp()
+                createdAt: options?.forceCreatedAt ? Timestamp.fromDate(options.forceCreatedAt) : serverTimestamp()
             });
 
             // OUT Transactions for Ingredients

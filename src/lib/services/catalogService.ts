@@ -15,16 +15,18 @@ import type { MasterPartner, MasterIngredient, MasterProduct } from '$lib/types/
 
 export const catalogService = {
     // --- PARTNERS (master_partners) ---
-    async createPartner(user: User, data: any) {
+    async createPartner(user: User, data: any, options?: { forceId?: string; forceCode?: string }) {
         let prefix = 'KH';
         if (data.type === 'supplier') prefix = 'NCC';
         if (data.type === 'manufacturer') prefix = 'NSX';
 
-        const code = await generateNextCode('master_partners', prefix); // Use new collection for Code Gen
+        const code = options?.forceCode || await generateNextCode('master_partners', prefix);
 
-        // Use setDoc with a custom ID if we wanted, but addDoc is fine for generic IDs.
-        // Standardizing on addDoc for now as per original code pattern.
-        const ref = await addDoc(collection(db, 'master_partners'), {
+        const docRef = options?.forceId
+            ? doc(db, 'master_partners', options.forceId)
+            : doc(collection(db, 'master_partners'));
+
+        await setDoc(docRef, {
             ...data,
             code,
             createdAt: serverTimestamp(),
@@ -47,8 +49,8 @@ export const catalogService = {
     },
 
     // --- INGREDIENTS (master_ingredients) ---
-    async createIngredient(user: User, data: any) {
-        let code = data.code;
+    async createIngredient(user: User, data: any, options?: { forceId?: string; forceCode?: string }) {
+        let code = options?.forceCode || data.code;
         if (!code) {
              code = await generateNextCode('master_ingredients', 'NVL');
         }
@@ -62,7 +64,11 @@ export const catalogService = {
             updatedAt: serverTimestamp()
         };
 
-        await addDoc(collection(db, 'master_ingredients'), dataToSave);
+        const docRef = options?.forceId
+            ? doc(db, 'master_ingredients', options.forceId)
+            : doc(collection(db, 'master_ingredients'));
+
+        await setDoc(docRef, dataToSave);
         await logAction(user, 'CREATE', 'master_ingredients', `Thêm mới NVL: ${data.name} (${code})`);
         return code;
     },
@@ -79,8 +85,8 @@ export const catalogService = {
     },
 
     // --- PRODUCTS (master_products) ---
-    async createProduct(user: User, data: any) {
-        const code = await generateNextCode('master_products', 'SP');
+    async createProduct(user: User, data: any, options?: { forceId?: string; forceCode?: string }) {
+        const code = options?.forceCode || await generateNextCode('master_products', 'SP');
         const dataToSave = {
             ...data,
             code,
@@ -89,7 +95,11 @@ export const catalogService = {
             updatedAt: serverTimestamp()
         };
 
-        await addDoc(collection(db, 'master_products'), dataToSave);
+        const docRef = options?.forceId
+            ? doc(db, 'master_products', options.forceId)
+            : doc(collection(db, 'master_products'));
+
+        await setDoc(docRef, dataToSave);
         await logAction(user, 'CREATE', 'master_products', `Thêm mới SP: ${data.name} (${code})`);
         return code;
     },

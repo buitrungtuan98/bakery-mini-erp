@@ -62,7 +62,16 @@
             {/if}
 
             {#if isAdmin}
-                 <li><a href="/admin/users" data-sveltekit-preload-data="hover" class="{activeRoute.startsWith('/admin/users') ? 'bg-red-50 text-red-600' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2 font-semibold">Admin</a></li>
+                 <li>
+                    <details>
+                        <summary class="{activeRoute.startsWith('/admin') ? 'bg-red-50 text-red-600' : 'text-slate-600 hover:bg-slate-50'} rounded-lg py-2 font-semibold">Admin</summary>
+                        <ul class="p-2 bg-white rounded-box w-52 shadow-xl border border-slate-100">
+                            <li><a href="/admin/users">Quản lý Users</a></li>
+                            <li><a href="/admin/roles">Phân quyền</a></li>
+                            <li><a href="/admin/sync">Đồng bộ Sheet</a></li>
+                        </ul>
+                    </details>
+                 </li>
             {/if}
 		</ul>
 	</div>
