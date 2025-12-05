@@ -50,9 +50,14 @@ class SyncService {
     }
 
     /**
-     * SYNC MASTER DATA (Products, Ingredients, Partners, Categories, Assets)
+     * SYNC MASTER DATA (Ingredients, Partners, Categories, Assets)
+     * Note: Products are handled by syncProducts()
      */
     async syncMasterData(type: 'products' | 'ingredients' | 'partners' | 'categories' | 'assets') {
+        if (type === 'products') {
+            return this.syncProducts();
+        }
+
         if (!this.spreadsheetId) {
              this.log(type, 'No Spreadsheet ID provided', 'error');
              return;
@@ -65,11 +70,7 @@ class SyncService {
             let sheetName = '';
             let headers: string[] = [];
 
-            if (type === 'products') {
-                collectionName = 'master_products';
-                sheetName = 'Products';
-                headers = ['ID', 'Code', 'Name', 'Unit', 'Price', 'CostPrice', 'AvgCost', 'ItemsJSON'];
-            } else if (type === 'ingredients') {
+            if (type === 'ingredients') {
                 collectionName = 'master_ingredients';
                 sheetName = 'Ingredients';
                 headers = ['ID', 'Code', 'Name', 'BaseUnit', 'SupplierID', 'AvgCost'];
@@ -102,18 +103,7 @@ class SyncService {
             for (const item of firestoreItems) {
                 if (!sheetMap.has(item.id)) {
                     let row: any[] = [];
-                    if (type === 'products') {
-                        row = [
-                            item.id,
-                            item.code,
-                            item.name,
-                            item.unit || '',
-                            item.sellingPrice || 0,
-                            item.costPrice || 0,
-                            item.avgCost || 0,
-                            JSON.stringify(item.items || [])
-                        ];
-                    } else if (type === 'ingredients') {
+                    if (type === 'ingredients') {
                          row = [
                             item.id,
                             item.code,
@@ -175,31 +165,7 @@ class SyncService {
                         let newId = id;
                         let newCode = code;
 
-                        if (type === 'products') {
-                            const data = {
-                                name: row[2],
-                                unit: row[3],
-                                sellingPrice: Number(row[4]) || 0,
-                                costPrice: Number(row[5]) || 0,
-                                items: row[7] ? JSON.parse(row[7]) : []
-                            };
-                            if (isNewRow) {
-                                newCode = await catalogService.createProduct(user, data);
-                                // We need to fetch the ID. createProduct returns Code.
-                                // CatalogService createProduct uses addDoc.
-                                // We need to refactor createProduct to return ID too or query it?
-                                // Actually, createProduct in catalogService returns CODE only.
-                                // Let's check catalogService.
-                                // Wait, to simplify write-back, I need the ID.
-                                // Quick fix: Query by Code to get ID? Or modify service?
-                                // Modify service is better but risky for regression.
-                                // Query by Code is safe.
-                                const q = await getDocs(query(collection(db, 'master_products'), where('code', '==', newCode)));
-                                if (!q.empty) newId = q.docs[0].id;
-                            } else {
-                                await catalogService.createProduct(user, data, { forceId: id, forceCode: code });
-                            }
-                        } else if (type === 'ingredients') {
+                        if (type === 'ingredients') {
                             const data = {
                                 name: row[2],
                                 baseUnit: row[3],
@@ -293,6 +259,162 @@ class SyncService {
 
         } catch (error: any) {
             this.log(type, `Fatal Error: ${error.message}`, 'error');
+        }
+    }
+
+    /**
+     * SYNC PRODUCTS (Nested with Ingredients)
+     */
+    async syncProducts() {
+        if (!this.spreadsheetId) {
+             this.log('products', 'No Spreadsheet ID provided', 'error');
+             return;
+        }
+
+        try {
+            this.log('products', 'Starting Product Sync...');
+            const user = this.getCurrentUser();
+
+            // 1. Prepare Data
+            const ingredients = await this.fetchFirestoreData<MasterIngredient>('master_ingredients');
+            const ingMap = new Map(ingredients.map(i => [i.id, i])); // ID -> Ing
+            const ingCodeMap = new Map(ingredients.map(i => [i.code, i])); // Code -> Ing
+
+            await googleSheetService.ensureSheet(this.spreadsheetId, 'Products', ['ID', 'Code', 'Name', 'Unit', 'Price', 'CostPrice', 'AvgCost']);
+            await googleSheetService.ensureSheet(this.spreadsheetId, 'ProductsIngredientItems', ['ProductID', 'IngredientID', 'Quantity', 'Unit', 'IngredientCode']);
+
+            const sheetProducts = await googleSheetService.readSheet(this.spreadsheetId, 'Products!A2:G');
+            const sheetItems = await googleSheetService.readSheet(this.spreadsheetId, 'ProductsIngredientItems!A2:E');
+
+            const firestoreProducts = await this.fetchFirestoreData<MasterProduct>('master_products');
+            const firestoreMap = new Map(firestoreProducts.map(p => [p.id, p]));
+            const sheetProductMap = new Map(sheetProducts.map(r => [r[0], r]));
+
+            const sheetItemsMap = new Map<string, any[]>();
+            for (const row of sheetItems) {
+                const pid = row[0];
+                if (!sheetItemsMap.has(pid)) sheetItemsMap.set(pid, []);
+                sheetItemsMap.get(pid)?.push(row);
+            }
+
+            // 2. FILL GAP: Firestore -> Sheet
+            const productsToAdd: any[][] = [];
+            const itemsToAdd: any[][] = [];
+
+            for (const prod of firestoreProducts) {
+                if (!sheetProductMap.has(prod.id)) {
+                    productsToAdd.push([
+                        prod.id,
+                        prod.code,
+                        prod.name,
+                        prod.unit || '',
+                        prod.sellingPrice || 0,
+                        prod.costPrice || 0,
+                        prod.avgCost || 0
+                    ]);
+                    for (const item of (prod.items || [])) {
+                        const ing = ingMap.get(item.ingredientId);
+                        itemsToAdd.push([
+                            prod.id,
+                            item.ingredientId,
+                            item.quantity,
+                            item.unit || '',
+                            ing?.code || ''
+                        ]);
+                    }
+                }
+            }
+
+            if (productsToAdd.length > 0) {
+                await googleSheetService.appendData(this.spreadsheetId, 'Products', productsToAdd);
+                await googleSheetService.appendData(this.spreadsheetId, 'ProductsIngredientItems', itemsToAdd);
+                this.log('products', `Exported ${productsToAdd.length} products to Sheet`, 'success');
+            } else {
+                 this.log('products', `No missing products in Sheet`);
+            }
+
+            // 3. FILL GAP: Sheet -> Firestore
+            let importedCount = 0;
+            for (let i = 0; i < sheetProducts.length; i++) {
+                const row = sheetProducts[i];
+                let id = row[0];
+                let code = row[1];
+                const isNewRow = !id;
+
+                if (isNewRow || !firestoreMap.has(id)) {
+                    // Items from Sheet
+                    let lookupId = id;
+                    if (isNewRow && code) lookupId = code;
+
+                    const rawItems = sheetItemsMap.get(lookupId) || [];
+                    const recipeItems: any[] = [];
+
+                    for (const iRow of rawItems) {
+                        const ingId = iRow[1];
+                        const qty = Number(iRow[2]);
+                        const unit = iRow[3];
+                        const ingCode = iRow[4];
+
+                        // Resolve Ingredient ID
+                        let resolvedIngId = ingId;
+                        if (!resolvedIngId && ingCode) {
+                            resolvedIngId = ingCodeMap.get(ingCode)?.id;
+                        }
+
+                        if (resolvedIngId) {
+                            recipeItems.push({
+                                ingredientId: resolvedIngId,
+                                quantity: qty,
+                                unit: unit
+                            });
+                        }
+                    }
+
+                    try {
+                        let newId = id;
+                        let newCode = code;
+
+                        const data = {
+                            name: row[2],
+                            unit: row[3],
+                            sellingPrice: Number(row[4]) || 0,
+                            costPrice: Number(row[5]) || 0,
+                            items: recipeItems
+                        };
+
+                        if (isNewRow) {
+                            newCode = await catalogService.createProduct(user, data);
+                            const q = await getDocs(query(collection(db, 'master_products'), where('code', '==', newCode)));
+                            if (!q.empty) newId = q.docs[0].id;
+                        } else {
+                            await catalogService.createProduct(user, data, { forceId: id, forceCode: code });
+                        }
+
+                        if (isNewRow && newId) {
+                            const rowIndex = i + 2;
+                            await googleSheetService.updateCell(this.spreadsheetId, `Products!A${rowIndex}`, newId);
+                            if (newCode && newCode !== code) {
+                                await googleSheetService.updateCell(this.spreadsheetId, `Products!B${rowIndex}`, newCode);
+                            }
+                            this.log('products', `Generated ID for row ${rowIndex}: ${newId}`, 'success');
+                        }
+
+                        importedCount++;
+                    } catch (e: any) {
+                         this.log('products', `Failed to import row ${i+2}: ${e.message}`, 'error');
+                    }
+                }
+            }
+
+            if (importedCount > 0) {
+                this.log('products', `Imported ${importedCount} products to Firestore`, 'success');
+            } else {
+                this.log('products', `No missing products in Firestore`);
+            }
+            this.log('products', 'Product Sync Complete', 'success');
+
+        } catch (error: any) {
+            this.log('products', `Fatal Error: ${error.message}`, 'error');
         }
     }
 
