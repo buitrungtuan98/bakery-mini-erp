@@ -11,6 +11,7 @@
     import { Plus, Save, History, Wallet } from 'lucide-svelte';
     import { expenseService, type Category, type Partner, type ExpenseLog } from '$lib/services/expenseService';
     import SwipeableTabs from '$lib/components/ui/SwipeableTabs.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
 	// --- State ---
     let categories: Category[] = [];
@@ -113,6 +114,11 @@
 <div class="h-full flex flex-col max-w-7xl mx-auto">
     <PageHeader>
         <div slot="title">Chi phí</div>
+        <div slot="actions">
+             {#if activeTab === 'history' && $userPermissions.has('view_finance')}
+                 <SyncButton type="finance" label="Sync Chi Phí" />
+            {/if}
+        </div>
     </PageHeader>
 
     <SwipeableTabs

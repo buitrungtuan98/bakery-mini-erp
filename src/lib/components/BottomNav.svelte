@@ -2,7 +2,7 @@
     import { page } from '$app/stores';
     import { permissionStore } from '$lib/stores/permissionStore';
     import { fade, slide } from 'svelte/transition';
-    import { Home, ShoppingCart, Factory, ChefHat, Menu as MenuIcon, X, Package, Truck, ClipboardList, Wallet, BarChart3, Users, History, Lock, UserCog, Database } from 'lucide-svelte';
+    import { Home, ShoppingCart, Factory, ChefHat, Menu as MenuIcon, X, Package, Truck, ClipboardList, Wallet, BarChart3, Users, History, Lock, UserCog, Database, RefreshCw } from 'lucide-svelte';
 
     $: activeRoute = $page.url.pathname;
 
@@ -170,6 +170,10 @@
                     <a href="/admin/roles" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors">
                         <div class="p-2 rounded-lg bg-red-100 text-error"><Lock size={20} /></div>
                         <span class="font-medium text-error">Phân quyền (Roles)</span>
+                    </a>
+                    <a href="/admin/sync" on:click={closeMenu} class="flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 active:bg-red-100 transition-colors">
+                        <div class="p-2 rounded-lg bg-red-100 text-error"><RefreshCw size={20} /></div>
+                        <span class="font-medium text-error">Đồng bộ (Sync)</span>
                     </a>
                 {/if}
             </div>

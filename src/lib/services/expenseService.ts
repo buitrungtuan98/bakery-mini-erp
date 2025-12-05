@@ -9,7 +9,8 @@ import {
     Timestamp,
     limit,
     where,
-    doc
+    doc,
+    setDoc
 } from 'firebase/firestore';
 import { generateNextCode } from '$lib/utils';
 import { logAction } from '$lib/logger';
@@ -26,13 +27,20 @@ export type Partner = MasterPartner;
 export type ExpenseLog = FinanceLedger;
 
 export const expenseService = {
-    async addCategory(user: User, name: string) {
+    async addCategory(user: User, name: string, options?: { forceId?: string }) {
         if (!name.trim()) throw new Error('Tên danh mục không được để trống.');
 
-        await addDoc(collection(db, 'master_expense_categories'), {
+        const data = {
             name: name.trim(),
             createdAt: serverTimestamp()
-        });
+        };
+
+        if (options?.forceId) {
+             await setDoc(doc(db, 'master_expense_categories', options.forceId), data);
+        } else {
+             await addDoc(collection(db, 'master_expense_categories'), data);
+        }
+
         await logAction(user, 'CREATE', 'master_expense_categories', `Thêm mới danh mục: ${name}`);
     },
 
@@ -47,7 +55,8 @@ export const expenseService = {
         },
         categories: Category[],
         suppliers: Partner[],
-        isAssetPurchase: boolean = false
+        isAssetPurchase: boolean = false,
+        options?: { forceId?: string; forceCode?: string; forceCreatedAt?: Date }
     ) {
         if (!data.categoryId) throw new Error("Vui lòng chọn danh mục chi phí.");
         if (!data.selectedSupplierId) throw new Error("Vui lòng chọn Nhà cung cấp/Người bán.");
@@ -58,29 +67,27 @@ export const expenseService = {
         const supplier = suppliers.find(s => s.id === data.selectedSupplierId);
 
         // Generate a CP code for reference, even though ID is auto-gen
-        const code = await generateNextCode('finance_ledger', 'CP');
-        // Note: finance_ledger might store mixed types, so prefixing code is important.
-        // Or we can just use ID. But for UI consistency, a short code is nice.
+        const code = options?.forceCode || await generateNextCode('finance_ledger', 'CP');
 
-        // We write to 'finance_ledger'
-        const ledgerRef = await addDoc(collection(db, 'finance_ledger'), {
+        const ledgerData = {
             date: Timestamp.fromDate(selectedDate),
             type: 'expense',
-            category: category?.name || 'N/A', // Store snapshot name
+            category: category?.name || 'N/A',
             amount: Number(data.amount),
             description: data.description || 'Không mô tả',
-            relatedDocId: data.selectedSupplierId, // Store Supplier ID here or in description?
-            // The FinanceLedger type has 'relatedDocId'.
-            // We should probably store extra metadata if possible, but Firestore is flexible.
-            // Let's stick to the interface defined in erp.ts as much as possible,
-            // but add custom fields if needed for "Supplier" tracking in Expenses.
+            relatedDocId: data.selectedSupplierId,
             supplierId: data.selectedSupplierId,
             supplierName: supplier?.name || 'N/A',
-            code: code, // Add code field
-
+            code: code,
             recordedBy: user.email,
-            createdAt: serverTimestamp()
-        });
+            createdAt: options?.forceCreatedAt ? Timestamp.fromDate(options.forceCreatedAt) : serverTimestamp()
+        };
+
+        if (options?.forceId) {
+            await setDoc(doc(db, 'finance_ledger', options.forceId), ledgerData);
+        } else {
+            await addDoc(collection(db, 'finance_ledger'), ledgerData);
+        }
 
         if (isAssetPurchase) {
             const assetCode = await generateNextCode('assets', 'TS');
