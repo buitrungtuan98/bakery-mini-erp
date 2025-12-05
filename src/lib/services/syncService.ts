@@ -590,6 +590,7 @@ class SyncService {
                 } else if (actionType === 1 && id && firestoreItem) {
                      // Update
                      await updateDoc(doc(db, 'finance_ledger', id), {
+                         date: new Date(row[2]),
                          amount: Number(row[4]),
                          description: row[6],
                          supplierId: row[7]
@@ -818,6 +819,10 @@ class SyncService {
                      rowsToDelete.push(i);
                 } else if (actionType === 1 && id && firestoreItem) {
                      // Update ??
+                     await updateDoc(doc(db, 'production_runs', id), {
+                         productionDate: new Date(row[2]),
+                         actualYield: Number(row[4])
+                     });
                      await googleSheetService.updateCell(this.spreadsheetId, `Production!F${rowIndex}`, 0);
                 } else if (actionType === 2 && firestoreItem) {
                     const newRow = [...row];
@@ -924,9 +929,21 @@ class SyncService {
                      rowsToDelete.push(i);
                 } else if (actionType === 1 && id && firestoreItem) {
                      // Update: Status changes mainly
+                     const updates: any = {};
                      if (row[4] !== firestoreItem.status) {
-                         await orderService.updateOrderStatus(user, id, row[4]); // Logic safe?
+                         await orderService.updateOrderStatus(user, id, row[4]);
                      }
+                     // Update Date if changed (careful with timestamp)
+                     const newDate = new Date(row[2]);
+                     const oldDate = (firestoreItem.createdAt as any).toDate ? (firestoreItem.createdAt as any).toDate() : new Date(firestoreItem.createdAt as any);
+                     if (newDate.getTime() !== oldDate.getTime()) {
+                         updates.createdAt = newDate;
+                     }
+
+                     if (Object.keys(updates).length > 0) {
+                         await updateDoc(doc(db, 'sales_orders', id), updates);
+                     }
+
                      await googleSheetService.updateCell(this.spreadsheetId, `SalesOrders!G${rowIndex}`, 0);
                 } else if (actionType === 2 && firestoreItem) {
                      const newRow = [...row];
