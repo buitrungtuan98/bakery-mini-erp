@@ -137,6 +137,25 @@ class GoogleSheetService {
     }
 
     /**
+     * Updates a specific cell or range.
+     */
+    async updateCell(spreadsheetId: string, range: string, value: string | number): Promise<void> {
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: this.getHeaders(),
+            body: JSON.stringify({
+                values: [[value]]
+            })
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(`Update Cell Error: ${err.error.message}`);
+        }
+    }
+
+    /**
      * Ensure a sheet (tab) exists, if not create it with header row.
      */
     async ensureSheet(spreadsheetId: string, sheetTitle: string, headers: string[]): Promise<void> {

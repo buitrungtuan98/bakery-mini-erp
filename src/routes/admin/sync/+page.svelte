@@ -87,7 +87,8 @@
         logs = [];
 
         try {
-            const types = ['products', 'ingredients', 'partners', 'categories', 'assets', 'imports', 'production', 'sales', 'finance'] as const;
+            // Sequential order to ensure dependencies (e.g. Master Data before Transactions)
+            const types = ['partners', 'categories', 'ingredients', 'products', 'assets', 'imports', 'production', 'sales', 'finance'] as const;
 
             for (const type of types) {
                 await handleSync(type, true);

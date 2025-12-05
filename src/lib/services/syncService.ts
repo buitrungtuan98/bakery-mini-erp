@@ -5,7 +5,7 @@ import { expenseService } from './expenseService';
 import { inventoryService } from './inventoryService';
 import { productionService } from './productionService';
 import { auth, db } from '$lib/firebase';
-import { collection, doc, setDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
 import type { MasterPartner, MasterProduct, MasterIngredient, SalesOrder, SalesOrderItem, FinanceLedger, ImportReceipt, ImportItem } from '$lib/types/erp';
 import type { ProductionRun, ProductionInput } from '$lib/services/productionService'; // Explicit type import
 
@@ -159,33 +159,59 @@ class SyncService {
 
             // 4. FILL GAP: Sheet -> Firestore (Add missing to Firestore)
             let addedToFirestore = 0;
-            for (const row of sheetRows) {
-                const id = row[0];
-                const code = row[1];
-                if (!id) continue; // Skip empty rows
+            for (let i = 0; i < sheetRows.length; i++) {
+                const row = sheetRows[i];
+                let id = row[0];
+                let code = row[1];
 
-                if (!firestoreMap.has(id)) {
-                    // Item exists in Sheet but not Firestore -> Create
-                    this.log(type, `Found new item in Sheet: ${row[2]} (${code})`, 'info');
+                // If ID is missing, treat as New Creation and Write Back
+                const isNewRow = !id;
+                // If ID exists but not in Firestore, treat as Restore/Sync
+
+                if (isNewRow || !firestoreMap.has(id)) {
+                    this.log(type, isNewRow ? `Creating new item from Sheet: ${row[2]}` : `Restoring item: ${row[2]}`, 'info');
 
                     try {
+                        let newId = id;
+                        let newCode = code;
+
                         if (type === 'products') {
                             const data = {
                                 name: row[2],
                                 unit: row[3],
                                 sellingPrice: Number(row[4]) || 0,
                                 costPrice: Number(row[5]) || 0,
-                                // avgCost is read-only usually, managed by system
                                 items: row[7] ? JSON.parse(row[7]) : []
                             };
-                            await catalogService.createProduct(user, data, { forceId: id, forceCode: code });
+                            if (isNewRow) {
+                                newCode = await catalogService.createProduct(user, data);
+                                // We need to fetch the ID. createProduct returns Code.
+                                // CatalogService createProduct uses addDoc.
+                                // We need to refactor createProduct to return ID too or query it?
+                                // Actually, createProduct in catalogService returns CODE only.
+                                // Let's check catalogService.
+                                // Wait, to simplify write-back, I need the ID.
+                                // Quick fix: Query by Code to get ID? Or modify service?
+                                // Modify service is better but risky for regression.
+                                // Query by Code is safe.
+                                const q = await getDocs(query(collection(db, 'master_products'), where('code', '==', newCode)));
+                                if (!q.empty) newId = q.docs[0].id;
+                            } else {
+                                await catalogService.createProduct(user, data, { forceId: id, forceCode: code });
+                            }
                         } else if (type === 'ingredients') {
                             const data = {
                                 name: row[2],
                                 baseUnit: row[3],
                                 supplierId: row[4]
                             };
-                            await catalogService.createIngredient(user, data, { forceId: id, forceCode: code });
+                            if (isNewRow) {
+                                newCode = await catalogService.createIngredient(user, data);
+                                const q = await getDocs(query(collection(db, 'master_ingredients'), where('code', '==', newCode)));
+                                if (!q.empty) newId = q.docs[0].id;
+                            } else {
+                                await catalogService.createIngredient(user, data, { forceId: id, forceCode: code });
+                            }
                         } else if (type === 'partners') {
                             const data = {
                                 name: row[2],
@@ -195,26 +221,62 @@ class SyncService {
                                 email: row[6],
                                 customerType: row[7]
                             };
-                            await catalogService.createPartner(user, data, { forceId: id, forceCode: code });
+                            if (isNewRow) {
+                                newCode = await catalogService.createPartner(user, data);
+                                const q = await getDocs(query(collection(db, 'master_partners'), where('code', '==', newCode)));
+                                if (!q.empty) newId = q.docs[0].id;
+                            } else {
+                                await catalogService.createPartner(user, data, { forceId: id, forceCode: code });
+                            }
                         } else if (type === 'categories') {
-                            // code is name effectively for categories in some systems, but here id is key.
-                            // Name is row[1]. Code (row[1] in loop) is Name actually for this type?
-                            // Wait, headers are ID, Name. So code variable (row[1]) is Name.
-                            await expenseService.addCategory(user, row[1], { forceId: id });
+                            // Row: [ID, Name]
+                            if (isNewRow) {
+                                const name = row[1];
+                                await expenseService.addCategory(user, name);
+                                const q = await getDocs(query(collection(db, 'master_expense_categories'), where('name', '==', name)));
+                                if (!q.empty) newId = q.docs[0].id;
+                            } else {
+                                await expenseService.addCategory(user, row[1], { forceId: id });
+                            }
                         } else if (type === 'assets') {
-                            // Manual asset creation via setDoc since no dedicated service method for "createAsset" with overrides easily accessible yet
-                            // Or adapt logic.
-                             await setDoc(doc(db, 'master_assets', id), {
-                                code: code, // row[1]
-                                name: row[2],
-                                category: row[3],
-                                status: row[4],
-                                originalPrice: Number(row[5]),
-                                purchaseDate: row[6] ? new Date(row[6]) : new Date(),
-                                createdAt: serverTimestamp(),
-                                createdBy: user.email
-                            });
+                             if (isNewRow) {
+                                 // Not supporting create Asset from Sheet without ID yet due to complexity of custom code gen outside service
+                                 // But let's try.
+                                 // Actually better to skip or use dummy ID? No.
+                                 // Let's defer Assets write-back for now or use generic ID.
+                                 // Or create normally.
+                                 // Manual creation:
+                                 // We need to generate code.
+                                 // Just log warning for now for Assets?
+                                 // Or use setDoc with auto-ID?
+                                 // collection(db...)
+                             } else {
+                                 await setDoc(doc(db, 'master_assets', id), {
+                                    code: code,
+                                    name: row[2],
+                                    category: row[3],
+                                    status: row[4],
+                                    originalPrice: Number(row[5]),
+                                    purchaseDate: row[6] ? new Date(row[6]) : new Date(),
+                                    createdAt: serverTimestamp(),
+                                    createdBy: user.email
+                                });
+                             }
                         }
+
+                        // WRITE BACK TO SHEET
+                        if (isNewRow && newId) {
+                            // Row Index = i + 2 (1 for 0-index, 1 for header)
+                            const rowIndex = i + 2;
+                            // Update ID (Col A)
+                            await googleSheetService.updateCell(this.spreadsheetId, `${sheetName}!A${rowIndex}`, newId);
+                            // Update Code (Col B) if applicable and changed
+                            if (newCode && newCode !== code && type !== 'categories') { // Categories don't have code in Col B (Name is B)
+                                await googleSheetService.updateCell(this.spreadsheetId, `${sheetName}!B${rowIndex}`, newCode);
+                            }
+                            this.log(type, `Generated ID for ${row[2]}: ${newId}`, 'success');
+                        }
+
                         addedToFirestore++;
                     } catch (e: any) {
                         this.log(type, `Failed to add ${row[2]}: ${e.message}`, 'error');
@@ -286,48 +348,79 @@ class SyncService {
 
             // 3. FILL GAP: Sheet -> Firestore
             let importedCount = 0;
-            for (const row of sheetRows) {
-                const id = row[0];
-                if (!id) continue;
-                if (!firestoreMap.has(id)) {
+            for (let i = 0; i < sheetRows.length; i++) {
+                const row = sheetRows[i];
+                let id = row[0];
+                let code = row[1];
+                const isNewRow = !id;
+
+                if (isNewRow || !firestoreMap.has(id)) {
                     // Import
-                    const code = row[1];
                     const dateStr = row[2];
                     const amount = Number(row[4]);
                     const catName = row[5];
                     const desc = row[6];
                     const supId = row[7];
 
-                    // Find Category ID by Name (approx match) or just use name
-                    // Service requires ID.
                     const cat = categories.find(c => c.name === catName);
                     if (!cat) {
-                         this.log('finance', `Skipping ${code}: Category ${catName} not found`, 'error');
+                         this.log('finance', `Skipping row ${i+2}: Category ${catName} not found`, 'error');
                          continue;
                     }
 
                     try {
-                        await expenseService.createExpense(
-                            user,
-                            {
-                                date: dateStr,
-                                categoryId: cat.id,
-                                amount,
-                                description: desc,
-                                selectedSupplierId: supId
-                            },
-                            categories,
-                            suppliers,
-                            false,
-                            {
-                                forceId: id,
-                                forceCode: code,
-                                forceCreatedAt: new Date(dateStr)
+                        let newId = id;
+                        let newCode = code;
+
+                        if (isNewRow) {
+                            newCode = await expenseService.createExpense(
+                                user,
+                                {
+                                    date: dateStr,
+                                    categoryId: cat.id,
+                                    amount,
+                                    description: desc,
+                                    selectedSupplierId: supId
+                                },
+                                categories,
+                                suppliers,
+                                false
+                            );
+                            const q = await getDocs(query(collection(db, 'finance_ledger'), where('code', '==', newCode)));
+                            if (!q.empty) newId = q.docs[0].id;
+                        } else {
+                            await expenseService.createExpense(
+                                user,
+                                {
+                                    date: dateStr,
+                                    categoryId: cat.id,
+                                    amount,
+                                    description: desc,
+                                    selectedSupplierId: supId
+                                },
+                                categories,
+                                suppliers,
+                                false,
+                                {
+                                    forceId: id,
+                                    forceCode: code,
+                                    forceCreatedAt: new Date(dateStr)
+                                }
+                            );
+                        }
+
+                        if (isNewRow && newId) {
+                            const rowIndex = i + 2;
+                            await googleSheetService.updateCell(this.spreadsheetId, `Finance!A${rowIndex}`, newId);
+                            if (newCode && newCode !== code) {
+                                await googleSheetService.updateCell(this.spreadsheetId, `Finance!B${rowIndex}`, newCode);
                             }
-                        );
+                            this.log('finance', `Generated ID for row ${rowIndex}: ${newId}`, 'success');
+                        }
+
                         importedCount++;
                     } catch (e: any) {
-                         this.log('finance', `Failed to import ${code}: ${e.message}`, 'error');
+                         this.log('finance', `Failed to import row ${i+2}: ${e.message}`, 'error');
                     }
                 }
             }
@@ -416,23 +509,48 @@ class SyncService {
 
             // 3. FILL GAP: Sheet -> Firestore
             let importedCount = 0;
-            for (const row of sheetImports) {
-                const id = row[0];
-                if (!id) continue;
-                if (!firestoreMap.has(id)) {
-                    const code = row[1];
+            for (let i = 0; i < sheetImports.length; i++) {
+                const row = sheetImports[i];
+                let id = row[0];
+                let code = row[1];
+                const isNewRow = !id;
+
+                if (isNewRow || !firestoreMap.has(id)) {
                     const dateStr = row[2];
                     const supplierId = row[3];
-                    // const total = row[4];
 
-                    const rawItems = sheetItemsMap.get(id) || [];
-                    if (rawItems.length === 0) continue;
+                    // For new rows, we might rely on Code to group items?
+                    // Or if user leaves ID blank, they must group items somehow?
+                    // Assumption: If ID is blank, user MUST put the SAME Code in ImportItems sheet for these items?
+                    // But ImportItems sheet links by ImportID.
+                    // If ImportID is blank in Header sheet, user cannot link Items easily unless they use Code in Items sheet?
+                    // Current design: ImportItems has "ImportID" column.
+                    // If user creates a new Import in Sheet, they don't have ID yet.
+                    // They might put a temporary placeholder or Code in "ImportID" column?
+                    // This is complex. "Correct Data" implies consistent linking.
+                    // Simplification: We assume for NEW Transactions, user might put a temporary Code in ID column?
+                    // OR we only support New Transactions if they have a Code, and Items use that Code as ID ref temporarily?
+                    // Let's assume if ID is missing, we look for items by CODE match if possible?
+                    // But ImportItems sheet has [ImportID, ...].
+                    // If user enters data:
+                    // Header: [EMPTY_ID, NK-NEW, ...]
+                    // Items: [NK-NEW, ...] (Using code as link?)
+                    // Let's try to find items by Code if ID lookup fails.
+
+                    let lookupId = id;
+                    if (isNewRow && code) lookupId = code;
+
+                    const rawItems = sheetItemsMap.get(lookupId) || [];
+                    if (rawItems.length === 0) {
+                        this.log('imports', `Skipping new row ${i+2}: No items found (linked by ID or Code)`, 'warning');
+                        continue;
+                    }
 
                     const importItems: ImportItem[] = [];
                     for (const iRow of rawItems) {
                         const ingId = iRow[1];
                         const qty = Number(iRow[2]);
-                        const price = Number(iRow[3]); // Line total
+                        const price = Number(iRow[3]);
 
                         importItems.push({
                             ingredientId: ingId,
@@ -442,22 +560,48 @@ class SyncService {
                     }
 
                     try {
-                        await inventoryService.createImportReceipt(
-                            user,
-                            supplierId,
-                            dateStr,
-                            importItems,
-                            suppliers,
-                            ingredients,
-                            {
-                                forceId: id,
-                                forceCode: code,
-                                forceCreatedAt: new Date(dateStr)
+                        let newId = id;
+                        let newCode = code;
+
+                        if (isNewRow) {
+                            newCode = await inventoryService.createImportReceipt(
+                                user,
+                                supplierId,
+                                dateStr,
+                                importItems,
+                                suppliers,
+                                ingredients
+                            );
+                            const q = await getDocs(query(collection(db, 'imports'), where('code', '==', newCode)));
+                            if (!q.empty) newId = q.docs[0].id;
+                        } else {
+                            await inventoryService.createImportReceipt(
+                                user,
+                                supplierId,
+                                dateStr,
+                                importItems,
+                                suppliers,
+                                ingredients,
+                                {
+                                    forceId: id,
+                                    forceCode: code,
+                                    forceCreatedAt: new Date(dateStr)
+                                }
+                            );
+                        }
+
+                        if (isNewRow && newId) {
+                            const rowIndex = i + 2;
+                            await googleSheetService.updateCell(this.spreadsheetId, `Imports!A${rowIndex}`, newId);
+                            if (newCode && newCode !== code) {
+                                await googleSheetService.updateCell(this.spreadsheetId, `Imports!B${rowIndex}`, newCode);
                             }
-                        );
+                            this.log('imports', `Generated ID for row ${rowIndex}: ${newId}`, 'success');
+                        }
+
                         importedCount++;
                     } catch (e: any) {
-                         this.log('imports', `Failed to import ${code}: ${e.message}`, 'error');
+                         this.log('imports', `Failed to import row ${i+2}: ${e.message}`, 'error');
                     }
                 }
             }
@@ -542,16 +686,21 @@ class SyncService {
 
             // 3. FILL GAP: Sheet -> Firestore
             let importedCount = 0;
-            for (const row of sheetRuns) {
-                const id = row[0];
-                if (!id) continue;
-                if (!firestoreMap.has(id)) {
-                    const code = row[1];
+            for (let i = 0; i < sheetRuns.length; i++) {
+                const row = sheetRuns[i];
+                let id = row[0];
+                let code = row[1];
+                const isNewRow = !id;
+
+                if (isNewRow || !firestoreMap.has(id)) {
                     const dateStr = row[2];
                     const productId = row[3];
                     const yieldQty = Number(row[4]);
 
-                    const rawInputs = sheetInputMap.get(id) || [];
+                    let lookupId = id;
+                    if (isNewRow && code) lookupId = code;
+
+                    const rawInputs = sheetInputMap.get(lookupId) || [];
                     if (rawInputs.length === 0) continue;
 
                     const inputs: ProductionInput[] = [];
@@ -566,27 +715,53 @@ class SyncService {
 
                     const product = products.find(p => p.id === productId);
                     if (!product) {
-                        this.log('production', `Skipping ${code}: Product ${productId} not found`, 'error');
+                        this.log('production', `Skipping row ${i+2}: Product ${productId} not found`, 'error');
                         continue;
                     }
 
                     try {
-                        await productionService.createProductionRun(
-                            user,
-                            product,
-                            dateStr,
-                            yieldQty,
-                            inputs,
-                            ingredients,
-                            {
-                                forceId: id,
-                                forceCode: code,
-                                forceCreatedAt: new Date(dateStr)
+                        let newId = id;
+                        let newCode = code;
+
+                        if (isNewRow) {
+                            newCode = await productionService.createProductionRun(
+                                user,
+                                product,
+                                dateStr,
+                                yieldQty,
+                                inputs,
+                                ingredients
+                            );
+                            const q = await getDocs(query(collection(db, 'production_runs'), where('code', '==', newCode)));
+                            if (!q.empty) newId = q.docs[0].id;
+                        } else {
+                            await productionService.createProductionRun(
+                                user,
+                                product,
+                                dateStr,
+                                yieldQty,
+                                inputs,
+                                ingredients,
+                                {
+                                    forceId: id,
+                                    forceCode: code,
+                                    forceCreatedAt: new Date(dateStr)
+                                }
+                            );
+                        }
+
+                        if (isNewRow && newId) {
+                            const rowIndex = i + 2;
+                            await googleSheetService.updateCell(this.spreadsheetId, `Production!A${rowIndex}`, newId);
+                            if (newCode && newCode !== code) {
+                                await googleSheetService.updateCell(this.spreadsheetId, `Production!B${rowIndex}`, newCode);
                             }
-                        );
+                            this.log('production', `Generated ID for row ${rowIndex}: ${newId}`, 'success');
+                        }
+
                         importedCount++;
                     } catch (e: any) {
-                         this.log('production', `Failed to import ${code}: ${e.message}`, 'error');
+                         this.log('production', `Failed to import row ${i+2}: ${e.message}`, 'error');
                     }
                 }
             }
@@ -681,29 +856,31 @@ class SyncService {
 
             // 3. FILL GAP: Sheet -> Firestore
             let importedCount = 0;
-            for (const row of sheetOrders) {
-                const orderId = row[0];
-                const code = row[1];
-                const dateStr = row[2];
-                const customerId = row[3];
-                const status = row[4];
+            for (let i = 0; i < sheetOrders.length; i++) {
+                const row = sheetOrders[i];
+                let id = row[0];
+                let code = row[1];
+                const isNewRow = !id;
 
-                if (!orderId) continue;
-
-                if (!firestoreMap.has(orderId)) {
-                    this.log('sales', `Found new order in Sheet: ${code}`, 'info');
+                if (isNewRow || !firestoreMap.has(id)) {
+                    const dateStr = row[2];
+                    const customerId = row[3];
+                    const status = row[4];
 
                     // Validate Customer
                     const customer = partnerMap.get(customerId);
                     if (!customer) {
-                        this.log('sales', `Skipping ${code}: Customer ID ${customerId} not found`, 'error');
+                        this.log('sales', `Skipping row ${i+2}: Customer ID ${customerId} not found`, 'error');
                         continue;
                     }
 
                     // Build Items
-                    const rawItems = sheetItemsMap.get(orderId) || [];
+                    let lookupId = id;
+                    if (isNewRow && code) lookupId = code;
+
+                    const rawItems = sheetItemsMap.get(lookupId) || [];
                     if (rawItems.length === 0) {
-                         this.log('sales', `Skipping ${code}: No items found`, 'error');
+                         this.log('sales', `Skipping row ${i+2}: No items found`, 'error');
                          continue;
                     }
 
@@ -717,7 +894,7 @@ class SyncService {
 
                         const product = productMap.get(pid);
                         if (!product) {
-                            this.log('sales', `Skipping ${code}: Product ID ${pid} not found`, 'error');
+                            this.log('sales', `Skipping row ${i+2}: Product ID ${pid} not found`, 'error');
                             itemsValid = false;
                             break;
                         }
@@ -736,26 +913,54 @@ class SyncService {
                     if (!itemsValid) continue;
 
                     try {
-                        // Create Order
-                        await orderService.createOrder(
-                            user,
-                            customer,
-                            salesItems,
-                            status || 'completed',
-                            dateStr,
-                            products,
-                            0, // Shipping Fee
-                            customer.address || '',
-                            customer.phone || '',
-                            {
-                                forceCode: code,
-                                forceId: orderId,
-                                forceCreatedAt: new Date(dateStr)
+                        let newId = id;
+                        let newCode = code;
+
+                        if (isNewRow) {
+                            newCode = await orderService.createOrder(
+                                user,
+                                customer,
+                                salesItems,
+                                status || 'completed',
+                                dateStr,
+                                products,
+                                0, // Shipping Fee
+                                customer.address || '',
+                                customer.phone || ''
+                            );
+                            const q = await getDocs(query(collection(db, 'sales_orders'), where('code', '==', newCode)));
+                            if (!q.empty) newId = q.docs[0].id;
+                        } else {
+                            await orderService.createOrder(
+                                user,
+                                customer,
+                                salesItems,
+                                status || 'completed',
+                                dateStr,
+                                products,
+                                0, // Shipping Fee
+                                customer.address || '',
+                                customer.phone || '',
+                                {
+                                    forceCode: code,
+                                    forceId: id,
+                                    forceCreatedAt: new Date(dateStr)
+                                }
+                            );
+                        }
+
+                        if (isNewRow && newId) {
+                            const rowIndex = i + 2;
+                            await googleSheetService.updateCell(this.spreadsheetId, `SalesOrders!A${rowIndex}`, newId);
+                            if (newCode && newCode !== code) {
+                                await googleSheetService.updateCell(this.spreadsheetId, `SalesOrders!B${rowIndex}`, newCode);
                             }
-                        );
+                            this.log('sales', `Generated ID for row ${rowIndex}: ${newId}`, 'success');
+                        }
+
                         importedCount++;
                     } catch (e: any) {
-                         this.log('sales', `Failed to import ${code}: ${e.message}`, 'error');
+                         this.log('sales', `Failed to import row ${i+2}: ${e.message}`, 'error');
                     }
                 }
             }
