@@ -12,6 +12,7 @@
     import { Plus, Save, Trash2, Import, History, Download } from 'lucide-svelte';
     import { inventoryService, type MasterPartner as Partner, type MasterIngredient as Ingredient, type ImportReceipt, type ImportItem } from '$lib/services/inventoryService';
     import SwipeableTabs from '$lib/components/ui/SwipeableTabs.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
 	// --- State ---
 	let ingredients: Ingredient[] = []; 
@@ -172,6 +173,11 @@
 <div class="h-full flex flex-col max-w-7xl mx-auto">
     <PageHeader>
         <div slot="title">Nhập kho</div>
+        <div slot="actions">
+             {#if activeTab === 'history' && $userPermissions.has('manage_imports')}
+                 <SyncButton type="imports" label="Sync Nhập" />
+            {/if}
+        </div>
     </PageHeader>
     
     <SwipeableTabs

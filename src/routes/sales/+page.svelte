@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/authStore';
-    import { checkPermission } from '$lib/stores/permissionStore';
+    import { checkPermission, permissionStore } from '$lib/stores/permissionStore';
     import { productStore, partnerStore } from '$lib/stores/masterDataStore';
     import type { MasterProduct, MasterPartner, SalesOrder, SalesOrderItem } from '$lib/types/erp';
 	import { onMount, onDestroy } from 'svelte';
@@ -17,6 +17,7 @@
     import { fade } from 'svelte/transition';
     import SwipeableTabs from '$lib/components/ui/SwipeableTabs.svelte';
     import FloatingActionButton from '$lib/components/ui/FloatingActionButton.svelte';
+    import SyncButton from '$lib/components/ui/SyncButton.svelte';
 
 	// --- State ---
 	let products: MasterProduct[] = [];
@@ -342,7 +343,11 @@
         <div slot="title" class="flex items-center gap-2">
             <span class="text-2xl font-bold tracking-tight text-slate-800">Bán hàng</span>
         </div>
-        <!-- Actions Removed: Moved to FAB -->
+        <div slot="actions">
+             {#if activeTab === 'history' && $permissionStore.userPermissions.has('view_sales')}
+                 <SyncButton type="sales" label="Sync Đơn" />
+            {/if}
+        </div>
     </PageHeader>
 
     <SwipeableTabs
