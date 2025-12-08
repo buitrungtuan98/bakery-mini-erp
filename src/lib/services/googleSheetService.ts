@@ -156,7 +156,7 @@ class GoogleSheetService {
     }
 
     /**
-     * Updates a row or range with multiple values.
+     * Updates a full row or range with array of values.
      */
     async updateRow(spreadsheetId: string, range: string, values: any[]): Promise<void> {
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`;
@@ -171,6 +171,22 @@ class GoogleSheetService {
         if (!response.ok) {
             const err = await response.json();
             throw new Error(`Update Row Error: ${err.error.message}`);
+        }
+    }
+
+    /**
+     * Clears a range (e.g., a row).
+     */
+    async clearRow(spreadsheetId: string, range: string): Promise<void> {
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}:clear`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: this.getHeaders()
+        });
+
+         if (!response.ok) {
+            const err = await response.json();
+            throw new Error(`Clear Row Error: ${err.error.message}`);
         }
     }
 
@@ -212,49 +228,6 @@ class GoogleSheetService {
             if (!currentHeaders || currentHeaders.length === 0) {
                  await this.appendData(spreadsheetId, `${sheetTitle}!A1`, [headers]);
             }
-        }
-    }
-
-    /**
-     * Get the integer Sheet ID (sheetId) from the Sheet Title.
-     */
-    async getSheetId(spreadsheetId: string, sheetTitle: string): Promise<number | null> {
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
-        const response = await fetch(url, { headers: this.getHeaders() });
-        const data = await response.json();
-
-        const sheet = data.sheets.find((s: any) => s.properties.title === sheetTitle);
-        return sheet ? sheet.properties.sheetId : null;
-    }
-
-    /**
-     * Delete a row (deleteDimension).
-     * rowIndex is 0-based.
-     */
-    async deleteRow(spreadsheetId: string, sheetId: number, rowIndex: number): Promise<void> {
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: this.getHeaders(),
-            body: JSON.stringify({
-                requests: [
-                    {
-                        deleteDimension: {
-                            range: {
-                                sheetId: sheetId,
-                                dimension: "ROWS",
-                                startIndex: rowIndex,
-                                endIndex: rowIndex + 1
-                            }
-                        }
-                    }
-                ]
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(`Delete Row Error: ${err.error.message}`);
         }
     }
 }
