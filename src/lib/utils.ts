@@ -58,3 +58,31 @@ export async function generateNextCode(collectionName: string, prefix: string, l
         throw error;
     }
 }
+
+/**
+ * Safely formats a date from various inputs (Firestore Timestamp, Date, String, null).
+ * Returns 'N/A' if invalid or null.
+ */
+export function formatDate(date: any): string {
+    if (!date) return 'N/A';
+    try {
+        // Handle Firestore Timestamp
+        if (date.toDate && typeof date.toDate === 'function') {
+            return date.toDate().toLocaleDateString('vi-VN');
+        }
+        // Handle standard Date object
+        if (date instanceof Date) {
+            return date.toLocaleDateString('vi-VN');
+        }
+        // Handle String (ISO, etc.)
+        if (typeof date === 'string') {
+             const d = new Date(date);
+             if (!isNaN(d.getTime())) {
+                 return d.toLocaleDateString('vi-VN');
+             }
+        }
+        return 'Invalid Date';
+    } catch (e) {
+        return 'Error';
+    }
+}
