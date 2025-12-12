@@ -13,6 +13,7 @@
     import { inventoryService, type MasterPartner as Partner, type MasterIngredient as Ingredient, type ImportReceipt, type ImportItem } from '$lib/services/inventoryService';
     import SwipeableTabs from '$lib/components/ui/SwipeableTabs.svelte';
     import SyncButton from '$lib/components/ui/SyncButton.svelte';
+    import { formatDate } from '$lib/utils';
 
 	// --- State ---
 	let ingredients: Ingredient[] = []; 
@@ -265,7 +266,7 @@
                                                 {#if receipt.status === 'canceled'}
                                                     <span class="badge badge-xs badge-error">Đã hủy</span>
                                                 {/if}
-                                                <div class="text-xs text-gray-400">{receipt.importDate?.toDate().toLocaleDateString('vi-VN')}</div>
+                                                <div class="text-xs text-gray-400">{formatDate(receipt.importDate)}</div>
                                             </div>
                                         </div>
                                         <div class="font-bold text-success">{receipt.totalAmount.toLocaleString()} đ</div>
@@ -300,7 +301,7 @@
                                 {#each importHistory as receipt}
                                     <tr class="hover group {receipt.status === 'canceled' ? 'opacity-50 grayscale' : ''}">
                                         <td>
-                                            {receipt.importDate?.toDate().toLocaleDateString('vi-VN') || 'N/A'}
+                                            {formatDate(receipt.importDate)}
                                             {#if receipt.status === 'canceled'}
                                                 <span class="badge badge-xs badge-error ml-2">Đã hủy</span>
                                             {/if}
